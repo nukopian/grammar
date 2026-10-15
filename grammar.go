@@ -362,16 +362,99 @@ func (g *Grammar) prepare(opts []Option) options {
 }
 
 func (g *Grammar) run(in []rune, from int, whole bool, o options) *mnode {
-	st := &state{in: in, g: g}
+	return g.runState(&state{in: in, g: g}, from, whole, o)
+}
+
+func (g *Grammar) runState(st *state, from int, whole bool, o options) *mnode {
 	var m *mnode
 	(&call{name: o.rule, capture: true}).match(st, from, nil, env{}, func(p int, c *capList) bool {
-		if whole && p != len(in) {
+		if whole && p != len(st.in) {
+			st.fail(p, aEnd, env{})
 			return false
 		}
 		m = c.m
 		return true
 	})
 	return m
+}
+
+// ParseErr is Parse, but when the text doesn't match it also returns a
+// *ParseError, saying where the parse got furthest and what it expected
+// there. Working that out costs a little, so Parse doesn't.
+func (g *Grammar) ParseErr(text string, opts ...Option) (*scalar.SV, error) {
+	return g.parseErr(text, true, opts)
+}
+
+// SubparseErr is Subparse, with a *ParseError when the text doesn't match,
+// as ParseErr has.
+func (g *Grammar) SubparseErr(text string, opts ...Option) (*scalar.SV, error) {
+	return g.parseErr(text, false, opts)
+}
+
+func (g *Grammar) parseErr(text string, whole bool, opts []Option) (*scalar.SV, error) {
+	o, in := g.prepare(opts), []rune(text)
+	st := &state{in: in, g: g, tr: &tracker{}}
+	if m := g.runState(st, 0, whole, o); m != nil {
+		return o.result(in, m), nil
+	}
+	return &scalar.SV{}, newParseError(g.name, in, st.tr.far, st.tr.exp)
+}
+
+// ParseError says why a parse failed: the furthest point in the text that
+// any part of the grammar reached, and what it expected there. That's
+// usually where the mistake is, as everything before it matched something.
+type ParseError struct {
+	Grammar string
+	Offset  int // characters (runes) from the start of the text
+	Line    int // from 1
+	Column  int // from 1, in characters
+
+	// Expected is what would have matched there, as the grammar writes it:
+	// <money> for a rule that couldn't start there, 'text', \d, <[a..z]>,
+	// @list, end of text.
+	Expected []string
+
+	// Found is the text there, to the end of its line and at most 20
+	// characters; empty at the end of a line or of the text.
+	Found string
+
+	atEnd bool
+}
+
+func newParseError(name string, in []rune, at int, expected []string) *ParseError {
+	e := &ParseError{Grammar: name, Offset: at, Line: 1, Column: 1, Expected: slices.Clone(expected), atEnd: at >= len(in)}
+	for _, r := range in[:at] {
+		if r == '\n' {
+			e.Line, e.Column = e.Line+1, 1
+		} else {
+			e.Column++
+		}
+	}
+	rest := in[at:]
+	if i := slices.Index(rest, '\n'); i >= 0 {
+		rest = rest[:i]
+	}
+	e.Found = string(rest[:min(len(rest), 20)])
+	return e
+}
+
+func (e *ParseError) Error() string {
+	expected := "something else"
+	switch n := len(e.Expected); n {
+	case 0:
+	case 1:
+		expected = e.Expected[0]
+	default:
+		expected = strings.Join(e.Expected[:n-1], ", ") + " or " + e.Expected[n-1]
+	}
+	found := strconv.Quote(e.Found)
+	switch {
+	case e.atEnd:
+		found = "end of text"
+	case e.Found == "":
+		found = "end of line"
+	}
+	return fmt.Sprintf("grammar %s: line %d, column %d: expected %s, found %s", e.Grammar, e.Line, e.Column, expected, found)
 }
 
 func (o options) result(in []rune, m *mnode) *scalar.SV {
@@ -599,13 +682,13 @@ func newBuiltins() *Grammar {
 	b := &Grammar{name: "Grammar", rules: map[string]*rule{}}
 	tokens := map[string]Node{
 		"ws":    Seq(aNotWithinWord, Star(Space)), // token ws { <!ww> \s* }
-		"alpha": Class(isAlpha),
+		"alpha": class{isAlpha, "<alpha>"},
 		"digit": Digit,
-		"alnum": Class(func(r rune) bool { return isAlpha(r) || isDigit(r) }),
-		"upper": Class(unicode.IsUpper),
-		"lower": Class(unicode.IsLower),
+		"alnum": class{func(r rune) bool { return isAlpha(r) || isDigit(r) }, "<alnum>"},
+		"upper": class{unicode.IsUpper, "<upper>"},
+		"lower": class{unicode.IsLower, "<lower>"},
 		"space": Space,
-		"punct": Class(unicode.IsPunct),
+		"punct": class{unicode.IsPunct, "<punct>"},
 	}
 	for name, body := range tokens {
 		b.Token(name, body)

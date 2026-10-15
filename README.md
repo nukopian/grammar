@@ -406,6 +406,7 @@ action runs once.
 | `g.Subparse(text)` | match from the start of text, not necessarily to the end |
 | `g.Find(text)` | the first match anywhere in text |
 | `g.FindAll(text)` | every match in text, left to right, not overlapping |
+| `g.ParseErr(text)`, `g.SubparseErr(text)` | as `Parse` and `Subparse`, with a `*ParseError` saying why when the text doesn't match |
 
 Each returns undef (or an empty array) when nothing matches. Each takes
 options: `grammar.Rule("name")` to start somewhere other than `TOP`, and
@@ -459,6 +460,33 @@ run innermost first, so a rule's action can read the made values of the
 rules it called. Rules without an action are left alone.
 
 ## Errors
+
+### When text doesn't match
+
+`Parse` returns undef when text doesn't match. `ParseErr` returns the same,
+plus an error saying where the grammar got furthest and what it expected
+there:
+
+```go
+m, err := Pay.ParseErr("£45k - 55,000")
+// grammar Pay: line 1, column 8: expected <money>, found "55,000"
+```
+
+That point is usually where the mistake is, as everything before it
+matched something. What's expected is written as the grammar writes it: a
+rule that couldn't start there by name (`<money>`), and otherwise the
+pieces that could have come next (`'k'`, `\d`, `<[a..z]>`, `@units`, `end
+of text`). A few failures are left out as no news: those inside
+lookarounds and `<ws>`, and a class repeat such as `\s*` stopping, as it's
+free to.
+
+The error is a `*ParseError`, whose fields (`Line`, `Column`, `Offset`,
+`Expected`, `Found`) give the same facts for a program to use: logging
+which rule postings fail at, for instance, to see what a grammar is
+missing. Working the report out costs a little, so `Parse` doesn't; use
+`ParseErr` when you want to know why.
+
+### Mistakes in grammars
 
 `Compile` returns an error for bad syntax, with the line and column, for a
 call to a rule that doesn't exist, for a name it can't find (a grammar or
@@ -541,7 +569,8 @@ Before changing anything, it helps to know how the package is put together:
 | **Rule parameters and dynamic variables**: `token amount($cur)`, `$*CURRENCY` | Parsing that depends on context, such as a currency that changes how amounts read. | Arguments in the syntax and on `call`, and a stack of dynamic variables in `state`, visible to called rules. Inheritance and roles usually do the job more simply. | yes | 3 |
 | **`<@list>`**: each entry matched as a regex | Lists of patterns built from data. | Compile each entry with the syntax parser's regex code into an `Alt`. `Compile` rejects `<@list>` now, so that synonym data isn't treated as patterns by mistake; keep `@list` for literal phrases. | yes | 2 |
 | **Interpolation**: `$var`, `<$regex>`, `<{ … }>` | Patterns chosen at run time. | Word lists cover literal phrases, and `Re` covers regex strings. A named-pattern binding, passed to `Compile` as lists are, would cover the rest. | partly | 2 |
-| **Goal matching**: `'(' ~ ')' <inner>` | Brackets in titles, such as "Engineer (Remote, FTC)", with an error saying the closing bracket is missing. | Sugar for `Seq(open, inner, close)`, plus a failure message, so do failure reports (below) first. | yes | 1–2 |
+| **Goal matching**: `'(' ~ ')' <inner>` | Brackets in titles, such as "Engineer (Remote, FTC)", with an error saying the closing bracket is missing. | Sugar for `Seq(open, inner, close)`. `ParseErr` already reports a missing `')'`; goal matching would add Raku's wording ("couldn't find final ')'"). | yes | 1 |
+| **Failure reports from `Find` and `FindAll`** | Finding out why pay wasn't found in a posting, rather than why one string didn't parse. | Track failures across every start position and report the furthest. The noise is the hard part: most positions fail at once, for no interesting reason. | partly | 2 |
 | **Capture order**: `.caps`, `.chunks` | Where the order of different captures matters, such as qualifiers in a title. A match keeps order within one name (arrays) but not between names. | `build` has the captures in order; expose them as a list of name and match pairs. They can't go under a key a capture might use, so pick a reserved key, as `~` is, or add a function. | yes | 1 |
 | **Unicode properties**: `<:Lu>`, `<:Letter>`, `<:Script<Latin>>` | Text in other languages and scripts. | In `classExpr`, map property names to Go's `unicode` tables. | yes | 1 |
 | **Conjunctions**: `&`, `&&` | "Something that matches both", such as a word that's in a list and isn't a stopword. | A node that matches its first part, then checks the others match exactly the same text. | yes | 2 |
@@ -565,7 +594,6 @@ Before changing anything, it helps to know how the package is put together:
 |---|---|---|---|---|
 | **`Find` is slow on long text.** It tries the grammar at every position: about 1.4 ms to search a 4 KB posting for pay (`BenchmarkFindAll`). | High volumes, or many grammars per posting. | Work out the characters a grammar can start with (a first set, following calls, and giving up on lookbehind or rules that can match nothing), and skip positions that can't start a match. Should be many times faster. | yes | 2 |
 | **No memoisation.** A rule may be tried at the same position many times. | `regex` rules that backtrack heavily, and deep grammars that try many alternatives. | Cache each token's result by rule and position in `state`: a token has at most one result, so this is safe for tokens. | yes | 2 |
-| **No failure reports.** A failed parse is just undef. | Writing and debugging grammars; logging why a posting fell through to the LLM, which shows what to add next. | Track the furthest position reached in `state`, and what was expected there (literals, rule names), and return it from a variant of `Parse` with an error. | yes | 2–3 |
 | **Left recursion through a regex isn't always caught.** `Check` asks whether each `Re` pattern matches an empty string, to decide whether a call after it is at the same position. A pattern that can match nothing only in context, such as a lookahead, may be judged wrongly, and a rule that then recurses on the left still overflows the stack, which kills the program. | Only with `Re` terminals that can match empty text in some places and not others. | Treat any `Re` with a lookaround as able to match empty text, at the cost of rejecting a few grammars that are fine. | yes | 1 |
 | **`<?after …>` tries every earlier position.** It matches its pattern ending at the current position by trying each start before it, so it costs time in proportion to how far into the text it is, and heavy use in `FindAll` grows with the square of the text's length. | Long texts with many lookbehinds. | Where the pattern's length is fixed or bounded (a literal, a class, a bounded repeat), try only those start positions. | yes | 2 |
 | **Nested alternations in a `regex` double their work at each level.** `\|` matches each branch to measure it, then matches the winner again for real. In a `token` the second match is skipped, as the first is final. | Deeply nested alternations inside `regex` rules, which are rare. | Part of true longest-token matching (above), which decides from prefixes without matching branches in full. | yes | 5 |
@@ -1193,6 +1221,68 @@ fmt.Println(err, errors.Is(err, grammar.ErrNoMatch))
 {Min:45000 Max:55000 Period:per annum} <nil>
 {Min:18.5 Max:0 Period:} <nil>
 grammar: no match true
+```
+
+#### `Grammar.ParseErr`
+
+ParseErr is Parse, but when the text doesn't match it also returns a *ParseError, saying where the parse got furthest and what it expected there.
+
+ParseErr says why a parse failed: where in the text the grammar got furthest, and what it expected there. A rule that couldn't start there is named, \<money> here; one that got part of the way is reported by what it needed next. That's usually exactly where the mistake is, as everything before it matched.
+
+```go
+for _, text := range []string{
+	"£45k - £55,000 per annum",
+	"£45k - 55,000",       // the second figure has no £
+	"£45k - £55,00",       // a thousands group cut short
+	"£45k - £55k pa, DOE", // more after the pay
+} {
+	m, err := Pay.ParseErr(text)
+	if err != nil {
+		fmt.Println(err)
+		continue
+	}
+	fmt.Println("ok:", m.At("~"))
+}
+```
+
+```
+ok: £45k - £55,000 per annum
+grammar Pay: line 1, column 8: expected <money>, found "55,000"
+grammar Pay: line 1, column 14: expected \d, found end of text
+grammar Pay: line 1, column 15: expected end of text, found ", DOE"
+```
+
+#### `Grammar.SubparseErr`
+
+SubparseErr is Subparse, with a *ParseError when the text doesn't match, as ParseErr has.
+
+SubparseErr is ParseErr for Subparse: the text must match from its start, but needn't match to its end.
+
+```go
+_, err := Pay.SubparseErr("Salary: £45k")
+fmt.Println(err)
+```
+
+```
+grammar Pay: line 1, column 1: expected <money>, found "Salary: £45k"
+```
+
+#### `ParseError.Error`
+
+A ParseError's fields give the same facts as its message, for a program to use: to log which rule postings fail at, say, or to underline the place in an editor.
+
+```go
+_, err := Pay.ParseErr("£45k -\n55k")
+var pe *grammar.ParseError
+if errors.As(err, &pe) {
+	fmt.Println(pe.Line, pe.Column, pe.Expected, pe.Found)
+	fmt.Println(pe)
+}
+```
+
+```
+2 1 [<money>] 55k
+grammar Pay: line 2, column 1: expected <money>, found "55k"
 ```
 
 ### Reference: Building rules in Go

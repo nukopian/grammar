@@ -545,7 +545,9 @@ func (p *parser) atom() Node {
 	case p.eat("."):
 		return AnyChar
 	case p.eat(`\`):
-		return Class(p.escape())
+		start := p.i - 1
+		in := p.escape()
+		return class{in, string(p.src[start:p.i])}
 	case p.eat("^^"):
 		return LineStart
 	case p.eat("^"):
@@ -641,9 +643,10 @@ func (p *parser) escape() func(rune) bool {
 func (p *parser) assertion() Node {
 	switch {
 	case p.peek("[") || p.peek("-") || p.peek("+"):
+		start := p.i - 1 // the <
 		f := p.classExpr()
 		p.expect(">")
-		return Class(f)
+		return class{f, string(p.src[start:p.i])}
 	case p.peek("?before") || p.peek("!before") || p.peek("?after") || p.peek("!after"):
 		neg := p.eat("!")
 		p.eat("?")

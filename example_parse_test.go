@@ -183,3 +183,53 @@ func ExampleTo() {
 	// {Min:18.5 Max:0 Period:} <nil>
 	// grammar: no match true
 }
+
+// ParseErr says why a parse failed: where in the text the grammar got
+// furthest, and what it expected there. A rule that couldn't start there is
+// named, <money> here; one that got part of the way is reported by what it
+// needed next. That's usually exactly where the mistake is, as everything
+// before it matched.
+func ExampleGrammar_ParseErr() {
+	for _, text := range []string{
+		"£45k - £55,000 per annum",
+		"£45k - 55,000",       // the second figure has no £
+		"£45k - £55,00",       // a thousands group cut short
+		"£45k - £55k pa, DOE", // more after the pay
+	} {
+		m, err := Pay.ParseErr(text)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		fmt.Println("ok:", m.At("~"))
+	}
+	// Output:
+	// ok: £45k - £55,000 per annum
+	// grammar Pay: line 1, column 8: expected <money>, found "55,000"
+	// grammar Pay: line 1, column 14: expected \d, found end of text
+	// grammar Pay: line 1, column 15: expected end of text, found ", DOE"
+}
+
+// SubparseErr is ParseErr for Subparse: the text must match from its
+// start, but needn't match to its end.
+func ExampleGrammar_SubparseErr() {
+	_, err := Pay.SubparseErr("Salary: £45k")
+	fmt.Println(err)
+	// Output:
+	// grammar Pay: line 1, column 1: expected <money>, found "Salary: £45k"
+}
+
+// A ParseError's fields give the same facts as its message, for a program
+// to use: to log which rule postings fail at, say, or to underline the
+// place in an editor.
+func ExampleParseError_Error() {
+	_, err := Pay.ParseErr("£45k -\n55k")
+	var pe *grammar.ParseError
+	if errors.As(err, &pe) {
+		fmt.Println(pe.Line, pe.Column, pe.Expected, pe.Found)
+		fmt.Println(pe)
+	}
+	// Output:
+	// 2 1 [<money>] 55k
+	// grammar Pay: line 2, column 1: expected <money>, found "55k"
+}

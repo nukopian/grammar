@@ -252,7 +252,11 @@ func (n words) match(st *state, pos int, c *capList, e env, k cont) bool {
 		t = t.next[r]
 		i += width
 	}
-	return end >= 0 && k(end, c)
+	if end < 0 {
+		st.fail(pos, n, e)
+		return false
+	}
+	return k(end, c)
 }
 
 // wordsBody returns the list a rule body is, if it's nothing else.

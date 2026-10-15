@@ -38,6 +38,121 @@ type env struct {
 type state struct {
 	in []rune
 	g  *Grammar
+
+	// tr tracks failures, for ParseErr and SubparseErr. It's nil
+	// otherwise, so ordinary parsing pays nothing for it.
+	tr *tracker
+}
+
+// tracker records failures for a failure report. far is the furthest
+// position at which anything failed, and exp what was expected there. calls
+// are the rules being matched, outermost first, so that a failure where a
+// rule started can be reported as that rule. quiet is above 0 where failures
+// aren't worth reporting: inside lookarounds and <ws>. opt are where the
+// optional repeats being tried began, innermost last: one more \s in \s* not
+// matching is no news.
+type tracker struct {
+	far   int
+	exp   []string
+	calls []frame
+	quiet int
+	opt   []int
+}
+
+type frame struct {
+	rule string
+	pos  int
+}
+
+func (t *tracker) enter(f frame) {
+	t.calls = append(t.calls, f)
+	if f.rule == "ws" {
+		t.quiet++
+	}
+}
+
+func (t *tracker) leave(f frame) {
+	t.calls = t.calls[:len(t.calls)-1]
+	if f.rule == "ws" {
+		t.quiet--
+	}
+}
+
+// fail records that n didn't match at pos, for a failure report. The report
+// names the outermost rule that started at pos, other than the one parsing
+// started with, and otherwise describes n.
+func (st *state) fail(pos int, n Node, e env) {
+	t := st.tr
+	if t == nil || t.quiet > 0 || pos < t.far {
+		return
+	}
+	if _, isClass := n.(class); isClass && len(t.opt) > 0 && t.opt[len(t.opt)-1] == pos {
+		return // a class repeat such as \s* stopping, as it was free to
+	}
+	if pos > t.far {
+		t.far, t.exp = pos, t.exp[:0]
+	}
+	desc := ""
+	if len(t.calls) > 1 {
+		for _, f := range t.calls[1:] {
+			if f.pos == pos {
+				desc = "<" + f.rule + ">"
+				break
+			}
+		}
+	}
+	if desc == "" {
+		desc = describe(n, e.ci)
+	}
+	if !slices.Contains(t.exp, desc) {
+		t.exp = append(t.exp, desc)
+	}
+}
+
+// describe says what n matches, for a failure report, as the grammar would
+// write it where it can: 'text', \d, <[a..z]>, @list, <rule>.
+func describe(n Node, ci bool) string {
+	switch n := n.(type) {
+	case lit:
+		s := "'" + string(n.rs) + "'"
+		if ci {
+			s += " (ignoring case)"
+		}
+		return s
+	case class:
+		return n.desc
+	case words:
+		return "@" + n.l.name
+	case re:
+		return "/" + n.pattern + "/"
+	case anchor:
+		return anchorNames[n]
+	case *call:
+		return "<" + n.name + ">"
+	case *look:
+		if n.neg {
+			return "not " + describe(n.inner, ci)
+		}
+		return describe(n.inner, ci)
+	case seq:
+		if len(n) > 0 {
+			return describe(n[0], ci)
+		}
+	case alt, first:
+		var descs []string
+		for _, c := range children(n) {
+			descs = append(descs, describe(c, ci))
+		}
+		return strings.Join(descs, " or ")
+	case *Quant, *group, *named, commit:
+		return describe(children(n)[0], ci)
+	case *mode:
+		if n.ci != nil {
+			ci = *n.ci
+		}
+		return describe(n.inner, ci)
+	}
+	return "more"
 }
 
 // capList is the captures made so far in one scope, newest first. It's
@@ -108,10 +223,12 @@ func Lit(s string) Node { return lit{[]rune(s)} }
 
 func (n lit) match(st *state, pos int, c *capList, e env, k cont) bool {
 	if pos+len(n.rs) > len(st.in) {
+		st.fail(pos, n, e)
 		return false
 	}
 	for i, r := range n.rs {
 		if !runeEq(st.in[pos+i], r, e.ci) {
+			st.fail(pos, n, e)
 			return false
 		}
 	}
@@ -133,23 +250,31 @@ func runeEq(a, b rune, ci bool) bool {
 	return false
 }
 
-type class func(rune) bool
+type class struct {
+	in   func(rune) bool
+	desc string // for failure reports, as the grammar writes it: \d, <[a..z]>
+}
 
 // Class matches one character for which in returns true.
-func Class(in func(rune) bool) Node { return class(in) }
+func Class(in func(rune) bool) Node { return class{in, "a character of a class"} }
 
 func (n class) match(st *state, pos int, c *capList, e env, k cont) bool {
 	if pos >= len(st.in) {
+		st.fail(pos, n, e)
 		return false
 	}
 	r := st.in[pos]
-	ok := n(r)
+	ok := n.in(r)
 	if !ok && e.ci {
 		for f := unicode.SimpleFold(r); f != r && !ok; f = unicode.SimpleFold(f) {
-			ok = n(f)
+			ok = n.in(f)
 		}
 	}
-	return ok && k(pos+1, c)
+	if !ok {
+		st.fail(pos, n, e)
+		return false
+	}
+	return k(pos+1, c)
 }
 
 func isDigit(r rune) bool { return unicode.IsDigit(r) }
@@ -164,15 +289,18 @@ func not(f func(rune) bool) func(rune) bool { return func(r rune) bool { return 
 
 // The character classes of Raku's backslash sequences.
 var (
-	AnyChar = Class(func(rune) bool { return true }) // .
-	Digit   = Class(isDigit)                         // \d
-	Word    = Class(isWord)                          // \w
-	Space   = Class(isSpace)                         // \s
+	AnyChar Node = class{func(rune) bool { return true }, "any character"} // .
+	Digit   Node = class{isDigit, `\d`}                                    // \d
+	Word    Node = class{isWord, `\w`}                                     // \w
+	Space   Node = class{isSpace, `\s`}                                    // \s
 )
 
 // Regexes from regexp2, as terminals.
 
-type re struct{ rx, rxI *regexp2.Regexp }
+type re struct {
+	rx, rxI *regexp2.Regexp
+	pattern string
+}
 
 // Re matches pattern, a Perl-style regex (as scalar's M takes), at the
 // current position. It's one atom: whatever it matches first is final, as
@@ -180,7 +308,7 @@ type re struct{ rx, rxI *regexp2.Regexp }
 // and so does a match that runs longer than scalar.RegexTimeout.
 func Re(pattern string) Node {
 	src := `\G(?:` + pattern + `)`
-	n := re{regexp2.MustCompile(src, regexp2.None), regexp2.MustCompile(src, regexp2.IgnoreCase)}
+	n := re{regexp2.MustCompile(src, regexp2.None), regexp2.MustCompile(src, regexp2.IgnoreCase), pattern}
 	n.rx.MatchTimeout, n.rxI.MatchTimeout = scalar.RegexTimeout, scalar.RegexTimeout
 	return n
 }
@@ -194,7 +322,11 @@ func (n re) match(st *state, pos int, c *capList, e env, k cont) bool {
 	if err != nil {
 		panic("grammar: " + err.Error())
 	}
-	return m != nil && m.Index == pos && k(pos+m.Length, c)
+	if m == nil || m.Index != pos {
+		st.fail(pos, n, e)
+		return false
+	}
+	return k(pos+m.Length, c)
 }
 
 // Anchors.
@@ -210,6 +342,11 @@ const (
 	aWordEnd
 	aNotWithinWord // <!ww>, as <ws> uses
 )
+
+var anchorNames = map[anchor]string{
+	aStart: "start of text", aEnd: "end of text", aLineStart: "start of line", aLineEnd: "end of line",
+	aWordStart: "start of word", aWordEnd: "end of word", aNotWithinWord: "a word boundary",
+}
 
 // The anchors: ^, $, ^^, $$, << and >>.
 var (
@@ -242,7 +379,11 @@ func (n anchor) match(st *state, pos int, c *capList, e env, k cont) bool {
 	case aNotWithinWord:
 		ok = !(wordBefore && wordAfter)
 	}
-	return ok && k(pos, c)
+	if !ok {
+		st.fail(pos, n, e)
+		return false
+	}
+	return k(pos, c)
 }
 
 // Sequences and alternations.
@@ -382,12 +523,30 @@ func (q *Quant) iter(st *state, pos int, c *capList, e env, count int, k cont) b
 			return false
 		}
 		item := func(p0 int, c0 *capList) bool {
-			return step(q.item, st, p0, c0, e, func(p int, cc *capList) bool {
+			// An item beyond the minimum is optional: note where it
+			// starts, for failure reports, while it's being tried.
+			t := st.tr
+			optional := t != nil && count >= q.min
+			if optional {
+				t.opt = append(t.opt, p0)
+			}
+			ok := step(q.item, st, p0, c0, e, func(p int, cc *capList) bool {
 				if p == pos && count >= q.min {
 					return false // an empty item would repeat forever
 				}
-				return q.iter(st, p, cc, e, count+1, k)
+				if optional {
+					t.opt = t.opt[:len(t.opt)-1]
+				}
+				res := q.iter(st, p, cc, e, count+1, k)
+				if optional {
+					t.opt = append(t.opt, p0)
+				}
+				return res
 			})
+			if optional {
+				t.opt = t.opt[:len(t.opt)-1]
+			}
+			return ok
 		}
 		if count > 0 && q.sep != nil {
 			return step(q.sep, st, pos, c, e, item)
@@ -446,11 +605,31 @@ func (n *call) match(st *state, pos int, c *capList, e env, k cont) bool {
 		return k(p, cc)
 	}
 	ce := env{ratchet: r.ratchet, sc: r.sc}
+	t := st.tr
+	if t == nil {
+		if r.ratchet {
+			p, inner, ok := once(r.body, st, pos, nil, ce)
+			return ok && finish(p, inner)
+		}
+		return r.body.match(st, pos, nil, ce, finish)
+	}
+	// Tracking failures: keep the rule on the stack while its body
+	// matches, and off it while the caller goes on.
+	f := frame{r.name, pos}
+	t.enter(f)
 	if r.ratchet {
 		p, inner, ok := once(r.body, st, pos, nil, ce)
+		t.leave(f)
 		return ok && finish(p, inner)
 	}
-	return r.body.match(st, pos, nil, ce, finish)
+	ok := r.body.match(st, pos, nil, ce, func(p int, inner *capList) bool {
+		t.leave(f)
+		res := finish(p, inner)
+		t.enter(f)
+		return res
+	})
+	t.leave(f)
+	return ok
 }
 
 // group is ( ... ), or $<name>=( ... ): a capture with a scope of its own.
@@ -525,6 +704,9 @@ func NotAfter(n Node) Node  { return &look{inner: n, neg: true, behind: true} }
 
 func (n *look) match(st *state, pos int, c *capList, e env, k cont) bool {
 	var ok bool
+	if st.tr != nil {
+		st.tr.quiet++ // what's inside a lookaround failing is no news
+	}
 	if n.behind {
 		for from := pos; from >= 0 && !ok; from-- {
 			ok = n.inner.match(st, from, c, e, func(p int, _ *capList) bool { return p == pos })
@@ -532,7 +714,14 @@ func (n *look) match(st *state, pos int, c *capList, e env, k cont) bool {
 	} else {
 		_, _, ok = once(n.inner, st, pos, c, e)
 	}
-	return ok != n.neg && k(pos, c)
+	if st.tr != nil {
+		st.tr.quiet--
+	}
+	if ok == n.neg {
+		st.fail(pos, n, e)
+		return false
+	}
+	return k(pos, c)
 }
 
 // Adverbs.
