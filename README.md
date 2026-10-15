@@ -529,6 +529,29 @@ case to `rakuCases`:
 raku -e 'grammar G { token TOP { [ a .*? ] b } }; say G.parse("aaab")'
 ```
 
+### Fuzz tests
+
+Three fuzz tests look for inputs that break promises the package makes,
+whatever the grammar or text:
+
+| Test | Checks |
+|---|---|
+| `FuzzCompile` | `Compile` never panics, however mangled the source |
+| `FuzzMatch` | for grammars built around a fuzzed rule: no panics; `Parse` and `ParseErr` agree; a parse matches all of the text; `Find` finds what `FindAll` finds first; skipping start positions changes nothing |
+| `FuzzWords` | synonym rules never panic, and every phrase in a list matches itself |
+
+`go test` runs them on their seeds and on the inputs that once failed, kept
+in `testdata/fuzz`. To search for new failures:
+
+```sh
+go test ./internal/scalar/grammar -run '^$' -fuzz '^FuzzMatch$' -fuzztime 2m
+```
+
+`FuzzMatch` keeps texts short and leaves out `regex` rules and `:!r`,
+whose backtracking can take exponential time by design (see the gaps
+table's step limit). A failure it finds is written to `testdata/fuzz`;
+commit it, so it's checked from then on.
+
 ## Gaps and possible additions
 
 What this package doesn't do yet, where it behaves differently from Raku,
@@ -595,6 +618,7 @@ Before changing anything, it helps to know how the package is put together:
 |---|---|---|---|---|
 | **`\|` picks the branch whose first match is longest.** Raku picks by the longest declarative prefix, roughly the part of each branch before anything that could backtrack. | Rarely: they agree on ordinary alternations of words and phrases. They can differ when branches share a start and something after it decides. | True longest-token matching (above). | yes | 5 |
 | **Actions run after the whole match succeeds,** innermost first. Raku runs each as its rule matches, including for matches it later backtracks out of. | Only for actions with side effects, such as counting or logging. | Run actions in `call`'s `finish`, keeping their values on the `mnode`. Running after is easier to reason about, so keep it unless something needs the other. | by design | 2 |
+| **Text is read as UTF-8, a rune at a time.** A byte that isn't valid UTF-8 becomes U+FFFD (`�`), as Go's `[]rune(text)` does, so a match's `~` holds `�` where the text held the bad byte. Raku can't hold such text at all: it fails to decode it. | Scraped text with bad bytes in it, when the exact bytes matter. | Clean or decode the text first, or match byte strings as `scalar` does (each byte a character from 0 to 255). | by design | 2 |
 | **Positions count runes, not graphemes.** A letter followed by a combining accent is two characters here, and one in Raku, so `.` can match half of it. | Text in decomposed form (NFD), which is unusual in job postings: most text arrives composed (NFC). | Normalise input to NFC with `golang.org/x/text/unicode/norm`, already a dependency, which fixes almost all of it (effort 1). For full grapheme semantics, segment the input with `rivo/uniseg` and match on graphemes (effort 3). | yes | 1 / 3 |
 | **`<alias=name>` captures under both names,** as Raku does. | When you expect only the alias. | Nothing to fix: use `<alias=.name>`. | by design | — |
 | **`Re` takes Perl-style regex syntax.** | Only that it isn't Raku syntax. It's for patterns you already have. | — | by design | — |
