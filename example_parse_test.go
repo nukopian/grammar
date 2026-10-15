@@ -1,0 +1,131 @@
+package grammar_test
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/nukopian/job-meta/internal/scalar"
+	"github.com/nukopian/job-meta/internal/scalar/grammar"
+)
+
+// Parse matches the whole text, or nothing: a match that would leave text
+// over is no match. When it fails, the result is undef, so Defined, Or and
+// the like work on it, and reading through it gives undef too.
+func ExampleGrammar_Parse() {
+	fmt.Println(Pay.Parse("£18.50 per hour").At("min.amount.num.~"))
+	fmt.Println(Pay.Parse("£18.50 per hour, negotiable").Defined()) // not all of it
+	fmt.Println(Pay.Parse("negotiable").At("min.~").Or("none"))
+	// Output:
+	// 18.50
+	// false
+	// none
+}
+
+// Subparse matches from the start of the text, without needing to reach
+// its end.
+func ExampleGrammar_Subparse() {
+	m := Pay.Subparse("£18.50 per hour, negotiable")
+	fmt.Println(m.At("~"))
+	fmt.Println(Pay.Subparse("Pay: £18.50").Defined()) // it must start at the start
+	// Output:
+	// £18.50 per hour
+	// false
+}
+
+// Find hunts for the first place in the text where the grammar matches,
+// which is how to pull a fact out of free text.
+func ExampleGrammar_Find() {
+	m := Pay.Find("The role pays £30k to £35k depending on experience.")
+	fmt.Println(m.At("~"), "at", m.At("from"))
+	// Output:
+	// £30k to £35k at 14
+}
+
+// FindAll finds every match, left to right, without overlapping.
+func ExampleGrammar_FindAll() {
+	for _, m := range Pay.FindAll("£30k basic, £5k car allowance, £2k bonus").All() {
+		fmt.Println(m.At("~"))
+	}
+	// Output:
+	// £30k
+	// £5k
+	// £2k
+}
+
+// Rule starts the match at another rule instead of TOP, which is handy for
+// testing one rule on its own, or for reusing part of a grammar.
+func ExampleRule() {
+	fmt.Println(Pay.Parse("12,500", grammar.Rule("num")).At("~"))
+	fmt.Println(Pay.Parse("12,500").Defined()) // TOP wants a £
+	// Output:
+	// 12,500
+	// false
+}
+
+// Actions turns matches into values. For each rule that matched, the method
+// named after it is called with its match, and what it returns is stored in
+// the match under "made". Actions run innermost first, so here Amount has
+// run for each <amount> before TOP's action reads their made values.
+func ExampleActions() {
+	m := Pay.Parse("£45k - £55,000", grammar.Actions(PayActions{}))
+	fmt.Println(m.At("min.amount.made"), m.At("max.amount.made"))
+	// Output:
+	// 45000 55000
+}
+
+// A map of functions, keyed by rule name, works as well as a type with
+// methods, and suits actions built at run time.
+func ExampleActions_map() {
+	m := Pay.Parse("£45k - £55k per annum", grammar.Actions(map[string]func(*scalar.SV) any{
+		"amount": PayActions{}.Amount,
+		"period": func(m *scalar.SV) any { return strings.TrimSpace(m.At("~").Str()) },
+	}))
+	fmt.Println(m.At("max.amount.made"), m.At("period.made"))
+	// Output:
+	// 55000 per annum
+}
+
+// A match is ordinary scalar data, so once TOP's action has built the value
+// you want, scalar.To makes it typed Go.
+func ExampleActions_to() {
+	type Range struct {
+		Min float64 `json:"min"`
+		Max float64 `json:"max"`
+	}
+	m := Pay.Parse("£45k - £55k", grammar.Actions(map[string]func(*scalar.SV) any{
+		"amount": PayActions{}.Amount,
+		"TOP": func(m *scalar.SV) any {
+			min := m.At("min.amount.made")
+			return scalar.Hash("min", min, "max", m.At("max.amount.made").Or(min))
+		},
+	}))
+	r, err := scalar.To[Range](m.At("made"))
+	fmt.Printf("%+v %v\n", r, err)
+	// Output:
+	// {Min:45000 Max:55000} <nil>
+}
+
+// How captures are shaped. A capture that can match more than once, because
+// it's quantified (*, +, **) or its name appears twice, is always an array,
+// even when it matched once or not at all. Any other capture is a single
+// match, or missing when it didn't match. The grammar decides this, not the
+// text, so code reading a match never has to check which it got.
+//
+// ( ... ) captures by position, as "0", "1" and so on; $<name>=[ ... ]
+// captures the text it matched under a name.
+func Example_captureShapes() {
+	g := grammar.MustCompile(`
+grammar Shapes {
+    token TOP  { <tag>* <.ws> $<code>=[ \d+ ] ( '!' )? }
+    token tag  { '#' \w+ <.ws> }
+}`)
+	for _, text := range []string{"#a #b 42!", "42"} {
+		m := g.Parse(text)
+		fmt.Println(m.At("tag").AV().Length(), "tags;",
+			"code", m.At("code.~"), ";",
+			"bang", m.At("0.~").Or("none"))
+	}
+	// Output:
+	// 2 tags; code 42 ; bang !
+	// 0 tags; code 42 ; bang none
+}

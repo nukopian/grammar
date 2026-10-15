@@ -1,0 +1,1857 @@
+# grammar
+
+Pull structured facts out of messy text, such as job titles and pay, with
+Raku-style grammars and synonym lists, in Go.
+
+Some parts of a job posting are small languages of their own: pay
+(`£45k – £55,000 per annum`), hours (`37.5 hrs/wk`), titles
+(`Snr SWE – Payments (WFH)`). A single regex for any of them soon becomes
+unreadable, splitting it into pieces means hand-written glue to put the
+pieces back together, and even then "SWE", "Software Developer" and
+"Software Engineer" come out as three different things.
+
+## Why this exists
+
+The alternative is sending every posting to a language model, which works
+well but costs more with every posting. This package does the structured
+parts locally, with three ideas that work together:
+
+- **Grammars** say where each kind of thing goes: a seniority, then a title,
+  then optionally a team, then a working arrangement in brackets. They're
+  written in Raku's grammar syntax, which reads much as you'd describe the
+  text in words, or built in Go.
+- **Word lists** say what counts as each kind of thing, and what it means:
+  every synonym maps to a canonical value, so "SWE", "Software Developer"
+  and "software  engineer" all come out as "Software Engineer". They take
+  synonym rules in the format Elasticsearch and Solr use (`pm => product
+  manager, project manager`), so they can be filled from a synonym store.
+- **Actions** turn what matched into values, and `scalar.To` turns those
+  into typed Go structs.
+
+```go
+titles := grammar.NewWordList("titles", grammar.FoldCase(), grammar.LooseSpacing())
+titles.AddRules("Software Engineer, Software Developer, SWE, Developer\nProduct Manager, PM")
+// ... and lists for seniority and arrangements, the same way
+
+g := grammar.MustCompile(`
+grammar Title {
+    token TOP         { [ <seniority> \s+ ]? <title> [ \s* <.dash> \s* <team> ]? [ \s* '(' <arrangement> ')' ]? }
+    token seniority   { @seniority }
+    token title       { @titles }
+    token arrangement { @arrangements }
+    token dash        { '-' | '–' | '|' }
+    token team        { \w+ [ ' ' \w+ ]* }
+}`, seniority, titles, arrangements)
+
+t, _ := scalar.To[Title](g.Parse("Snr SWE – Payments (WFH)", toTitle).At("made"))
+// {Seniority:Senior Title:Software Engineer Team:Payments Arrangement:Remote}
+```
+
+The whole example, with the lists and the action, is
+[Titles](#titles) in the Reference, and runs as a test.
+
+Two more things set it apart:
+
+- **Roles** let grammars share rules: one library of money and period
+  tokens for pay, bonus and allowance grammars, or one lexicon for titles
+  and requirements. See [Roles](#roles).
+- **It behaves as Raku does, checked against Raku itself.** The tests run
+  dozens of grammars through both this package and Rakudo, and compare the
+  results. You don't need to know Raku to use it, but if you do,
+  nothing should surprise you. See
+  [Testing against Raku](#testing-against-raku).
+
+**Status: experimental.** It works and is well tested, and a pay grammar
+agreed with a language model's extraction on all 16 postings tried so far,
+but it hasn't yet met real volumes, and the API may still change. What it
+doesn't do yet is listed, with what each would take, in
+[Gaps and possible additions](#gaps-and-possible-additions).
+
+## A first grammar
+
+A grammar is a set of named rules that call each other. Here's one for
+pay:
+
+```go
+var Pay = grammar.MustCompile(`
+grammar Pay {
+    token TOP    { <min=money> [ <.sep> <max=money> ]? <period>? }
+    token money  { '£' \s? <amount> }
+    token amount { <num> [ $<k>=[:i k] ]? }
+    token num    { \d ** 1..3 [ ',' \d ** 3 ]* [ '.' \d+ ]? }
+    token sep    { \s* [ '-' | '–' | to ] \s* }
+    token period { :i \s* [ 'p.a.' | pa | per \s+ [ annum | year | hour | day ] ] }
+}`)
+```
+
+Parsing starts at `TOP`, which reads: a `<money>`, captured as `min`; then
+optionally a separator and another `<money>`, captured as `max`; then
+optionally a `<period>`. Each rule is described in the same way, and the
+[tables below](#writing-a-grammar) say what each piece means.
+
+An action is a Go method named after a rule. It's called with that rule's
+match, and what it returns is stored in the match as `made`:
+
+```go
+type PayActions struct{}
+
+// Amount is called for each <amount>: "45,000" is 45000, and "45k" is too.
+func (PayActions) Amount(m *scalar.SV) any {
+	n := m.At("num.~").S(`,`, "", "gr").Num() // num.~ is the text <num> matched
+	if m.At("k").Defined() {
+		n *= 1000
+	}
+	return n
+}
+
+m := Pay.Find("Salary: £45k – £55,000 per annum, plus bonus.", grammar.Actions(PayActions{}))
+m.At("~")                // "£45k – £55,000 per annum": the text matched
+m.At("min.amount.made")  // 45000
+m.At("max.amount.made")  // 55000
+m.At("period.~")         // " per annum"
+```
+
+### What a match looks like
+
+A match is a tree that follows the grammar: each rule that matched is a
+match of its own, under the name it was captured as. Every match has its
+text under `~`, and each also has `from` and `to`, its position, left out
+here:
+
+```yaml
+"~": £45k – £55,000 per annum   # the text TOP matched
+min:                            # <min=money>
+  "~": £45k
+  amount:                       # <amount>, inside money
+    "~": 45k
+    num: { "~": "45" }
+    k:   { "~": k }             # $<k>=[ k ]: only there when it matched
+    made: 45000                 # what the Amount action returned
+max:                            # <max=money>
+  "~": £55,000
+  amount:
+    "~": 55,000
+    num: { "~": "55,000" }
+    made: 55000
+money: [ …, … ]                 # the same two matches: money is captured twice, so it's an array
+period:
+  "~": " per annum"
+```
+
+So `m.At("min.amount.made")` walks down the tree to a value, and
+`m.At("period.~")` reads "the text of the period capture". A capture that
+didn't match is missing, and reads as undef, so `Or` and `Defined` work on
+it. The match is ordinary `scalar` data, so `At`, `Or`, `To` and the rest
+all work on it. [The match](#the-match) has the details, and the Reference's
+[Match tree](#match-tree) example prints a real one.
+
+## Writing a grammar
+
+### Rules
+
+| Raku | Go builder | Meaning |
+|---|---|---|
+| `token name { … }` | `g.Token(name, node)` | A rule that doesn't backtrack: each part keeps its first match. Use this unless you need `regex`. |
+| `regex name { … }` | `g.Regex(name, node)` | A rule that backtracks, like a Perl regex. |
+| `grammar B is A { … }` | `a.Extend("B")` | B has A's rules; B's own rules replace A's of the same name, even where A's rules call them. |
+| `role R { … }` | `grammar.NewRole("R")` | A library of rules for grammars to share. See [Roles](#roles). |
+| `grammar B does R { … }` | `b.Does(r)` | B gets R's rules as its own. |
+
+Parsing starts at the rule `TOP`, or the rule named with
+`grammar.Rule("name")`.
+
+One source can declare several roles and grammars; `Compile` returns the
+last. The source can refer by name to anything declared earlier in it, and
+to the grammars, roles and word lists passed to `Compile`:
+
+```go
+g := grammar.MustCompile(src, Pay, units)   // is Pay, does …, @units
+```
+
+### Inside a rule
+
+Whitespace and `#` comments mean nothing, so space a rule out as you like.
+Letters, digits and `_` are literal; anything else must be quoted or
+escaped.
+
+| Raku | Go builder | Matches |
+|---|---|---|
+| `'£'`, `"a\tb"`, `abc` | `Lit("£")` | that text |
+| `.` | `AnyChar` | any character, newlines too |
+| `\d` `\w` `\s` `\h` `\v` `\n` `\t` | `Digit`, `Word`, `Space` | the usual classes (Unicode-aware); capitals, such as `\D`, negate |
+| `\-`, `\[` | `Lit("-")` | that punctuation character |
+| `<[a..z 0..9 _]>` | `Class(func(rune) bool)` | one character from the set |
+| `<-[aeiou]>`, `<[a..z] - [aeiou]>`, `<+alpha +[-]>` | `Class(…)` | a negated or combined set |
+| `x y` | `Seq(x, y)` | x then y |
+| `x \| y` | `Alt(x, y)` | whichever of x or y matches more text |
+| `x \|\| y` | `First(x, y)` | x if it matches, otherwise y |
+| `[ … ]` | (just nest nodes) | grouping, with no capture |
+| `x?` `x*` `x+` | `Opt(x)`, `Star(x)`, `Plus(x)` | quantifiers, greedy |
+| `x ** 2..5`, `x ** 3`, `x ** 2..*` | `Repeat(x, 2, 5)` | between 2 and 5 of x; `-1` for no limit |
+| `x+ % ','` | `Plus(x).Sep(Lit(","))` | x separated by commas |
+| `x+ %% ','` | `Plus(x).SepTrailing(Lit(","))` | the same, with an optional comma at the end |
+| `x*?`, `x+?` | `Star(x).Frugal()` | as few as possible |
+| `x+:` | | possessive: never give any back |
+| `^` `$` | `Start`, `End` | start and end of the text |
+| `^^` `$$` | `LineStart`, `LineEnd` | start and end of a line |
+| `<<` `>>` | `WordStart`, `WordEnd` | start and end of a word |
+| `<?before x>`, `<!before x>` | `Before(x)`, `NotBefore(x)` | x follows (or doesn't), without matching it |
+| `<?after x>`, `<!after x>` | `After(x)`, `NotAfter(x)` | x comes just before (or doesn't) |
+| `:i` | `IgnoreCase(x)` | ignore case, for the rest of the group |
+| `:r`, `:!r` | `Ratchet(x, on)` | stop or start backtracking, for the rest of the group |
+| `@name` | `Words(list)` | the longest phrase in a word list; see [Word lists](#word-lists) |
+| | `Re(pattern)` | a Perl-style regex, as `scalar`'s `M` takes, as one atom |
+
+### Calling rules and capturing
+
+| Raku | Go builder | Captured as |
+|---|---|---|
+| `<name>` | `Call("name")` | `name` |
+| `<.name>` | `Silent("name")` | nothing |
+| `<alias=name>` | `Alias("alias", "name")` | both `alias` and `name`, as in Raku |
+| `<alias=.name>` | `AliasOnly("alias", "name")` | `alias` only |
+| `<?name>`, `<!name>` | `Before(Silent("name"))` | nothing; it only looks ahead |
+| `( … )` | `Capture(x)` | `0`, `1`, … in order, each a match with captures of its own |
+| `$<k>=[ … ]`, `$<k>=\d+` | `Named("k", x)` | `k`, the text only |
+| `$<k>=( … )` | `Named("k", Capture(x))` | `k`, with captures of its own |
+
+Raku's built-in rules are there too: `<ws>` (optional whitespace, but not
+inside a word), `<alpha>` (a letter or `_`), `<digit>`, `<alnum>`,
+`<upper>`, `<lower>`, `<space>` and `<punct>`.
+
+## Word lists
+
+A word list is a set of words and phrases, each with a canonical value, so
+that synonyms match as one thing. It's meant for data you build in code,
+such as job titles or skills from a synonym store, and it keeps that data
+out of the grammar: the grammar says where a title goes, the list says what
+counts as one.
+
+```go
+titles := grammar.NewWordList("titles", grammar.FoldCase(), grammar.LooseSpacing())
+titles.Add("Software Engineer", "Software Developer", "SWE")
+titles.Add("Front-end Developer", "Frontend Developer")
+
+g := grammar.MustCompile(`grammar Title { token TOP { <title> .* }; token title { @titles } }`, titles)
+g.Parse("Front End Developer (React)").At("title.made")   // "Front-end Developer"
+```
+
+In Raku syntax a list is `@name`, and in Go `grammar.Words(list)`. It
+matches the longest phrase at the current position, and like Raku's, it's
+one atom: it never gives back part of what it matched, even in a `regex`.
+It doesn't check word boundaries, so "Java" in a list matches the start of
+"JavaScript"; write `@langs >>` to require the word to end there.
+
+**Canonical values.** A rule whose whole body is a list, such as
+`token title { @titles }`, gets the canonical value of what it matched as
+its `made` value. An action for that rule sees it there, and may replace
+it.
+
+**Loading synonyms.** `Add(canonical, synonyms...)` adds phrases one group
+at a time. `AddRule` and `AddRules` take rules in the format Elasticsearch
+and Solr use, as Elasticsearch's synonyms API returns them:
+
+```
+annum, year, yr, pa        all mean the first, annum
+hr, ph => Hour             each phrase on the left means Hour
+pm => product manager, project manager
+```
+
+**Matching options**, given to `NewWordList`:
+
+| Option | Effect |
+|---|---|
+| `FoldCase()` | ignore case everywhere the list is used. Without it, the list ignores case only under `:i`, as in Raku. |
+| `LooseSpacing()` | any run of spaces, hyphens, dashes and underscores matches any other, so "front-end" matches "front end". There must still be some spacing: "frontend" is a different phrase. |
+
+**Ambiguity.** A phrase added for two canonical values, such as "PM" for
+both product and project manager, matches as the first. `Ambiguous()` lists
+such phrases at build time, and `Canonical(phrase)` returns everything a
+phrase could mean, so the caller can decide from context, or pass the
+posting on to the LLM.
+
+Build a list fully before parsing with it. To refresh one, build a new list
+and a grammar that uses it. A list is one trie (a prefix tree) for its exact
+phrases and one for case-folded ones, so matching takes about the same time
+however long the list is.
+
+Raku's `<@name>` is something else: it matches each entry as a regex.
+That isn't supported, so `Compile` rejects it rather than treating synonym
+data as patterns.
+
+## Roles
+
+A role is a library of rules that several grammars can share: money and
+period tokens for both pay and bonus grammars, say, or one lexicon of
+list-backed tokens for titles and requirements.
+
+```go
+units := grammar.NewWordList("units", grammar.FoldCase()).Add("Year", "annum", "pa").Add("Week", "wk")
+
+g := grammar.MustCompile(`
+role Pay {
+    token money  { '£' <amount> }
+    token period { \s* [ per | a | '/' ] \s* <unit> }
+    token unit   { @units }
+}
+grammar Salary does Pay {
+    token TOP    { <money> <period>? }
+    token amount { \d+ [ ',' \d ** 3 ]* }
+}`, units)
+```
+
+A role's rules become the grammar's own when it's composed:
+
+- **They can call the grammar's rules.** `money` calls `<amount>`, which
+  `Salary` provides. A role may call rules it doesn't have; the grammar
+  that composes it must have them.
+- **The grammar's own rules win** over the role's, and an extension's win
+  over both.
+- **Two roles with a rule of the same name are an error,** unless the
+  grammar defines that rule itself to choose, as Raku requires.
+
+In Go, `grammar.NewRole("Pay")` makes a role, with `Token` and `Regex` as
+for a grammar, and `g.Does(role)` composes it, before or after `g`'s own
+rules.
+
+## The match
+
+A match is a hash:
+
+| Key | Holds |
+|---|---|
+| `~` | the matched text |
+| `from`, `to` | where the match starts and ends, in characters |
+| `made` | the value the rule's action returned, if it has one |
+| a capture's name | its match |
+| `0`, `1`, … | positional captures |
+
+A capture that can match more than once is always an array, empty if it
+didn't match. That includes anything under `*`, `+` or `**`, and any name
+used twice in one rule. Every other capture is a single match, or missing
+if it didn't match. Like Raku, this is decided by the grammar, not by what
+matched, so the shape of the result never depends on the input. In `Pay`,
+`money` is an array (it's captured twice, once as `min`, once as `max`), and
+`period` is a single match that may be missing.
+
+### Reading the text: `~`
+
+To get the text a capture matched, add `.~` to its path:
+
+```go
+m.At("unit")     // the <unit> match: a hash
+m.At("unit.~")   // its text: "week"
+```
+
+Leaving off the `.~` is an easy mistake. `m.At("unit").Str()` stringifies the
+hash itself, as `HASH(0x…)` in Perl, and not the text. A capture that's an
+array (see above) needs an index first: `m.At("money.0.~")`, not
+`m.At("money.~")`, and `m.At("money").Str()` is `ARRAY(0x…)`. When the capture is
+missing, `m.At("unit.~")` is undef, as any missing path is, so `Or` and
+`Defined` work on it directly.
+
+The name comes from Raku, where `~` is the string operator: `~$<unit>` is
+the unit capture's text, and `~$/` the whole match's. It's also a key no
+capture can clash with, as a rule can't be called `~`.
+
+Because `~`, `from`, `to` and `made` are the match's own keys, captures
+can't use those names.
+
+A match captured under two names, as `<min=money>` captures under both
+`min` and `money`, is one match under both, not two copies, as in Raku. Its
+action runs once.
+
+## Parsing
+
+| Method | Does |
+|---|---|
+| `g.Parse(text)` | match all of text, as Raku's `.parse` |
+| `g.Subparse(text)` | match from the start of text, not necessarily to the end |
+| `g.Find(text)` | the first match anywhere in text |
+| `g.FindAll(text)` | every match in text, left to right, not overlapping |
+
+Each returns undef (or an empty array) when nothing matches. Each takes
+options: `grammar.Rule("name")` to start somewhere other than `TOP`, and
+`grammar.Actions(a)`.
+
+### Actions
+
+`grammar.Actions(a)` calls a's method for each rule that matched, named
+after the rule: `amount` calls `Amount`, and `pay-range` or `pay_range`
+calls `PayRange`. The method takes the match and returns its made value:
+
+```go
+func (PayActions) Amount(m *scalar.SV) any
+```
+
+Inside an action, `m.At("~")` is the text the rule matched, and
+`m.At("num.~")` the text of its `<num>`; `m.At("num.made")` is what `<num>`'s
+own action returned.
+
+A `map[string]func(*scalar.SV) any`, keyed by rule name, works too. Actions
+run innermost first, so a rule's action can read the made values of the
+rules it called. Rules without an action are left alone.
+
+## Errors
+
+`Compile` returns an error for bad syntax, with the line and column, for a
+call to a rule that doesn't exist, for a name it can't find (a grammar or
+role after `is` or `does`, or a word list after `@`), and for a
+left-recursive rule: one that can call itself again before matching any
+text, such as `token list { <list>? ',' <item> }`, which would recurse for
+ever. Write such rules with a quantifier instead: `token list { <item>+ %
+',' }`. `MustCompile` panics instead; use it
+for grammars in package-level variables, so a bad one fails as the program
+starts. Grammars built in Go are checked when they're first used, and
+panic, as a bad regex does in `scalar`.
+
+## Testing against Raku
+
+`TestMatchesRaku` compiles each grammar in `rakuCases` here and in Raku,
+parses each input with both, and compares the two match trees: the same
+text, positions, captures and shape. It needs `raku` on the PATH, and is
+skipped without it.
+
+When the Go and Raku results differ, Raku is right, unless the difference is
+one of those listed under
+[Differences from Raku](#differences-from-raku).
+
+To find out what Raku does with something, ask it directly, then add the
+case to `rakuCases`:
+
+```sh
+raku -e 'grammar G { token TOP { [ a .*? ] b } }; say G.parse("aaab")'
+```
+
+## Gaps and possible additions
+
+What this package doesn't do yet, where it behaves differently from Raku,
+and what it would take to change. Each entry says when you'd need it, so
+that it's clear which to do first when the need comes up.
+
+**Effort** is a rough guide for someone new to the code:
+
+| Effort | Means |
+|---|---|
+| 1 | an hour or two |
+| 2 | about a day |
+| 3 | a few days |
+| 4 | a week or two |
+| 5 | weeks, or a redesign of part of the matcher |
+
+**Fixable** is *yes*, *partly* (it can be done, but not quite as Raku does
+it), or *by design* (it's deliberate; change it only for a good reason).
+
+### Where things are
+
+Before changing anything, it helps to know how the package is put together:
+
+- **[node.go](node.go)** has the matcher: one type per kind of node, each
+  with a `match` method. Matching is continuation-passing: a node calls
+  `k` for each way it can match, and returning false means "try another
+  way", which is all backtracking is. `step` is where a token's ratchet
+  happens: it commits to a node's first match, except where `extendable`
+  says a frugal quantifier inside may still need to take more.
+- **[grammar.go](grammar.go)** has grammars, roles, rule lookup (by name,
+  when called, so overriding works), the capture scopes worked out from
+  each rule (`newScope`: which captures are arrays), turning matches into
+  scalar data (`build`), and actions.
+- **[syntax.go](syntax.go)** is the Raku-syntax parser: hand-written
+  recursive descent that produces the same nodes as the Go builder.
+- **[words.go](words.go)** has word lists: a trie for exact phrases and one
+  for case-folded phrases.
+- **[raku_test.go](raku_test.go)** compares match trees with Raku's. Any
+  change to how matching behaves should start with a case there, and Raku
+  saying what's right.
+
+### Missing Raku features
+
+| Feature | When you'd need it | What it would take | Fixable | Effort |
+|---|---|---|---|---|
+| **`rule` and `:sigspace`**: whitespace in a rule matches whitespace in the text | Phrases across words, such as `rule { up to <money> per annum }`, without `<.ws>` or `\s+` between every word. Most grammars over prose want this. | In `syntax.go`, in a `rule` body or after `:s`, turn whitespace after an atom into `Silent("ws")`. Raku's exact placement rules are subtle (before or after quantifiers, at the start of a rule), so probe Raku and add cases first. | yes | 2 |
+| **Code assertions**: `<?{ … }>`, `<!{ … }>` | Checks only code can make, in the middle of a parse: min ≤ max, a plausible year, a word that's in a list but isn't a stopword. Without them, wrong parses get through and need cleaning up afterwards. | Raku code can't run here, so: a builder node holding `func(m *scalar.SV) bool`, and a syntax such as `<?{name}>` naming a function passed to `Compile`. The function needs the captures so far, so build a provisional match of the current scope from the `capList`. | partly | 2–3 |
+| **Code blocks**: `{ make … }` | Making values in the grammar itself. | Actions do this. Not worth adding unless grammars are written by people who won't write Go. | by design | — |
+| **`proto token` and `:sym<…>`** | Families of alternatives that grow, where an extension adds a variant without editing its parent: `token period:sym<fortnightly> { … }` in a `PayUK` grammar. | A `proto` rule matches as an `Alt` over every rule named `name:sym<…>` found along the inheritance chain and in roles, collected when it's called; `<sym>` inside one matches its own `sym` text. Correct only with true longest-token matching (below), though `Alt`'s approximation will do for most. | yes | 3 |
+| **True longest-token matching** for `\|` | When `Alt`'s approximation (below) gives a different answer from Raku, which the Raku tests will show; and to speed up large alternations and protos. | Work out each branch's declarative prefix (the part before anything that could backtrack or run code), build an automaton (NFA, then DFA) from the prefixes, and try branches in order of how much of the text their prefix matches. This is what Rakudo does in NQP. | yes | 5 |
+| **Rule parameters and dynamic variables**: `token amount($cur)`, `$*CURRENCY` | Parsing that depends on context, such as a currency that changes how amounts read. | Arguments in the syntax and on `call`, and a stack of dynamic variables in `state`, visible to called rules. Inheritance and roles usually do the job more simply. | yes | 3 |
+| **`<@list>`**: each entry matched as a regex | Lists of patterns built from data. | Compile each entry with the syntax parser's regex code into an `Alt`. `Compile` rejects `<@list>` now, so that synonym data isn't treated as patterns by mistake; keep `@list` for literal phrases. | yes | 2 |
+| **Interpolation**: `$var`, `<$regex>`, `<{ … }>` | Patterns chosen at run time. | Word lists cover literal phrases, and `Re` covers regex strings. A named-pattern binding, passed to `Compile` as lists are, would cover the rest. | partly | 2 |
+| **Goal matching**: `'(' ~ ')' <inner>` | Brackets in titles, such as "Engineer (Remote, FTC)", with an error saying the closing bracket is missing. | Sugar for `Seq(open, inner, close)`, plus a failure message, so do failure reports (below) first. | yes | 1–2 |
+| **Capture order**: `.caps`, `.chunks` | Where the order of different captures matters, such as qualifiers in a title. A match keeps order within one name (arrays) but not between names. | `build` has the captures in order; expose them as a list of name and match pairs. They can't go under a key a capture might use, so pick a reserved key, as `~` is, or add a function. | yes | 1 |
+| **Unicode properties**: `<:Lu>`, `<:Letter>`, `<:Script<Latin>>` | Text in other languages and scripts. | In `classExpr`, map property names to Go's `unicode` tables. | yes | 1 |
+| **Conjunctions**: `&`, `&&` | "Something that matches both", such as a word that's in a list and isn't a stopword. | A node that matches its first part, then checks the others match exactly the same text. | yes | 2 |
+| **Backtracking control**: `:`, `::`, `:::`, `<commit>`, `<cut>` | Taming slow, heavily backtracking `regex` rules. | Possessive quantifiers (`+:`) exist. The rest need the matcher to unwind to a marked point, which continuation-passing makes awkward: probably panics and recovers at the right level. Tokens and memoisation (below) usually make it unnecessary. | partly | 3 |
+| **Multiple inheritance**: `grammar C is A is B` | Rarely: roles do this better. | Make `parent` a list, and look up along each in order. | yes | 1 |
+
+### Differences from Raku
+
+| Difference | When it matters | What it would take | Fixable | Effort |
+|---|---|---|---|---|
+| **`\|` picks the branch whose first match is longest.** Raku picks by the longest declarative prefix, roughly the part of each branch before anything that could backtrack. | Rarely: they agree on ordinary alternations of words and phrases. They can differ when branches share a start and something after it decides. | True longest-token matching (above). | yes | 5 |
+| **Actions run after the whole match succeeds,** innermost first. Raku runs each as its rule matches, including for matches it later backtracks out of. | Only for actions with side effects, such as counting or logging. | Run actions in `call`'s `finish`, keeping their values on the `mnode`. Running after is easier to reason about, so keep it unless something needs the other. | by design | 2 |
+| **Positions count runes, not graphemes.** A letter followed by a combining accent is two characters here, and one in Raku, so `.` can match half of it. | Text in decomposed form (NFD), which is unusual in job postings: most text arrives composed (NFC). | Normalise input to NFC with `golang.org/x/text/unicode/norm`, already a dependency, which fixes almost all of it (effort 1). For full grapheme semantics, segment the input with `rivo/uniseg` and match on graphemes (effort 3). | yes | 1 / 3 |
+| **`<alias=name>` captures under both names,** as Raku does. | When you expect only the alias. | Nothing to fix: use `<alias=.name>`. | by design | — |
+| **`Re` takes Perl-style regex syntax.** | Only that it isn't Raku syntax. It's for patterns you already have. | — | by design | — |
+| **Word lists add to Raku's `@list`:** canonical values, `FoldCase` and `LooseSpacing`. | Never for Raku-compatible lists: without the options, a list matches as Raku's does. | — | by design | — |
+
+### Engineering
+
+| Gap | When you'd need it | What it would take | Fixable | Effort |
+|---|---|---|---|---|
+| **`Find` is slow on long text.** It tries the grammar at every position: about 1.4 ms to search a 4 KB posting for pay (`BenchmarkFindAll`). | High volumes, or many grammars per posting. | Work out the characters a grammar can start with (a first set, following calls, and giving up on lookbehind or rules that can match nothing), and skip positions that can't start a match. Should be many times faster. | yes | 2 |
+| **No memoisation.** A rule may be tried at the same position many times. | `regex` rules that backtrack heavily, and deep grammars that try many alternatives. | Cache each token's result by rule and position in `state`: a token has at most one result, so this is safe for tokens. | yes | 2 |
+| **No failure reports.** A failed parse is just undef. | Writing and debugging grammars; logging why a posting fell through to the LLM, which shows what to add next. | Track the furthest position reached in `state`, and what was expected there (literals, rule names), and return it from a variant of `Parse` with an error. | yes | 2–3 |
+| **Left recursion through a regex isn't always caught.** `Check` asks whether each `Re` pattern matches an empty string, to decide whether a call after it is at the same position. A pattern that can match nothing only in context, such as a lookahead, may be judged wrongly, and a rule that then recurses on the left still overflows the stack, which kills the program. | Only with `Re` terminals that can match empty text in some places and not others. | Treat any `Re` with a lookaround as able to match empty text, at the cost of rejecting a few grammars that are fine. | yes | 1 |
+| **`<?after …>` tries every earlier position.** It matches its pattern ending at the current position by trying each start before it, so it costs time in proportion to how far into the text it is, and heavy use in `FindAll` grows with the square of the text's length. | Long texts with many lookbehinds. | Where the pattern's length is fixed or bounded (a literal, a class, a bounded repeat), try only those start positions. | yes | 2 |
+| **Nested alternations in a `regex` double their work at each level.** `\|` matches each branch to measure it, then matches the winner again for real. In a `token` the second match is skipped, as the first is final. | Deeply nested alternations inside `regex` rules, which are rare. | Part of true longest-token matching (above), which decides from prefixes without matching branches in full. | yes | 5 |
+| **No time or step limit.** | Untrusted input meeting a `regex` that backtracks badly. `scalar` has `RegexTimeout` for the same reason. | Count steps in `state` and give up past a limit. | yes | 1 |
+| **`extendable` is worked out at every step.** | Only for speed. | Cache it per node, at construction or in a map. | yes | 1 |
+| **Word lists: no optional spacing** ("frontend" vs "front end"), **plurals, stemming or fuzzy matching**. | Synonym data that doesn't list every spelling. | Optional spacing and plurals can be normalised in `Add` and in matching (effort 1–2 each). Fuzzy matching belongs elsewhere: compare embeddings for near misses, and send the rest to the LLM (effort 3+). | yes | 1–3 |
+| **Word lists: no built-in word boundaries.** | Almost always for words: "Java" matches the start of "JavaScript". | Write `@list >>` (works now), or add a `WholeWords()` option that checks for a boundary after each phrase. | yes | 1 |
+| **Word lists can't change while in use.** | Refreshing synonyms in a long-running service. | Build a new list and grammar, and swap them in with an `atomic.Pointer`. Needs no change here. | yes | 1 |
+| **The Raku-syntax parser is hand-written,** not built with the package's own builder as first planned. | Only if the syntax grows much larger. | Rewrite it as a grammar of Raku regex syntax, with actions building nodes. | yes | 3 |
+
+## Reference
+
+One example for every function and method, with the output it prints. The
+examples are a guide to grammars as well as to the API: read them in order.
+<!-- reference:start -->
+
+Generated from the examples in `example_*_test.go`, which `go test` runs, so every
+example here works and prints what it says. Edit the examples, not this section, then run
+`go test ./internal/scalar/grammar -run TestReference -update`.
+
+- [A worked example](#reference-a-worked-example)
+- [Writing grammars](#reference-writing-grammars)
+- [Parsing and matches](#reference-parsing-and-matches)
+- [Building rules in Go](#reference-building-rules-in-go)
+- [Word lists](#reference-word-lists)
+
+### Reference: A worked example
+
+#### Overview
+
+The whole idea in one example: find pay in a sentence, and read the figures the actions made from it.
+
+```go
+text := "Salary: £45k – £55,000 per annum, plus bonus."
+
+m := Pay.Find(text, grammar.Actions(PayActions{}))
+fmt.Println(m.At("~")) // the text of the whole match
+fmt.Println(m.At("min.amount.made"), m.At("max.amount.made"))
+fmt.Println(m.At("period.~"))
+fmt.Println(m.At("from"), m.At("to")) // where in text it was
+```
+
+```
+£45k – £55,000 per annum
+45000 55000
+ per annum
+8 32
+```
+
+#### Match tree
+
+A whole match, printed as YAML to show its shape. Every match is a hash with its text under "~" and its position under "from" and "to". Each \<rule> it called is a match of its own, under the rule's name, so the tree follows the grammar. \<.sep> has a dot, so it isn't captured.
+
+\<low=n> captures under both low and n, as in Raku, and as n is captured twice, n is an array. low and n's first element are the same match, not copies, as in Raku; YAML shows that with an anchor, &2, and a reference back to it, \*2.
+
+```go
+g := grammar.MustCompile(`
+grammar Range {
+    token TOP { <low=n> <.sep> <high=n> }
+    token n   { \d+ }
+    token sep { \s* '-' \s* }
+}`)
+out, _ := g.Parse("18 - 21").ToYAML()
+fmt.Print(string(out))
+```
+
+```
+from: 0
+high: &1
+  from: 5
+  to: 7
+  "~": "21"
+low: &2
+  from: 0
+  to: 2
+  "~": "18"
+"n":
+  - *2
+  - *1
+to: 7
+"~": 18 - 21
+```
+
+#### Titles
+
+The workflow this package is for: synonym lists, such as you'd pull from a synonym store, a grammar that says where each kind of word goes, and an action that hands back typed Go. Every spelling of a title, a seniority or a working arrangement comes out as its canonical value.
+
+```go
+seniority := grammar.NewWordList("seniority", grammar.FoldCase())
+titles := grammar.NewWordList("titles", grammar.FoldCase(), grammar.LooseSpacing())
+arrangements := grammar.NewWordList("arrangements", grammar.FoldCase(), grammar.LooseSpacing())
+for l, rules := range map[*grammar.WordList]string{
+	seniority:    "Senior, Snr, Sr\nLead\nJunior, Jnr, Jr",
+	titles:       "Software Engineer, Software Developer, SWE, Developer\nProduct Manager, PM",
+	arrangements: "Remote, WFH, home based\nHybrid\nOnsite, on-site, office based",
+} {
+	if err := l.AddRules(rules); err != nil {
+		panic(err)
+	}
+}
+
+g := grammar.MustCompile(`
+grammar Title {
+    token TOP         { [ <seniority> \s+ ]? <title> [ \s* <.dash> \s* <team> ]? [ \s* '(' <arrangement> ')' ]? }
+    token seniority   { @seniority }
+    token title       { @titles }
+    token arrangement { @arrangements }
+    token dash        { '-' | '–' | '|' }
+    token team        { \w+ [ ' ' \w+ ]* }
+}`, seniority, titles, arrangements)
+
+type Title struct {
+	Seniority   string `json:"seniority"`
+	Title       string `json:"title"`
+	Team        string `json:"team"`
+	Arrangement string `json:"arrangement"`
+}
+toTitle := grammar.Actions(map[string]func(*scalar.SV) any{
+	"TOP": func(m *scalar.SV) any {
+		return scalar.Hash(
+			"seniority", m.At("seniority.made").Or(""),
+			"title", m.At("title.made"),
+			"team", m.At("team.~").Or(""),
+			"arrangement", m.At("arrangement.made").Or(""),
+		)
+	},
+})
+
+for _, text := range []string{
+	"Snr SWE – Payments (WFH)",
+	"product manager | Growth (office based)",
+	"Lead Software Developer",
+} {
+	t, err := scalar.To[Title](g.Parse(text, toTitle).At("made"))
+	fmt.Printf("%+v %v\n", t, err)
+}
+```
+
+```
+{Seniority:Senior Title:Software Engineer Team:Payments Arrangement:Remote} <nil>
+{Seniority: Title:Product Manager Team:Growth Arrangement:Onsite} <nil>
+{Seniority:Lead Title:Software Engineer Team: Arrangement:} <nil>
+```
+
+### Reference: Writing grammars
+
+#### `Compile`
+
+Compile compiles grammars and roles written in Raku syntax, and returns the last one declared:
+
+A grammar is a set of named rules. Parsing starts at TOP, and a rule calls another by writing its name in angle brackets. Here TOP calls \<word> and \<num>, and the match has one of each.
+
+Inside a rule, spaces and # comments mean nothing; letters and digits match themselves, and anything else must be quoted, as '-' is.
+
+```go
+g, err := grammar.Compile(`
+grammar Code {
+    token TOP  { <word> '-' <num> }   # such as REF-1234
+    token word { <[A..Z]>+ }          # one or more capital letters
+    token num  { \d+ }
+}`)
+if err != nil {
+	fmt.Println(err)
+	return
+}
+m := g.Parse("REF-1234")
+fmt.Println(m.At("word.~"), m.At("num.~"))
+
+// Errors say where.
+_, err = grammar.Compile(`grammar Bad { token TOP { a - b } }`)
+fmt.Println(err)
+```
+
+```
+REF 1234
+grammar: line 1, column 29: '-' must be quoted, as '-', or escaped, as \-
+```
+
+#### `Compile.several`
+
+One source can declare several grammars and roles; Compile returns the last. Later declarations can use earlier ones, here with is.
+
+```go
+g, _ := grammar.Compile(`
+grammar Base  { token TOP { <greeting> ', ' \w+ }; token greeting { hello } }
+grammar Polite is Base { token greeting { good \s+ morning } }
+`)
+fmt.Println(g.Name(), g.Parse("good morning, Ada").At("greeting.~"))
+```
+
+```
+Polite good morning
+```
+
+#### `MustCompile`
+
+MustCompile is Compile, panicking if src doesn't compile.
+
+MustCompile is for grammars written into the program. As a package-level variable, a grammar with a mistake in it stops the program as it starts, rather than when it's first used.
+
+```go
+// var Hours = grammar.MustCompile(`...`) at package level, usually.
+hours := grammar.MustCompile(`grammar Hours { token TOP { \d+ [ '.' \d+ ]? \s* hours } }`)
+fmt.Println(hours.Find("Working 37.5 hours a week").At("~"))
+```
+
+```
+37.5 hours
+```
+
+#### `New`
+
+New returns an empty grammar called name.
+
+New starts a grammar in Go, for building rules from data or code rather than writing them in Raku syntax. Token and Regex add rules to it.
+
+```go
+hours := grammar.New("Hours").
+	Token("TOP", grammar.Seq(grammar.Call("num"), grammar.Opt(grammar.Space),
+		grammar.IgnoreCase(grammar.Alt(grammar.Lit("hours"), grammar.Lit("hrs"), grammar.Lit("h"))))).
+	Token("num", grammar.Seq(grammar.Plus(grammar.Digit), grammar.Opt(grammar.Seq(grammar.Lit("."), grammar.Plus(grammar.Digit)))))
+
+fmt.Println(hours.Find("Working 37.5 HRS per week").At("num.~"))
+```
+
+```
+37.5
+```
+
+#### `Grammar.Token`
+
+Token adds a rule that doesn't backtrack, as Raku's token does.
+
+A token doesn't backtrack: each part keeps the first match it finds and never gives any of it back. Here \\d\* takes all the digits, 5 included, so the 5 after it has nothing left to match, and the token fails, even on "5" alone. Written as \\d\* \<?after 5>, or \[ \\d\* ] \<?after 5>, it would work; or use Regex.
+
+That sounds like a limitation, but it's what you want almost always: it makes a grammar's behaviour easy to predict, and fast. Use token unless you need Regex.
+
+```go
+g := grammar.New("G").Token("TOP", grammar.Seq(grammar.Star(grammar.Digit), grammar.Lit("5")))
+// The same in Raku syntax: token TOP { \d* 5 }
+
+fmt.Println(g.Parse("12345").Defined())
+fmt.Println(g.Parse("5").Defined())
+```
+
+```
+false
+false
+```
+
+#### `Grammar.Regex`
+
+Regex adds a rule that backtracks, as Raku's regex does.
+
+A regex backtracks, as a Perl regex does: when what follows fails, \\d\* gives back a digit and tries again, so \\d\* 5 matches "12345".
+
+```go
+g := grammar.New("G").Regex("TOP", grammar.Seq(grammar.Star(grammar.Digit), grammar.Lit("5")))
+// The same in Raku syntax: regex TOP { \d* 5 }
+
+fmt.Println(g.Parse("12345").Defined())
+```
+
+```
+true
+```
+
+#### `Grammar.Extend`
+
+Extend returns an empty grammar called name that inherits g's rules, as grammar name is g { ...
+
+An extension inherits its parent's rules and can replace any of them. A replaced rule is used everywhere, even where the parent's own rules call it: here Pay's TOP and money call \<amount> and \<period> as before, but PayUS's money is the one they get.
+
+```go
+us := Pay.Extend("PayUS").Token("money", grammar.Seq(grammar.Lit("$"), grammar.Call("amount")))
+fmt.Println(us.Subparse("$60k - $70k per year").At("max.~"))
+
+// The same, in Raku syntax.
+us2 := grammar.MustCompile(`grammar PayUS is Pay { token money { '$' <amount> } }`, Pay)
+fmt.Println(us2.Subparse("$60k - $70k per year").At("max.~"))
+```
+
+```
+$70k
+$70k
+```
+
+#### `NewRole`
+
+NewRole returns an empty role called name: a library of rules to compose into grammars with Does, as Raku's role is.
+
+A role is a library of rules to share between grammars. Grammars take a role's rules as their own with does. A role's rules can call rules it doesn't have, here \<amount>, for each grammar that uses it to provide.
+
+```go
+money := grammar.NewRole("Money").
+	Token("money", grammar.Seq(grammar.Lit("£"), grammar.Call("amount")))
+
+whole := grammar.New("Whole").Does(money).
+	Token("TOP", grammar.Call("money")).
+	Token("amount", grammar.Plus(grammar.Digit))
+pence := grammar.New("Pence").Does(money).
+	Token("TOP", grammar.Call("money")).
+	Token("amount", grammar.Seq(grammar.Plus(grammar.Digit), grammar.Lit("."), grammar.Repeat(grammar.Digit, 2, 2)))
+
+fmt.Println(whole.Parse("£12").Defined(), whole.Parse("£12.50").Defined())
+fmt.Println(pence.Parse("£12").Defined(), pence.Parse("£12.50").Defined())
+```
+
+```
+true false
+false true
+```
+
+#### `Grammar.Does`
+
+Does composes roles into g, as grammar g does role { ...
+
+Does composes roles into a grammar. The grammar's own rules win over the role's, wherever Does is called. Two roles with a rule of the same name are an error, unless the grammar defines that rule itself to choose.
+
+In Raku syntax: role Money { ... } and grammar G does Money { ... }.
+
+```go
+g := grammar.MustCompile(`
+role Units { token unit { hours | hrs } }
+role Extra { token unit { h } }
+grammar Hours does Units does Extra {
+    token TOP  { \d+ \s* <unit> }
+    token unit { hours | hrs | h }    # ours: needed, as both roles have one
+}`)
+fmt.Println(g.Parse("8 h").At("unit.~"))
+
+_, err := grammar.Compile(`
+role Units { token unit { hours } }
+role Extra { token unit { h } }
+grammar Hours does Units does Extra { token TOP { \d+ <unit> } }`)
+fmt.Println(err)
+```
+
+```
+h
+grammar: line 4, column 65: rule unit is in both Units and Extra; define it in Hours to choose
+```
+
+#### `Grammar.Check`
+
+Check reports the first call to a rule that doesn't exist, and the first left-recursive rule: one that can call itself again, directly or through other rules, before matching any text, and so would recurse for ever.
+
+Check reports a call to a rule that doesn't exist. Compile checks, but a grammar built in Go is only checked when it's first used, and then a missing rule panics, so call Check after building one from data.
+
+```go
+g := grammar.New("G").Token("TOP", grammar.Call("missing"))
+fmt.Println(g.Check())
+```
+
+```
+grammar G: rule TOP calls <missing>, which doesn't exist
+```
+
+#### `Grammar.Name`
+
+Name returns the grammar's name.
+
+```go
+fmt.Println(Pay.Name())
+```
+
+```
+Pay
+```
+
+#### `Grammar.IsRole`
+
+IsRole reports whether g is a role.
+
+```go
+fmt.Println(Pay.IsRole(), grammar.NewRole("Money").IsRole())
+```
+
+```
+false true
+```
+
+### Reference: Parsing and matches
+
+#### `Grammar.Parse`
+
+Parse matches the whole of text, as Raku's .parse does, and returns the match, or undef if text doesn't match.
+
+Parse matches the whole text, or nothing: a match that would leave text over is no match. When it fails, the result is undef, so Defined, Or and the like work on it, and reading through it gives undef too.
+
+```go
+fmt.Println(Pay.Parse("£18.50 per hour").At("min.amount.num.~"))
+fmt.Println(Pay.Parse("£18.50 per hour, negotiable").Defined()) // not all of it
+fmt.Println(Pay.Parse("negotiable").At("min.~").Or("none"))
+```
+
+```
+18.50
+false
+none
+```
+
+#### `Grammar.Subparse`
+
+Subparse matches from the start of text, without needing to reach the end, as Raku's .subparse does.
+
+Subparse matches from the start of the text, without needing to reach its end.
+
+```go
+m := Pay.Subparse("£18.50 per hour, negotiable")
+fmt.Println(m.At("~"))
+fmt.Println(Pay.Subparse("Pay: £18.50").Defined()) // it must start at the start
+```
+
+```
+£18.50 per hour
+false
+```
+
+#### `Grammar.Find`
+
+Find returns the first match anywhere in text, or undef.
+
+Find hunts for the first place in the text where the grammar matches, which is how to pull a fact out of free text.
+
+```go
+m := Pay.Find("The role pays £30k to £35k depending on experience.")
+fmt.Println(m.At("~"), "at", m.At("from"))
+```
+
+```
+£30k to £35k at 14
+```
+
+#### `Grammar.FindAll`
+
+FindAll returns every match in text, left to right and not overlapping.
+
+FindAll finds every match, left to right, without overlapping.
+
+```go
+for _, m := range Pay.FindAll("£30k basic, £5k car allowance, £2k bonus").All() {
+	fmt.Println(m.At("~"))
+}
+```
+
+```
+£30k
+£5k
+£2k
+```
+
+#### `Rule`
+
+Rule starts the match at the named rule instead of TOP, as :rule does.
+
+Rule starts the match at another rule instead of TOP, which is handy for testing one rule on its own, or for reusing part of a grammar.
+
+```go
+fmt.Println(Pay.Parse("12,500", grammar.Rule("num")).At("~"))
+fmt.Println(Pay.Parse("12,500").Defined()) // TOP wants a £
+```
+
+```
+12,500
+false
+```
+
+#### `Actions`
+
+Actions has a's methods turn matches into values, as :actions does.
+
+Actions turns matches into values. For each rule that matched, the method named after it is called with its match, and what it returns is stored in the match under "made". Actions run innermost first, so here Amount has run for each \<amount> before TOP's action reads their made values.
+
+```go
+m := Pay.Parse("£45k - £55,000", grammar.Actions(PayActions{}))
+fmt.Println(m.At("min.amount.made"), m.At("max.amount.made"))
+```
+
+```
+45000 55000
+```
+
+#### `Actions.map`
+
+A map of functions, keyed by rule name, works as well as a type with methods, and suits actions built at run time.
+
+```go
+m := Pay.Parse("£45k - £55k per annum", grammar.Actions(map[string]func(*scalar.SV) any{
+	"amount": PayActions{}.Amount,
+	"period": func(m *scalar.SV) any { return strings.TrimSpace(m.At("~").Str()) },
+}))
+fmt.Println(m.At("max.amount.made"), m.At("period.made"))
+```
+
+```
+55000 per annum
+```
+
+#### `Actions.to`
+
+A match is ordinary scalar data, so once TOP's action has built the value you want, scalar.To makes it typed Go.
+
+```go
+type Range struct {
+	Min float64 `json:"min"`
+	Max float64 `json:"max"`
+}
+m := Pay.Parse("£45k - £55k", grammar.Actions(map[string]func(*scalar.SV) any{
+	"amount": PayActions{}.Amount,
+	"TOP": func(m *scalar.SV) any {
+		min := m.At("min.amount.made")
+		return scalar.Hash("min", min, "max", m.At("max.amount.made").Or(min))
+	},
+}))
+r, err := scalar.To[Range](m.At("made"))
+fmt.Printf("%+v %v\n", r, err)
+```
+
+```
+{Min:45000 Max:55000} <nil>
+```
+
+#### Capture shapes
+
+How captures are shaped. A capture that can match more than once, because it's quantified (\*, +, \*\*) or its name appears twice, is always an array, even when it matched once or not at all. Any other capture is a single match, or missing when it didn't match. The grammar decides this, not the text, so code reading a match never has to check which it got.
+
+( ... ) captures by position, as "0", "1" and so on; $\<name>=\[ ... ] captures the text it matched under a name.
+
+```go
+g := grammar.MustCompile(`
+grammar Shapes {
+    token TOP  { <tag>* <.ws> $<code>=[ \d+ ] ( '!' )? }
+    token tag  { '#' \w+ <.ws> }
+}`)
+for _, text := range []string{"#a #b 42!", "42"} {
+	m := g.Parse(text)
+	fmt.Println(m.At("tag").AV().Length(), "tags;",
+		"code", m.At("code.~"), ";",
+		"bang", m.At("0.~").Or("none"))
+}
+```
+
+```
+2 tags; code 42 ; bang !
+0 tags; code 42 ; bang none
+```
+
+### Reference: Building rules in Go
+
+#### `Lit`
+
+Lit matches s exactly, or ignoring case inside IgnoreCase.
+
+Lit matches text exactly. In Raku syntax, letters and digits are literal as they stand, and anything else is quoted: '£', or "a\\tb" for escapes.
+
+```go
+g := grammar.New("G").Token("TOP", grammar.Seq(grammar.Lit("£"), grammar.Plus(grammar.Digit)))
+// Raku: token TOP { '£' \d+ }
+
+fmt.Println(g.Subparse("£450 per week").At("~"))
+fmt.Println(g.Subparse("$450").Defined())
+```
+
+```
+£450
+false
+```
+
+#### `Class`
+
+Class matches one character for which in returns true.
+
+Class matches one character that a function accepts. Digit, Word, Space and AnyChar are the classes Raku writes \\d, \\w, \\s and . (any character, newlines too).
+
+```go
+upper := grammar.Class(unicode.IsUpper)
+g := grammar.New("G").Token("TOP", grammar.Seq(grammar.Plus(upper), grammar.Lit("-"), grammar.Plus(grammar.Digit)))
+// Raku, for ASCII capitals: token TOP { <[A..Z]>+ '-' \d+ }
+
+fmt.Println(g.Parse("REF-12").Defined(), g.Parse("ref-12").Defined())
+
+w := grammar.New("W").Token("TOP", grammar.Seq(grammar.Plus(grammar.Word), grammar.Space, grammar.AnyChar))
+// Raku: token TOP { \w+ \s . }
+fmt.Println(w.Parse("ab_1 !").Defined())
+```
+
+```
+true false
+true
+```
+
+#### `Re`
+
+Re matches pattern, a Perl-style regex (as scalar's M takes), at the current position.
+
+Re matches a Perl-style regex, the kind scalar's M takes, as one piece of a rule. It's for patterns you already have; whatever it matches first is final, as if it were a token. Raku syntax has no equivalent.
+
+```go
+g := grammar.New("G").Token("TOP", grammar.Seq(grammar.Re(`[A-Z]{2,4}`), grammar.Lit("-"), grammar.Capture(grammar.Re(`\d+`))))
+fmt.Println(g.Parse("REF-1234").At("0.~"))
+```
+
+```
+1234
+```
+
+#### `Seq`
+
+Seq matches each node in turn.
+
+Seq matches its parts one after another. In Raku syntax, that's just writing them in order.
+
+```go
+g := grammar.New("G").Token("TOP", grammar.Seq(grammar.Lit("per"), grammar.Plus(grammar.Space), grammar.Lit("hour")))
+// Raku: token TOP { per \s+ hour }
+
+fmt.Println(g.Parse("per   hour").Defined())
+```
+
+```
+true
+```
+
+#### `Alt`
+
+Alt is Raku's |: the branch that matches the most text wins, and the earlier branch wins a tie.
+
+Alt is Raku's |: of the alternatives that match, the one that matches the most text wins, whatever order they're written in. So hr, hour and hours can be listed in any order.
+
+```go
+g := grammar.New("G").Token("TOP", grammar.Alt(grammar.Lit("hr"), grammar.Lit("hour"), grammar.Lit("hours")))
+// Raku: token TOP { [ hr | hour | hours ] }
+
+fmt.Println(g.Subparse("hours a week").At("~"))
+```
+
+```
+hours
+```
+
+#### `First`
+
+First is Raku's ||: the first branch that matches wins.
+
+First is Raku's ||: the first alternative that matches wins, even if a later one would match more. In a token, that choice is final, so here Parse fails on "hours": First chose "hour", leaving the "s" over.
+
+```go
+g := grammar.New("G").Token("TOP", grammar.First(grammar.Lit("hour"), grammar.Lit("hours")))
+// Raku: token TOP { [ hour || hours ] }
+
+fmt.Println(g.Subparse("hours").At("~"))
+fmt.Println(g.Parse("hours").Defined())
+```
+
+```
+hour
+false
+```
+
+#### `Opt`
+
+Opt is n?.
+
+Opt is ?: zero or one.
+
+```go
+g := grammar.New("G").Token("TOP", grammar.Seq(grammar.Lit("£"), grammar.Plus(grammar.Digit), grammar.Opt(grammar.Lit("k"))))
+// Raku: token TOP { '£' \d+ k? }
+
+fmt.Println(g.Parse("£45").Defined(), g.Parse("£45k").Defined())
+```
+
+```
+true true
+```
+
+#### `Star`
+
+Star is n*.
+
+Star is \*: zero or more, as many as possible.
+
+```go
+thousands := grammar.Seq(grammar.Lit(","), grammar.Repeat(grammar.Digit, 3, 3))
+g := grammar.New("G").Token("TOP", grammar.Seq(grammar.Repeat(grammar.Digit, 1, 3), grammar.Star(thousands)))
+// Raku: token TOP { \d ** 1..3 [ ',' \d ** 3 ]* }
+
+fmt.Println(g.Parse("45").Defined(), g.Parse("45,000,000").Defined(), g.Parse("45,00").Defined())
+```
+
+```
+true true false
+```
+
+#### `Plus`
+
+Plus is n+.
+
+Plus is +: one or more, as many as possible.
+
+```go
+g := grammar.New("G").Token("TOP", grammar.Plus(grammar.Digit))
+// Raku: token TOP { \d+ }
+
+fmt.Println(g.Subparse("2024 onwards").At("~"))
+fmt.Println(g.Parse("").Defined())
+```
+
+```
+2024
+false
+```
+
+#### `Repeat`
+
+Repeat is n ** min..max; a negative max is no limit, as in ** 2..*.
+
+Repeat is \*\*: between min and max times, with -1 for no limit. In Raku, \\d \*\* 4 is exactly four, \\d \*\* 1..3 one to three, \\d \*\* 2..\* two or more.
+
+```go
+g := grammar.New("G").Token("TOP", grammar.Repeat(grammar.Digit, 1, 3))
+// Raku: token TOP { \d ** 1..3 }
+
+fmt.Println(g.Subparse("12345").At("~"))
+```
+
+```
+123
+```
+
+#### `Quant.Sep`
+
+Sep returns q with sep between items, as % does.
+
+Sep puts a separator between repeats, as Raku's % does: \<tag>+ % ',' is one or more tags with commas between. There mustn't be a comma at the end; SepTrailing allows one.
+
+```go
+g := grammar.New("G").
+	Token("TOP", grammar.Plus(grammar.Call("tag")).Sep(grammar.Seq(grammar.Lit(","), grammar.Star(grammar.Space)))).
+	Token("tag", grammar.Plus(grammar.Word))
+// Raku: token TOP { <tag>+ % [ ',' \s* ] }; token tag { \w+ }
+
+fmt.Println(g.Parse("go, sql, aws").At("tag").AV().Length())
+fmt.Println(g.Parse("go, sql,").Defined())
+```
+
+```
+3
+false
+```
+
+#### `Quant.SepTrailing`
+
+SepTrailing returns q with sep between items and optionally after the last, as %% does.
+
+SepTrailing is Raku's %%: separators between repeats, and optionally one at the end.
+
+```go
+g := grammar.New("G").
+	Token("TOP", grammar.Plus(grammar.Call("tag")).SepTrailing(grammar.Lit(","))).
+	Token("tag", grammar.Plus(grammar.Word))
+// Raku: token TOP { <tag>+ %% ',' }; token tag { \w+ }
+
+fmt.Println(g.Parse("go,sql,").At("tag").AV().Length())
+```
+
+```
+2
+```
+
+#### `Quant.Frugal`
+
+Frugal returns q matching as few items as it can, as *? and +? do.
+
+Frugal makes a quantifier match as little as it can, as \*? and +? do in Raku and Perl, taking more only when what follows fails. Here the frugal .\*? stops at the first " - "; a greedy .\* would run to the last.
+
+In a token, where nothing else gives back what it matched, a frugal quantifier still takes more when it needs to, so .\*? is how a token skips ahead. That works through \[ ... ] and $\<name>=\[ ... ], but a capture ( ... ) commits to its first match, as in Raku: (.\*?) in a token matches nothing, and stays that way. Name the text with $\<name>=\[ .\*? ] instead, or use a regex.
+
+```go
+g := grammar.New("G").Token("TOP", grammar.Seq(
+	grammar.Named("role", grammar.Star(grammar.AnyChar).Frugal()),
+	grammar.Lit(" - "),
+	grammar.Named("rest", grammar.Star(grammar.AnyChar)),
+))
+// Raku: token TOP { $<role>=[.*?] ' - ' $<rest>=[.*] }
+
+m := g.Parse("Engineer - Payments - Remote")
+fmt.Printf("%q %q\n", m.At("role.~"), m.At("rest.~"))
+
+capture := grammar.New("G").Token("TOP", grammar.Seq(
+	grammar.Capture(grammar.Star(grammar.AnyChar).Frugal()), grammar.Lit(" - "), grammar.Capture(grammar.Star(grammar.AnyChar))))
+// Raku: token TOP { (.*?) ' - ' (.*) }
+fmt.Println(capture.Parse("Engineer - Payments - Remote").Defined())
+```
+
+```
+"Engineer" "Payments - Remote"
+false
+```
+
+#### `Call`
+
+Call is <name>: it matches the rule name and captures it under that name.
+
+Call matches another rule and captures its match under the rule's name: \<num> in Raku syntax.
+
+```go
+g := grammar.New("G").
+	Token("TOP", grammar.Seq(grammar.Call("num"), grammar.Lit("%"))).
+	Token("num", grammar.Plus(grammar.Digit))
+// Raku: token TOP { <num> '%' }; token num { \d+ }
+
+fmt.Println(g.Parse("10%").At("num.~"))
+```
+
+```
+10
+```
+
+#### `Silent`
+
+Silent is <.name>: it matches the rule name without capturing it.
+
+Silent matches another rule without capturing it: \<.name> in Raku syntax. Use it for rules that only hold the text together, such as separators and whitespace.
+
+```go
+g := grammar.New("G").
+	Token("TOP", grammar.Seq(grammar.Call("num"), grammar.Silent("ws"), grammar.Lit("days"))).
+	Token("num", grammar.Plus(grammar.Digit))
+// Raku: token TOP { <num> <.ws> days }
+
+m := g.Parse("25 days")
+fmt.Println(m.At("num.~"), m.At("ws").Defined())
+```
+
+```
+25 false
+```
+
+#### `Alias`
+
+Alias is <alias=name>.
+
+Alias captures a rule's match under another name too: \<min=money> in Raku syntax. As in Raku, the match is under both names, so here it's under min and money. Two calls of money make money an array.
+
+```go
+g := grammar.New("G").
+	Token("TOP", grammar.Seq(grammar.Alias("min", "money"), grammar.Lit("-"), grammar.Alias("max", "money"))).
+	Token("money", grammar.Seq(grammar.Lit("£"), grammar.Plus(grammar.Digit)))
+// Raku: token TOP { <min=money> '-' <max=money> }
+
+m := g.Parse("£30-£35")
+fmt.Println(m.At("min.~"), m.At("max.~"), m.At("money").AV().Length())
+```
+
+```
+£30 £35 2
+```
+
+#### `AliasOnly`
+
+AliasOnly is <alias=.name>, captured only as alias.
+
+AliasOnly captures a rule's match under another name only: \<min=.money> in Raku syntax.
+
+```go
+g := grammar.New("G").
+	Token("TOP", grammar.Seq(grammar.AliasOnly("min", "money"), grammar.Lit("+"))).
+	Token("money", grammar.Seq(grammar.Lit("£"), grammar.Plus(grammar.Digit)))
+// Raku: token TOP { <min=.money> '+' }
+
+m := g.Parse("£700+")
+fmt.Println(m.At("min.~"), m.At("money").Defined())
+```
+
+```
+£700 false
+```
+
+#### `Capture`
+
+Capture is ( n ): a positional capture, numbered from 0 in its scope.
+
+Capture is ( ... ): a capture by position, numbered from 0 in the order the groups are written, and read with At("0"), At("1") and so on.
+
+```go
+digits := func(n int) grammar.Node { return grammar.Repeat(grammar.Digit, n, n) }
+g := grammar.New("G").Token("TOP", grammar.Seq(grammar.Capture(digits(4)), grammar.Lit("-"), grammar.Capture(digits(2))))
+// Raku: token TOP { (\d ** 4) '-' (\d ** 2) }
+
+m := g.Parse("2026-10")
+fmt.Println(m.At("0.~"), m.At("1.~"))
+```
+
+```
+2026 10
+```
+
+#### `Named`
+
+Named is $<name>=n.
+
+Named captures the text of part of a rule under a name: $\<year>=\[ ... ] in Raku syntax. Named(name, Capture(...)), $\<name>=( ... ), captures with a scope of its own, so positional captures inside it are its own.
+
+```go
+digits := func(n int) grammar.Node { return grammar.Repeat(grammar.Digit, n, n) }
+g := grammar.New("G").Token("TOP", grammar.Seq(
+	grammar.Named("year", digits(4)),
+	grammar.Lit("-"),
+	grammar.Named("rest", grammar.Capture(grammar.Seq(grammar.Capture(digits(2)), grammar.Lit("-"), grammar.Capture(digits(2))))),
+))
+// Raku: token TOP { $<year>=[ \d ** 4 ] '-' $<rest>=( (\d ** 2) '-' (\d ** 2) ) }
+
+m := g.Parse("2026-10-15")
+fmt.Println(m.At("year.~"), m.At("rest.~"), m.At("rest.0.~"), m.At("rest.1.~"))
+```
+
+```
+2026 10-15 10 15
+```
+
+#### `Before`
+
+Before is <?before n>, NotBefore <!before n>, After <?after n> and NotAfter <!after n>.
+
+Before checks what comes next without matching it: \<?before ...> in Raku syntax. Here the digits must be followed by k, but the k isn't part of the match.
+
+```go
+g := grammar.New("G").Token("TOP", grammar.Seq(grammar.Plus(grammar.Digit), grammar.Before(grammar.Lit("k"))))
+// Raku: token TOP { \d+ <?before k> }
+
+fmt.Println(g.Subparse("45k").At("~"))
+```
+
+```
+45
+```
+
+#### `NotBefore`
+
+NotBefore checks that something doesn't come next: \<!before ...> in Raku syntax. Here it skips a percentage to find a plain number.
+
+```go
+g := grammar.New("G").Token("TOP", grammar.Seq(grammar.Plus(grammar.Digit), grammar.NotBefore(grammar.Lit("%"))))
+// Raku: token TOP { \d+ <!before '%'> }
+
+fmt.Println(g.Find("10% bonus and 25 days' holiday").At("~"))
+```
+
+```
+25
+```
+
+#### `After`
+
+After checks what came just before: \<?after ...> in Raku syntax.
+
+```go
+g := grammar.New("G").Token("TOP", grammar.Seq(grammar.After(grammar.Lit("£")), grammar.Plus(grammar.Digit)))
+// Raku: token TOP { <?after '£'> \d+ }
+
+fmt.Println(g.Find("Ref 123, pays £45").At("~"))
+```
+
+```
+45
+```
+
+#### `NotAfter`
+
+NotAfter checks that something didn't come just before: \<!after ...> in Raku syntax. Here it finds a number that isn't money; WordStart stops it matching the 5 of £45.
+
+```go
+g := grammar.New("G").Token("TOP", grammar.Seq(grammar.NotAfter(grammar.Lit("£")), grammar.WordStart, grammar.Plus(grammar.Digit)))
+// Raku: token TOP { <!after '£'> << \d+ }
+
+fmt.Println(g.Find("£45 for 3 days").At("~"))
+```
+
+```
+3
+```
+
+#### `IgnoreCase`
+
+IgnoreCase is :i over n.
+
+IgnoreCase is :i: letters match in either case, for the part of the rule it covers. In Raku syntax, :i applies to the rest of the group it's in: \[:i per annum] or, at the start of a rule, all of it.
+
+```go
+g := grammar.New("G").Token("TOP", grammar.IgnoreCase(grammar.Lit("per annum")))
+// Raku: token TOP { :i 'per annum' }
+
+fmt.Println(g.Parse("PER ANNUM").Defined(), g.Parse("Per Annum").Defined())
+```
+
+```
+true true
+```
+
+#### `Ratchet`
+
+Ratchet is :r over n, or :!r when on is false.
+
+Ratchet turns backtracking off (:r) or on (:!r) for part of a rule. A token is :r throughout, so Ratchet(..., false), :!r in Raku syntax, lets one part of a token backtrack, as a regex would.
+
+```go
+g := grammar.New("G").Token("TOP", grammar.Ratchet(grammar.Seq(grammar.Star(grammar.Digit), grammar.Lit("5")), false))
+// Raku: token TOP { :!r \d* 5 }
+
+fmt.Println(g.Parse("12345").Defined())
+```
+
+```
+true
+```
+
+#### `Start`
+
+Start and End match at the start and end of the text, as ^ and $ do in Raku. LineStart and LineEnd, ^^ and $$, match at the start and end of any line.
+
+```go
+g := grammar.New("G").Token("TOP", grammar.Seq(grammar.Start, grammar.Plus(grammar.Digit)))
+// Raku: token TOP { ^ \d+ }
+
+fmt.Println(g.Find("12 days").Defined(), g.Find("Day 12").Defined())
+```
+
+```
+true false
+```
+
+#### `LineStart`
+
+LineStart is ^^: the start of any line. Here it finds the bulleted lines of a description, and only those.
+
+```go
+line := grammar.Plus(grammar.Class(func(r rune) bool { return r != '\n' }))
+g := grammar.New("G").Token("TOP", grammar.Seq(grammar.LineStart, grammar.Lit("- "), grammar.Capture(line)))
+// Raku: token TOP { ^^ '- ' (\N+) }
+
+text := "Benefits:\n- 25 days' holiday\n- Pension - 5%\nApply now"
+for _, m := range g.FindAll(text).All() {
+	fmt.Println(m.At("0.~"))
+}
+```
+
+```
+25 days' holiday
+Pension - 5%
+```
+
+#### `WordStart`
+
+WordStart and WordEnd are \<\< and >>: where a word starts and ends. Without them, "pa" is found inside "company".
+
+```go
+bare := grammar.New("G").Token("TOP", grammar.Lit("pa"))
+word := grammar.New("G").Token("TOP", grammar.Seq(grammar.WordStart, grammar.Lit("pa"), grammar.WordEnd))
+// Raku: token TOP { << pa >> }
+
+text := "a company that pays 30k pa"
+fmt.Println(bare.Find(text).At("from"), word.Find(text).At("from"))
+```
+
+```
+5 24
+```
+
+### Reference: Word lists
+
+#### `NewWordList`
+
+NewWordList returns an empty list called name, which is how Raku syntax refers to it: @name.
+
+A word list holds words and phrases, each with a canonical value, so that synonyms match as one thing. Pass it to Compile and match it with @name; a rule that's nothing but the list gets the canonical value of what it matched as its made value.
+
+```go
+titles := grammar.NewWordList("titles")
+titles.Add("Software Engineer", "Software Developer", "SWE")
+titles.Add("Data Engineer", "Data Platform Engineer")
+
+g := grammar.MustCompile(`
+grammar Title {
+    token TOP   { <title> .* }      # a title, then anything
+    token title { @titles }
+}`, titles)
+
+for _, text := range []string{"SWE (Payments)", "Data Platform Engineer, Remote"} {
+	fmt.Println(g.Parse(text).At("title.made"))
+}
+```
+
+```
+Software Engineer
+Data Engineer
+```
+
+#### `Words`
+
+Words matches the longest phrase in l, as @name does.
+
+Words is @name for grammars built in Go.
+
+```go
+titles := grammar.NewWordList("titles").Add("Software Engineer", "SWE")
+g := grammar.New("Title").
+	Token("TOP", grammar.Seq(grammar.Call("title"), grammar.Star(grammar.AnyChar))).
+	Token("title", grammar.Words(titles))
+
+fmt.Println(g.Parse("SWE II").At("title.made"))
+```
+
+```
+Software Engineer
+```
+
+#### `Words.longestAndBoundaries`
+
+A list matches the longest phrase it can, whatever order they were added in, and like Raku's, never gives back part of it. It doesn't look at word boundaries: "Java" matches the start of "JavaScript", unless the rule says the word must end there, with >>.
+
+```go
+langs := grammar.NewWordList("langs").Add("Java").Add("JavaScript")
+longest := grammar.MustCompile(`grammar L { token TOP { @langs } }`, langs)
+fmt.Println(longest.Subparse("JavaScript developer").At("~"))
+
+java := grammar.NewWordList("java").Add("Java")
+loose := grammar.MustCompile(`grammar L2 { token TOP { @java } }`, java)
+whole := grammar.MustCompile(`grammar L3 { token TOP { @java >> } }`, java)
+fmt.Println(loose.Subparse("JavaScript").Defined(), whole.Subparse("JavaScript").Defined())
+```
+
+```
+JavaScript
+true false
+```
+
+#### `WordList.Add`
+
+Add adds canonical and each of synonyms to the list, all meaning canonical.
+
+Add adds a canonical value and its synonyms. The canonical value is a phrase in the list too. Add returns the list, so calls can be chained.
+
+```go
+units := grammar.NewWordList("units").
+	Add("Year", "annum", "pa").
+	Add("Week", "wk")
+
+fmt.Println(units.Canonical("annum"), units.Canonical("Year"), units.Canonical("wk"))
+```
+
+```
+[Year] [Year] [Week]
+```
+
+#### `WordList.AddRule`
+
+AddRule adds one synonym rule in the format Elasticsearch and Solr use:
+
+AddRule takes one synonym rule in the format Elasticsearch and Solr use. A list of phrases means its first; phrases => phrases means the right side; a backslash escapes a comma or =>.
+
+```go
+l := grammar.NewWordList("units")
+for _, rule := range []string{
+	"Year, annum, yr",       // annum and yr mean Year
+	"hr, ph => Hour",        // hr and ph mean Hour, as does Hour
+	`£\, per annum => Year`, // the phrase "£, per annum"
+} {
+	if err := l.AddRule(rule); err != nil {
+		fmt.Println(err)
+	}
+}
+fmt.Println(l.Canonical("yr"), l.Canonical("ph"), l.Canonical("£, per annum"))
+
+fmt.Println(l.AddRule("a => b => c"))
+```
+
+```
+[Year] [Hour] [Year]
+grammar: synonym rule "a => b => c" has more than one =>
+```
+
+#### `WordList.AddRules`
+
+AddRules adds each line of rules as a rule, as AddRule does, and reports the first bad one.
+
+AddRules takes many rules, one per line, as Elasticsearch's synonyms API returns them. Blank lines and lines starting with # are skipped.
+
+```go
+units := grammar.NewWordList("units", grammar.FoldCase())
+err := units.AddRules(`
+# periods
+Year, annum, yr, pa, p.a.
+Week, wk, pw
+hour, hr, ph => Hour
+`)
+if err != nil {
+	fmt.Println(err)
+	return
+}
+g := grammar.MustCompile(`
+grammar Rate {
+    token TOP  { '£' $<amount>=[ \d+ ] \s* [ per | a | '/' ]? \s* <unit> }
+    token unit { @units }
+}`, units)
+
+for _, text := range []string{"£450 per WK", "£18/hr", "£40000 p.a."} {
+	m := g.Parse(text)
+	fmt.Println(m.At("amount.~"), m.At("unit.made"))
+}
+```
+
+```
+450 Week
+18 Hour
+40000 Year
+```
+
+#### `WordList.Canonical`
+
+Canonical returns what phrase means: its canonical values, in the order they were added, or nil if it isn't in the list.
+
+Canonical says what a phrase means: everything it means, in the order added, or nothing if it isn't in the list. It reads the phrase as the list matches text, so with FoldCase and LooseSpacing it ignores case and spacing too.
+
+```go
+titles := grammar.NewWordList("titles", grammar.FoldCase(), grammar.LooseSpacing()).
+	Add("Front-end Developer", "Frontend Developer")
+
+fmt.Println(titles.Canonical("FRONT END developer"))
+fmt.Println(titles.Canonical("Back-end Developer") == nil)
+```
+
+```
+[Front-end Developer]
+true
+```
+
+#### `WordList.Ambiguous`
+
+Ambiguous returns the phrases that mean more than one thing, with what each means.
+
+Ambiguous lists the phrases that mean more than one thing. A match of one has the first meaning as its made value; Canonical gives the rest, for the caller to choose from context, or to pass on to something that can.
+
+```go
+titles := grammar.NewWordList("titles", grammar.FoldCase())
+titles.Add("Product Manager", "PM")
+titles.Add("Project Manager", "PM")
+
+fmt.Println(titles.Ambiguous())
+
+g := grammar.MustCompile(`grammar T { token TOP { <title> }; token title { @titles } }`, titles)
+fmt.Println(g.Parse("PM").At("title.made"))
+```
+
+```
+map[pm:[Product Manager Project Manager]]
+Product Manager
+```
+
+#### `WordList.Phrases`
+
+Phrases returns the list's phrases, normalised, in sorted order.
+
+Phrases lists every phrase, as the list stores it: case folded with FoldCase, spacing collapsed with LooseSpacing.
+
+```go
+l := grammar.NewWordList("units", grammar.FoldCase()).Add("Year", "Annum", "p.a.")
+fmt.Println(l.Phrases())
+```
+
+```
+[annum p.a. year]
+```
+
+#### `WordList.Len`
+
+Len returns how many distinct phrases the list holds.
+
+Len counts distinct phrases: a synonym added twice counts once.
+
+```go
+l := grammar.NewWordList("units").Add("Year", "annum").Add("Year", "annum", "yr")
+fmt.Println(l.Len())
+```
+
+```
+3
+```
+
+#### `WordList.Name`
+
+Name returns the list's name.
+
+Name is how Raku syntax refers to the list: @units.
+
+```go
+fmt.Println(grammar.NewWordList("units").Name())
+```
+
+```
+units
+```
+
+#### `FoldCase`
+
+FoldCase matches a list's phrases ignoring case, wherever it's used.
+
+FoldCase makes a list ignore case wherever it's used. Without it, a list ignores case only where the rule says :i, as in Raku.
+
+```go
+exact := grammar.NewWordList("exact").Add("Senior")
+folded := grammar.NewWordList("folded", grammar.FoldCase()).Add("Senior")
+g := grammar.MustCompile(`
+grammar Seniority {
+    token TOP    { @exact }
+    token folded { @folded }
+    token ci     { :i @exact }
+}`, exact, folded)
+
+fmt.Println(g.Parse("SENIOR").Defined())
+fmt.Println(g.Parse("SENIOR", grammar.Rule("folded")).Defined())
+fmt.Println(g.Parse("SENIOR", grammar.Rule("ci")).Defined())
+```
+
+```
+false
+true
+true
+```
+
+#### `LooseSpacing`
+
+LooseSpacing matches any run of spaces, hyphens, dashes and underscores in the text with any such run in a phrase, so "front-end" in the list matches "front end" and "front – end" in the text.
+
+LooseSpacing makes any run of spaces, hyphens, dashes and underscores match any other, as job titles are written every which way. There must still be some spacing: "frontend" is a different phrase from "front-end", so add both if both are used.
+
+```go
+l := grammar.NewWordList("titles", grammar.LooseSpacing()).Add("front-end developer")
+g := grammar.MustCompile(`grammar T { token TOP { @titles } }`, l)
+
+for _, text := range []string{"front end developer", "front – end developer", "front_end  developer", "frontend developer"} {
+	fmt.Println(g.Parse(text).Defined())
+}
+```
+
+```
+true
+true
+true
+false
+```
+
+<!-- reference:end -->
