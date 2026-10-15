@@ -485,7 +485,9 @@ m, err := Pay.ParseErr("£45k - 55,000")
 ```
 
 That point is usually where the mistake is, as everything before it
-matched something. What's expected is written as the grammar writes it: a
+matched something. A bare word in a rule is matched as one literal, so a
+misspelt word is reported whole: `expected 'annum', 'year', 'hour' or
+'day'`. What's expected is written as the grammar writes it: a
 rule that couldn't start there by name (`<money>`), and otherwise the
 pieces that could have come next (`'k'`, `\d`, `<[a..z]>`, `@units`, `end
 of text`). A few failures are left out as no news: those inside

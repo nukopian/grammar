@@ -103,6 +103,11 @@ type parser struct {
 	// sig is whether whitespace in the source is significant here, as it
 	// is in a rule, or after :s; see sequence.
 	sig bool
+
+	// single is whether the next atom is just one character of a bare
+	// word, as after $<x>= and as a separator, which Raku binds to one
+	// letter; see atom.
+	single bool
 }
 
 func (p *parser) fail(format string, args ...any) {
@@ -439,6 +444,7 @@ func (p *parser) quantified() (Node, bool) {
 		capName = p.ident()
 		p.expect(">")
 		p.expect("=")
+		p.single = true
 	}
 	n, spaced := p.quantifier(p.atom())
 	if capName != "" {
@@ -491,6 +497,7 @@ func (p *parser) quantifier(atom Node) (Node, bool) {
 	}
 	spaced = p.space()
 	if trailing := p.eat("%%"); trailing || p.eat("%") {
+		p.single = true
 		sep := p.atom()
 		if p.space() && sig {
 			sep = Seq(sep, Silent("ws"))
@@ -511,6 +518,16 @@ func (p *parser) quantifier(atom Node) (Node, bool) {
 	return q, spaced
 }
 
+// quantifierAt reports whether a quantifier follows position at, after any
+// whitespace.
+func (p *parser) quantifierAt(at int) bool {
+	saved := p.i
+	defer func() { p.i = saved }()
+	p.i = at
+	p.ws()
+	return p.peek("**") || p.peek("?") || p.peek("*") || p.peek("+")
+}
+
 func (p *parser) number() int {
 	start := p.i
 	for !p.eof() && p.src[p.i] >= '0' && p.src[p.i] <= '9' {
@@ -527,6 +544,8 @@ func (p *parser) number() int {
 }
 
 func (p *parser) atom() Node {
+	single := p.single
+	p.single = false
 	p.ws()
 	if p.eof() {
 		p.fail("unexpected end of grammar")
@@ -570,8 +589,22 @@ func (p *parser) atom() Node {
 		}
 		return Words(l)
 	case isWord(r):
-		p.i++
-		return Lit(string(r))
+		// A run of letters is one literal, so a failure report names the
+		// whole word. Raku matches it a letter at a time, which matches the
+		// same text, except where it binds to one letter: the last, before
+		// a quantifier (ab* is a b*), and the first, after $<x>= or as a
+		// separator.
+		start, end := p.i, p.i+1
+		if !single {
+			for end < len(p.src) && isWord(p.src[end]) {
+				end++
+			}
+			if end-start > 1 && p.quantifierAt(end) {
+				end--
+			}
+		}
+		p.i = end
+		return Lit(string(p.src[start:end]))
 	case r == '{':
 		p.fail("code blocks aren't supported: use actions")
 	case r == '%':

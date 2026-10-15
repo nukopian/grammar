@@ -160,6 +160,16 @@ var rakuCases = []struct {
 	{Src: `grammar Sig40 { token w { \w }; rule TOP { "," b } }`, Inputs: []string{", b", ",b"}},
 	{Src: `grammar Sig41 { token w { \w }; rule TOP { <x> <w> }; token x { a }; token ws { '_'* } }`, Inputs: []string{"a_y", "a__y", "a y"}},
 	{Src: `grammar Sig42 { token w { \w }; rule TOP { [ <w> ]+ % "," } }`, Inputs: []string{"x, y", "x ,y"}},
+	// A run of bare letters is one literal, except where Raku binds to a
+	// single letter: before a quantifier, after $<x>=, and as a separator.
+	{Src: `grammar Bare1 { token TOP { ab* c } }`, Inputs: []string{"abbbc", "ac", "ababc"}},
+	{Src: `grammar Bare2 { token TOP { abc ** 2 } }`, Inputs: []string{"abcc", "abcabc"}},
+	{Src: `grammar Bare3 { token TOP { abc ? d } }`, Inputs: []string{"abd", "abcd"}},
+	{Src: `grammar Bare4 { token TOP { $<x>=ab c } }`, Inputs: []string{"abc"}},
+	{Src: `grammar Bare5 { token TOP { x+ % ab } }`, Inputs: []string{"xaxb", "xabx"}},
+	{Src: `grammar Bare6 { rule TOP { ab + c } }`, Inputs: []string{"ab b c", "abb c"}},
+	{Src: `grammar Bare7 { token TOP { :i hello <.ws> world } }`, Inputs: []string{"Hello WORLD"}},
+	{Src: `grammar Bare8 { token TOP { a1_b2+ } }`, Inputs: []string{"a1_b22", "a1_b2"}},
 	// Quoted literals and escapes.
 	{Src: `grammar Quote { token TOP { "a\tb" '\'' \- \[ } }`, Inputs: []string{"a\tb'-["}},
 }

@@ -449,14 +449,25 @@ func newParseError(name string, in []rune, at int, expected []string) *ParseErro
 }
 
 func (e *ParseError) Error() string {
+	// When every expectation is under :i, say so once, at the end.
+	items, suffix := e.Expected, ""
+	const ci = " (ignoring case)"
+	if len(items) > 1 && !slices.ContainsFunc(items, func(s string) bool { return !strings.HasSuffix(s, ci) }) {
+		items = slices.Clone(items)
+		for i, s := range items {
+			items[i] = strings.TrimSuffix(s, ci)
+		}
+		suffix = ci
+	}
 	expected := "something else"
-	switch n := len(e.Expected); n {
+	switch n := len(items); n {
 	case 0:
 	case 1:
-		expected = e.Expected[0]
+		expected = items[0]
 	default:
-		expected = strings.Join(e.Expected[:n-1], ", ") + " or " + e.Expected[n-1]
+		expected = strings.Join(items[:n-1], ", ") + " or " + items[n-1]
 	}
+	expected += suffix
 	found := strconv.Quote(e.Found)
 	switch {
 	case e.atEnd:

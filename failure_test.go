@@ -78,7 +78,11 @@ func TestParseErrDescriptions(t *testing.T) {
 		{`grammar D12 { token TOP { a <?before \d> . } }`, "ab", `column 2: expected \d`},
 		{`grammar D10 { rule TOP { a b } }`, "a c", `column 3: expected 'b'`},
 		{`grammar D11 { token TOP { :i 'abc' } }`, "abd", `column 1: expected 'abc' (ignoring case)`},
-		{`grammar D13 { token TOP { :i abc } }`, "abd", `column 3: expected 'c' (ignoring case)`},
+		{`grammar D13 { token TOP { :i abc } }`, "abd", `column 1: expected 'abc' (ignoring case)`},
+		// A bare word is one literal, so a misspelt word is reported whole,
+		// and :i is said once for a list that's all under it.
+		{`grammar D15 { token TOP { :i per \s+ [ annum | year | hour | day ] } }`, "per anum",
+			`column 5: expected 'annum', 'year', 'hour' or 'day' (ignoring case), found "anum"`},
 		// One more \d in \d+ isn't reported, but a literal that could follow is.
 		{`grammar D14 { token TOP { \d+ [ k ]? '!' } }`, "45x", `column 3: expected 'k' or '!', found "x"`},
 	} {
