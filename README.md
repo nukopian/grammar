@@ -153,6 +153,7 @@ all work on it. [The match](#the-match) has the details, and the Reference's
 |---|---|---|
 | `token name { … }` | `g.Token(name, node)` | A rule that doesn't backtrack: each part keeps its first match. Use this unless you need `regex`. |
 | `regex name { … }` | `g.Regex(name, node)` | A rule that backtracks, like a Perl regex. |
+| `rule name { … }` | `g.Token`, with `Silent("ws")` where the spaces go | A token in which spaces in the rule match spaces in the text. See [Spaces in rules](#spaces-in-rules). |
 | `grammar B is A { … }` | `a.Extend("B")` | B has A's rules; B's own rules replace A's of the same name, even where A's rules call them. |
 | `role R { … }` | `grammar.NewRole("R")` | A library of rules for grammars to share. See [Roles](#roles). |
 | `grammar B does R { … }` | `b.Does(r)` | B gets R's rules as its own. |
@@ -199,8 +200,42 @@ escaped.
 | `<?after x>`, `<!after x>` | `After(x)`, `NotAfter(x)` | x comes just before (or doesn't) |
 | `:i` | `IgnoreCase(x)` | ignore case, for the rest of the group |
 | `:r`, `:!r` | `Ratchet(x, on)` | stop or start backtracking, for the rest of the group |
+| `:s`, `:!s` | `Silent("ws")` where the spaces go | make spaces in the rule match spaces in the text, or stop, for the rest of the group, as in a `rule` |
 | `@name` | `Words(list)` | the longest phrase in a word list; see [Word lists](#word-lists) |
 | | `Re(pattern)` | a Perl-style regex, as `scalar`'s `M` takes, as one atom |
+
+### Spaces in rules
+
+In a `token` or `regex`, spaces in the rule mean nothing, so a phrase needs
+its spaces spelled out: `per \s+ annum`. In a `rule`, spaces mean "spaces
+may go here": each becomes a call to `<.ws>`, which matches any whitespace,
+or none between a word and punctuation, but not none between two words.
+So a rule reads like the text it matches:
+
+```raku
+rule rate   { up to <money> per <unit> }     # "up to £500 per day", "up to  £500 per  day"
+token rate  { up \s+ to \s+ <money> \s+ per \s+ <unit> }   # the same, as a token
+```
+
+Where a space counts, exactly as in Raku:
+
+| In the rule | Means |
+|---|---|
+| `a b` | `a <.ws> b`: a space after something is `<.ws>` |
+| `rule x { a }`, `[ a`, `\| a` | nothing: a space at the start of a rule, a group or an alternative doesn't count |
+| `a }`, `a ]` | `a <.ws>`: a space at the end does, so a rule takes the spaces after it |
+| `a+ b` | `a+ <.ws> b` |
+| `a + b` | `[ a <.ws> ]+ <.ws> b`: a space before a quantifier is repeated with the atom |
+| `<item>+ % ',' }` | `<item>+ % [ ',' <.ws> ]`: a space after a separator is part of it, so `"x, y"` matches but `"x , y"` doesn't; write `<item> + % ','` to allow both |
+| `'a b'` | the text `a b`, with exactly one space, as quoted text is literal |
+| `^ a` | `^ <.ws> a`, so leading spaces in the text are allowed |
+
+`:s` switches this on for the rest of a group in a `token` or `regex`, and
+`:!s` switches it off in a `rule`. `<.ws>` is an ordinary rule, so a grammar
+can define its own `ws`, to skip comments as well as spaces, say, and every
+`rule` in it uses that.
+
+In Go there's no sigspace: put `grammar.Silent("ws")` where the spaces go.
 
 ### Calling rules and capturing
 
@@ -468,7 +503,6 @@ Before changing anything, it helps to know how the package is put together:
 
 | Feature | When you'd need it | What it would take | Fixable | Effort |
 |---|---|---|---|---|
-| **`rule` and `:sigspace`**: whitespace in a rule matches whitespace in the text | Phrases across words, such as `rule { up to <money> per annum }`, without `<.ws>` or `\s+` between every word. Most grammars over prose want this. | In `syntax.go`, in a `rule` body or after `:s`, turn whitespace after an atom into `Silent("ws")`. Raku's exact placement rules are subtle (before or after quantifiers, at the start of a rule), so probe Raku and add cases first. | yes | 2 |
 | **Code assertions**: `<?{ … }>`, `<!{ … }>` | Checks only code can make, in the middle of a parse: min ≤ max, a plausible year, a word that's in a list but isn't a stopword. Without them, wrong parses get through and need cleaning up afterwards. | Raku code can't run here, so: a builder node holding `func(m *scalar.SV) bool`, and a syntax such as `<?{name}>` naming a function passed to `Compile`. The function needs the captures so far, so build a provisional match of the current scope from the `capList`. | partly | 2–3 |
 | **Code blocks**: `{ make … }` | Making values in the grammar itself. | Actions do this. Not worth adding unless grammars are written by people who won't write Go. | by design | — |
 | **`proto token` and `:sym<…>`** | Families of alternatives that grow, where an extension adds a variant without editing its parent: `token period:sym<fortnightly> { … }` in a `PayUK` grammar. | A `proto` rule matches as an `Alt` over every rule named `name:sym<…>` found along the inheritance chain and in roles, collected when it's called; `<sym>` inside one matches its own `sym` text. Correct only with true longest-token matching (below), though `Alt`'s approximation will do for most. | yes | 3 |
@@ -881,6 +915,28 @@ fmt.Println(Pay.IsRole(), grammar.NewRole("Money").IsRole())
 
 ```
 false true
+```
+
+#### `Compile.rule`
+
+In a rule, the spaces in the rule match spaces in the text: each becomes a call to \<.ws>, which matches any amount of whitespace, so the rule reads like the text it matches. Here "up to £500 per day" matches with any spacing, but "upto" doesn't, as \<.ws> won't match nothing between two words. See the README's "Spaces in rules" for exactly where a space counts.
+
+```go
+g := grammar.MustCompile(`
+grammar Rate {
+    rule  TOP   { up to <money> per <unit> }
+    token money { '£' \d+ }
+    token unit  { day | hour | week }
+}`)
+for _, text := range []string{"up to £500 per day", "up  to £500   per day", "upto £500 per day"} {
+	fmt.Println(g.Parse(text).At("money.~").Or("no match"))
+}
+```
+
+```
+£500
+£500
+no match
 ```
 
 ### Reference: Parsing and matches

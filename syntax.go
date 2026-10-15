@@ -94,8 +94,15 @@ type parser struct {
 
 	// adv holds, for each group being parsed, innermost last, the adverbs
 	// that cover the rest of it: an adverb covers the rest of its group,
-	// later alternatives included, as in Raku.
-	adv []*mode
+	// later alternatives included, as in Raku. sigs does the same for
+	// :sigspace, which changes how the source is read rather than how the
+	// text is matched.
+	adv  []*mode
+	sigs []bool
+
+	// sig is whether whitespace in the source is significant here, as it
+	// is in a rule, or after :s; see sequence.
+	sig bool
 }
 
 func (p *parser) fail(format string, args ...any) {
@@ -132,7 +139,16 @@ func (p *parser) expect(s string) {
 	}
 }
 
-// ws skips whitespace and # comments, which mean nothing in a Raku regex.
+// space skips whitespace and # comments, as ws does, and reports whether
+// there were any, for :sigspace.
+func (p *parser) space() bool {
+	start := p.i
+	p.ws()
+	return p.i > start
+}
+
+// ws skips whitespace and # comments, which mean nothing in a Raku regex,
+// except under :sigspace.
 func (p *parser) ws() {
 	for !p.eof() {
 		switch r := p.src[p.i]; {
@@ -253,22 +269,24 @@ func (p *parser) rules(g *Grammar) {
 		if p.eat("}") {
 			break
 		}
-		var ratchet bool
+		var ratchet, sig bool
 		switch {
 		case p.keyword("token"):
 			ratchet = true
 		case p.keyword("regex"):
 		case p.keyword("rule"):
-			p.fail("rule isn't supported yet: use token, with <.ws> where spaces may go")
+			ratchet, sig = true, true // a rule is a token with :sigspace
 		default:
-			p.fail("expected token or regex")
+			p.fail("expected token, regex or rule")
 		}
 		rname := p.ident()
 		if _, dup := g.rules[rname]; dup {
 			p.fail("%s is declared twice", rname)
 		}
 		p.expect("{")
+		p.sig = sig
 		body := p.regex()
+		p.sig = false
 		p.expect("}")
 		p.add(g, rname, body, ratchet)
 		p.ws()
@@ -296,7 +314,13 @@ func (p *parser) add(g *Grammar, name string, body Node, ratchet bool) {
 // sequence.
 func (p *parser) regex() Node {
 	p.adv = append(p.adv, nil)
-	defer func() { p.adv = p.adv[:len(p.adv)-1] }()
+	p.sigs = append(p.sigs, p.sig)
+	outer := p.sig
+	defer func() {
+		p.adv = p.adv[:len(p.adv)-1]
+		p.sigs = p.sigs[:len(p.sigs)-1]
+		p.sig = outer
+	}()
 	p.ws()
 	if !p.eat("||") {
 		p.eat("|")
@@ -327,6 +351,7 @@ func (p *parser) alts() Node {
 // cover it.
 func (p *parser) branch() Node {
 	adv := p.adv[len(p.adv)-1]
+	p.sig = p.sigs[len(p.sigs)-1]
 	n := p.sequence()
 	if adv != nil {
 		n = &mode{inner: n, ci: adv.ci, ratchet: adv.ratchet}
@@ -334,16 +359,25 @@ func (p *parser) branch() Node {
 	return n
 }
 
+// sequence reads terms one after another. Under :sigspace, whitespace
+// after a term matches whitespace in the text: it becomes <.ws>, as in
+// Raku. Whitespace at the start of a sequence (of a rule, a group or an
+// alternative) never does.
 func (p *parser) sequence() Node {
 	var items []Node
+	p.ws()
 	for {
-		p.ws()
 		if p.eof() || p.peek("|") || p.peek("]") || p.peek(")") || p.peek("}") ||
 			p.assert > 0 && p.peek(">") {
 			break
 		}
 		if p.peek(":") {
-			m := p.adverbs()
+			m, sig := p.adverbs()
+			if sig != nil {
+				p.sig = *sig
+				p.sigs[len(p.sigs)-1] = *sig
+			}
+			p.ws()
 			// They cover the rest of this sequence, and the rest of the group.
 			top := &p.adv[len(p.adv)-1]
 			merged := &mode{}
@@ -358,17 +392,28 @@ func (p *parser) sequence() Node {
 			}
 			*top = merged
 			m.inner = p.sequence()
-			items = append(items, m)
+			if m.ci == nil && m.ratchet == nil {
+				items = append(items, m.inner) // only :s, which is done with
+			} else {
+				items = append(items, m)
+			}
 			break
 		}
-		items = append(items, p.quantified())
+		sig := p.sig // as it is where the whitespace after the term is
+		term, spaced := p.quantified()
+		items = append(items, term)
+		if spaced && sig {
+			items = append(items, Silent("ws"))
+		}
 	}
 	return Seq(items...)
 }
 
-// adverbs reads :i, :r and the like, as a mode for the caller to fill in.
-func (p *parser) adverbs() *mode {
+// adverbs reads :i, :r, :s and the like: a mode for the caller to fill in,
+// and :s or :!s, if given, which the parser applies itself.
+func (p *parser) adverbs() (*mode, *bool) {
 	m := &mode{}
+	var sig *bool
 	for p.ws(); p.eat(":"); p.ws() {
 		on := !p.eat("!")
 		switch name := p.ident(); name {
@@ -377,30 +422,44 @@ func (p *parser) adverbs() *mode {
 		case "r", "ratchet":
 			m.ratchet = &on
 		case "s", "sigspace":
-			p.fail(":%s isn't supported yet", name)
+			sig = &on
 		default:
 			p.fail("unknown adverb :%s", name)
 		}
 	}
-	return m
+	return m, sig
 }
 
-func (p *parser) quantified() Node {
+// quantified reads a term: an atom, perhaps named or quantified. It
+// reports whether whitespace follows the term, which matters under
+// :sigspace.
+func (p *parser) quantified() (Node, bool) {
 	var capName string
 	if p.eat("$<") {
 		capName = p.ident()
 		p.expect(">")
 		p.expect("=")
 	}
-	n := p.quantifier(p.atom())
+	n, spaced := p.quantifier(p.atom())
 	if capName != "" {
 		n = Named(capName, n)
 	}
-	return n
+	return n, spaced
 }
 
-func (p *parser) quantifier(atom Node) Node {
-	p.ws()
+// quantifier reads any quantifier after atom, and reports whether
+// whitespace follows. Under :sigspace, as in Raku, whitespace between an
+// atom and its quantifier is part of what's repeated (a + is [a <.ws>]+),
+// and whitespace after a separator is part of the separator.
+func (p *parser) quantifier(atom Node) (Node, bool) {
+	sig := p.sig
+	spaced := p.space()
+	if !p.peek("**") && !p.peek("?") && !p.peek("*") && !p.peek("+") {
+		return atom, spaced
+	}
+	if spaced && sig {
+		atom = Seq(atom, Silent("ws"))
+	}
 	var q *Quant
 	switch {
 	case p.eat("**"):
@@ -424,28 +483,32 @@ func (p *parser) quantifier(atom Node) Node {
 		q = Star(atom)
 	case p.eat("+"):
 		q = Plus(atom)
-	default:
-		return atom
 	}
 	frugal := p.eat("?")
 	possessive := !frugal && p.eat(":")
 	if !frugal && !possessive {
 		p.eat("!") // explicitly greedy, as it is anyway
 	}
-	p.ws()
-	switch {
-	case p.eat("%%"):
-		q = q.SepTrailing(p.atom())
-	case p.eat("%"):
-		q = q.Sep(p.atom())
+	spaced = p.space()
+	if trailing := p.eat("%%"); trailing || p.eat("%") {
+		sep := p.atom()
+		if p.space() && sig {
+			sep = Seq(sep, Silent("ws"))
+		}
+		spaced = false // the separator took it
+		if trailing {
+			q = q.SepTrailing(sep)
+		} else {
+			q = q.Sep(sep)
+		}
 	}
 	if frugal {
 		q = q.Frugal()
 	}
 	if possessive {
-		return commit{q}
+		return commit{q}, spaced
 	}
-	return q
+	return q, spaced
 }
 
 func (p *parser) number() int {

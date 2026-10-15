@@ -184,3 +184,24 @@ func ExampleGrammar_IsRole() {
 	// Output:
 	// false true
 }
+
+// In a rule, the spaces in the rule match spaces in the text: each becomes a
+// call to <.ws>, which matches any amount of whitespace, so the rule reads
+// like the text it matches. Here "up to £500 per day" matches with any
+// spacing, but "upto" doesn't, as <.ws> won't match nothing between two
+// words. See the README's "Spaces in rules" for exactly where a space counts.
+func ExampleCompile_rule() {
+	g := grammar.MustCompile(`
+grammar Rate {
+    rule  TOP   { up to <money> per <unit> }
+    token money { '£' \d+ }
+    token unit  { day | hour | week }
+}`)
+	for _, text := range []string{"up to £500 per day", "up  to £500   per day", "upto £500 per day"} {
+		fmt.Println(g.Parse(text).At("money.~").Or("no match"))
+	}
+	// Output:
+	// £500
+	// £500
+	// no match
+}

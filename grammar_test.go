@@ -177,7 +177,7 @@ func TestCompileErrors(t *testing.T) {
 	for _, c := range []struct{ src, want string }{
 		{`grammar G { token TOP { a - b } }`, `line 1, column 27: '-' must be quoted`},
 		{`grammar G { token TOP { <nope> } }`, `rule TOP calls <nope>, which doesn't exist`},
-		{`grammar G { rule TOP { a } }`, `rule isn't supported yet`},
+		{`grammar G { method TOP { a } }`, `expected token, regex or rule`},
 		{`grammar G { token TOP { a { say 1 } } }`, `code blocks aren't supported`},
 		{`grammar G { token TOP { a % ',' } }`, `% needs a quantifier`},
 		{`grammar G { token TOP { a }; token TOP { b } }`, `TOP is declared twice`},
