@@ -39,6 +39,7 @@ type Grammar struct {
 	role     bool
 	fromRole map[string]string // rule name → the role it was composed from
 	checked  atomic.Uint64     // the generation at which Check last passed
+	starts   atomic.Pointer[startsEntry]
 }
 
 // generation counts changes to any grammar's rules. A grammar's Check
@@ -318,7 +319,11 @@ func (g *Grammar) Subparse(text string, opts ...Option) *scalar.SV {
 // Find returns the first match anywhere in text, or undef.
 func (g *Grammar) Find(text string, opts ...Option) *scalar.SV {
 	o, in := g.prepare(opts), []rune(text)
+	s, empty := g.startsOf(o.rule)
 	for from := 0; from <= len(in); from++ {
+		if !canStart(s, empty, in, from) {
+			continue
+		}
 		if m := g.run(in, from, false, o); m != nil {
 			return o.result(in, m)
 		}
@@ -330,7 +335,12 @@ func (g *Grammar) Find(text string, opts ...Option) *scalar.SV {
 func (g *Grammar) FindAll(text string, opts ...Option) *scalar.AV {
 	o, in := g.prepare(opts), []rune(text)
 	all := scalar.Array()
+	s, empty := g.startsOf(o.rule)
 	for from := 0; from <= len(in); {
+		if !canStart(s, empty, in, from) {
+			from++
+			continue
+		}
 		m := g.run(in, from, false, o)
 		if m == nil {
 			from++

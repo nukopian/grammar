@@ -459,6 +459,18 @@ A `map[string]func(*scalar.SV) any`, keyed by rule name, works too. Actions
 run innermost first, so a rule's action can read the made values of the
 rules it called. Rules without an action are left alone.
 
+### Speed
+
+`Find` and `FindAll` work out, from the grammar, every character a match
+could start with, and skip positions where none does. A pay grammar can
+only start at a `£`, so a search for pay in a 4 KB posting skips almost
+everything, and takes about 46 µs (`BenchmarkFindAll`); trying the grammar
+at every position took 1.6 ms. A grammar of common words, which can start
+almost anywhere, gains less: about twice as fast. Where the start can't be
+worked out, as for a grammar starting with `Re`, nothing is skipped, so
+the results are always the same either way: `TestStartsChangeNothing`
+checks that on every Raku case.
+
 ## Errors
 
 ### When text doesn't match
@@ -592,7 +604,7 @@ Before changing anything, it helps to know how the package is put together:
 
 | Gap | When you'd need it | What it would take | Fixable | Effort |
 |---|---|---|---|---|
-| **`Find` is slow on long text.** It tries the grammar at every position: about 1.4 ms to search a 4 KB posting for pay (`BenchmarkFindAll`). | High volumes, or many grammars per posting. | Work out the characters a grammar can start with (a first set, following calls, and giving up on lookbehind or rules that can match nothing), and skip positions that can't start a match. Should be many times faster. | yes | 2 |
+| **`Find` can't skip positions for some grammars.** It skips positions where no match can start, but only when it can work that out: not for a grammar that starts with a regex terminal (`Re`), or that can match empty text, as those could start anywhere. Such grammars search at about the old speed. | Searching long texts with grammars like those. | For `Re`, ask regexp2 for the pattern's possible first characters (it works them out internally, but doesn't expose them), or let `Re` take them as a hint. A grammar that can match empty text matches everywhere, so there's nothing to skip. | partly | 2 |
 | **No memoisation.** A rule may be tried at the same position many times. | `regex` rules that backtrack heavily, and deep grammars that try many alternatives. | Cache each token's result by rule and position in `state`: a token has at most one result, so this is safe for tokens. | yes | 2 |
 | **Left recursion through a regex isn't always caught.** `Check` asks whether each `Re` pattern matches an empty string, to decide whether a call after it is at the same position. A pattern that can match nothing only in context, such as a lookahead, may be judged wrongly, and a rule that then recurses on the left still overflows the stack, which kills the program. | Only with `Re` terminals that can match empty text in some places and not others. | Treat any `Re` with a lookaround as able to match empty text, at the cost of rejecting a few grammars that are fine. | yes | 1 |
 | **`<?after …>` tries every earlier position.** It matches its pattern ending at the current position by trying each start before it, so it costs time in proportion to how far into the text it is, and heavy use in `FindAll` grows with the square of the text's length. | Long texts with many lookbehinds. | Where the pattern's length is fixed or bounded (a literal, a class, a bounded repeat), try only those start positions. | yes | 2 |
