@@ -13,7 +13,7 @@ func findBoth(g *Grammar, text string) (with, without [2]*scalar.SV) {
 	defer func() { skipStarts = true }()
 	for _, skip := range []bool{true, false} {
 		skipStarts = skip
-		r := [2]*scalar.SV{g.Find(text), scalar.Scalar(g.FindAll(text))}
+		r := [2]*scalar.SV{g.Find(text), scalar.Value(g.FindAll(text))}
 		if skip {
 			with = r
 		} else {

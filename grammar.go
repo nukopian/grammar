@@ -530,7 +530,7 @@ func (b *builder) build(m *mnode) *scalar.SV {
 			h.Set(c.key, v)
 		}
 	}
-	sv := scalar.Scalar(h)
+	sv := scalar.Value(h)
 	if m.words != nil {
 		if values := m.words.Canonical(string(in[m.from:m.to])); len(values) > 0 {
 			h.Set("made", values[0])

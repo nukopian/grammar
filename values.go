@@ -49,7 +49,7 @@ func Values(m *scalar.SV) *scalar.SV {
 	if out.Length() == 0 {
 		return h.Get("~")
 	}
-	return scalar.Scalar(out)
+	return scalar.Value(out)
 }
 
 // To reduces a match with Values and converts it to a T with scalar.To, so
