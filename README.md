@@ -31,7 +31,7 @@ parts locally, with three ideas that work together:
 
 ```go
 titles := grammar.NewWordList("titles", grammar.FoldCase(), grammar.LooseSpacing())
-titles.AddRules("Software Engineer, Software Developer, SWE, Developer\nProduct Manager, PM")
+titles.AddRules("Software Engineer, Software Developer, SWE, Developer")
 // ... and lists for seniority and arrangements, the same way
 
 g := grammar.MustCompile(`
