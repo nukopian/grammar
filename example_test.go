@@ -90,8 +90,8 @@ grammar Range {
 }
 
 // The workflow this package is for: synonym lists, such as you'd pull from a
-// synonym store, a grammar that says where each kind of word goes, and an
-// action that hands back typed Go. Every spelling of a title, a seniority
+// synonym store, a grammar that says where each kind of word goes, and
+// grammar.To to hand back typed Go. Every spelling of a title, a seniority
 // or a working arrangement comes out as its canonical value.
 func Example_titles() {
 	seniority := grammar.NewWordList("seniority", grammar.FoldCase())
@@ -117,29 +117,17 @@ grammar Title {
     token team        { \w+ [ ' ' \w+ ]* }
 }`, seniority, titles, arrangements)
 
+	// Capture names fill the fields of the same names, ignoring case: each
+	// word list's rule gives its canonical value, and team its text.
 	type Title struct {
-		Seniority   string `json:"seniority"`
-		Title       string `json:"title"`
-		Team        string `json:"team"`
-		Arrangement string `json:"arrangement"`
+		Seniority, Title, Team, Arrangement string
 	}
-	toTitle := grammar.Actions(map[string]func(*scalar.SV) any{
-		"TOP": func(m *scalar.SV) any {
-			return scalar.Hash(
-				"seniority", m.At("seniority.made").Or(""),
-				"title", m.At("title.made"),
-				"team", m.At("team.~").Or(""),
-				"arrangement", m.At("arrangement.made").Or(""),
-			)
-		},
-	})
-
 	for _, text := range []string{
 		"Snr SWE – Payments (WFH)",
 		"product manager | Growth (office based)",
 		"Lead Software Developer",
 	} {
-		t, err := scalar.To[Title](g.Parse(text, toTitle).At("made"))
+		t, err := grammar.To[Title](g.Parse(text))
 		fmt.Printf("%+v %v\n", t, err)
 	}
 	// Output:

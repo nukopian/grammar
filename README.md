@@ -25,8 +25,9 @@ parts locally, with three ideas that work together:
   and "software  engineer" all come out as "Software Engineer". They take
   synonym rules in the format Elasticsearch and Solr use (`pm => product
   manager, project manager`), so they can be filled from a synonym store.
-- **Actions** turn what matched into values, and `scalar.To` turns those
-  into typed Go structs.
+- **Typed results:** `grammar.To` fills a Go struct straight from a match,
+  each capture filling the field of the same name, and actions turn what
+  matched into any other value you need.
 
 ```go
 titles := grammar.NewWordList("titles", grammar.FoldCase(), grammar.LooseSpacing())
@@ -43,12 +44,13 @@ grammar Title {
     token team        { \w+ [ ' ' \w+ ]* }
 }`, seniority, titles, arrangements)
 
-t, _ := scalar.To[Title](g.Parse("Snr SWE – Payments (WFH)", toTitle).At("made"))
+type Title struct{ Seniority, Title, Team, Arrangement string }
+t, err := grammar.To[Title](g.Parse("Snr SWE – Payments (WFH)"))
 // {Seniority:Senior Title:Software Engineer Team:Payments Arrangement:Remote}
 ```
 
-The whole example, with the lists and the action, is
-[Titles](#titles) in the Reference, and runs as a test.
+The whole example, with all three lists, is [Titles](#titles) in the
+Reference, and runs as a test.
 
 Two more things set it apart:
 
@@ -409,6 +411,35 @@ Each returns undef (or an empty array) when nothing matches. Each takes
 options: `grammar.Rule("name")` to start somewhere other than `TOP`, and
 `grammar.Actions(a)`.
 
+### Into Go structs: `To` and `Values`
+
+`grammar.To[T](m)` fills a struct from a match:
+
+```go
+type Title struct{ Seniority, Title, Team, Arrangement string }
+t, err := grammar.To[Title](g.Parse(text))
+```
+
+It reduces the match with `grammar.Values`, which turns each match, at
+every level, into:
+
+1. its `made` value, if an action made one (a word list's rule makes its
+   canonical value);
+2. otherwise, if it has captures, a hash of them, each reduced the same way;
+3. otherwise its text.
+
+Then `scalar.To` fills the struct, matching capture names to field names
+ignoring case, as `encoding/json` does. Use a json tag for a name that
+can't match a field, such as a positional capture (`json:"0"`) or a rule
+called `pay-range`. A capture that didn't match leaves its field at its
+zero value. When the text didn't match at all, `To` returns
+`grammar.ErrNoMatch`, so a failed parse isn't mistaken for an empty struct.
+
+So the usual pattern is: let the grammar's capture names be your field
+names, give an action only to rules whose value isn't their text (a number,
+say), and call `To`. `Values` on its own gives the reduced match as
+`scalar` data, for reading with `At`.
+
 ### Actions
 
 `grammar.Actions(a)` calls a's method for each rule that matched, named
@@ -631,7 +662,7 @@ to: 7
 
 #### Titles
 
-The workflow this package is for: synonym lists, such as you'd pull from a synonym store, a grammar that says where each kind of word goes, and an action that hands back typed Go. Every spelling of a title, a seniority or a working arrangement comes out as its canonical value.
+The workflow this package is for: synonym lists, such as you'd pull from a synonym store, a grammar that says where each kind of word goes, and grammar.To to hand back typed Go. Every spelling of a title, a seniority or a working arrangement comes out as its canonical value.
 
 ```go
 seniority := grammar.NewWordList("seniority", grammar.FoldCase())
@@ -657,29 +688,17 @@ grammar Title {
     token team        { \w+ [ ' ' \w+ ]* }
 }`, seniority, titles, arrangements)
 
+// Capture names fill the fields of the same names, ignoring case: each
+// word list's rule gives its canonical value, and team its text.
 type Title struct {
-	Seniority   string `json:"seniority"`
-	Title       string `json:"title"`
-	Team        string `json:"team"`
-	Arrangement string `json:"arrangement"`
+	Seniority, Title, Team, Arrangement string
 }
-toTitle := grammar.Actions(map[string]func(*scalar.SV) any{
-	"TOP": func(m *scalar.SV) any {
-		return scalar.Hash(
-			"seniority", m.At("seniority.made").Or(""),
-			"title", m.At("title.made"),
-			"team", m.At("team.~").Or(""),
-			"arrangement", m.At("arrangement.made").Or(""),
-		)
-	},
-})
-
 for _, text := range []string{
 	"Snr SWE – Payments (WFH)",
 	"product manager | Growth (office based)",
 	"Lead Software Developer",
 } {
-	t, err := scalar.To[Title](g.Parse(text, toTitle).At("made"))
+	t, err := grammar.To[Title](g.Parse(text))
 	fmt.Printf("%+v %v\n", t, err)
 }
 ```
@@ -1114,6 +1133,66 @@ for _, text := range []string{"#a #b 42!", "42"} {
 ```
 2 tags; code 42 ; bang !
 0 tags; code 42 ; bang none
+```
+
+#### `Values`
+
+Values reduces a match to the values in it, ready for `scalar.To`.
+
+Values reduces a match to the values in it: each match becomes its made value if an action made one, a hash of its captures if it has any, and its text otherwise. That's usually the shape you want to read, or to pass to scalar.To.
+
+```go
+g := grammar.MustCompile(`
+grammar Person {
+    token TOP   { <name> ',' <.ws> <born> }
+    token name  { <first> ' ' <last> }
+    token first { \w+ }
+    token last  { \w+ }
+    token born  { \d ** 4 }
+}`)
+out, _ := grammar.Values(g.Parse("Ada Lovelace, 1815")).ToYAML()
+fmt.Print(string(out))
+```
+
+```
+born: "1815"
+name:
+  first: Ada
+  last: Lovelace
+```
+
+#### `To`
+
+To reduces a match with Values and converts it to a T with `scalar.To`, so a grammar fills a struct directly:
+
+To fills a struct from a match, by way of Values: capture names match field names, ignoring case, as in encoding/json, and a json tag can name one that doesn't, such as a positional capture or a rule called pay-range. A capture that didn't match leaves its field at its zero value. If the text didn't match at all, To returns ErrNoMatch.
+
+```go
+type Range struct {
+	Min    float64 `json:"min"`
+	Max    float64 `json:"max"`
+	Period string
+}
+acts := grammar.Actions(map[string]func(*scalar.SV) any{
+	"money":  func(m *scalar.SV) any { return m.At("amount.made") }, // a money is its amount
+	"amount": PayActions{}.Amount,
+	"period": func(m *scalar.SV) any { return strings.TrimSpace(m.At("~").Str()) },
+})
+
+r, err := grammar.To[Range](Pay.Parse("£45k - £55,000 per annum", acts))
+fmt.Printf("%+v %v\n", r, err)
+
+r, err = grammar.To[Range](Pay.Parse("£18.50", acts))
+fmt.Printf("%+v %v\n", r, err)
+
+_, err = grammar.To[Range](Pay.Parse("negotiable", acts))
+fmt.Println(err, errors.Is(err, grammar.ErrNoMatch))
+```
+
+```
+{Min:45000 Max:55000 Period:per annum} <nil>
+{Min:18.5 Max:0 Period:} <nil>
+grammar: no match true
 ```
 
 ### Reference: Building rules in Go

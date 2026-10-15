@@ -590,10 +590,13 @@ func (a *actions) call(rule string, m *scalar.SV) (any, bool) {
 	return f(m), true
 }
 
-// Raku's built-in rules.
-var builtins = &Grammar{name: "Grammar", rules: map[string]*rule{}}
+// builtins are Raku's built-in rules, which every grammar inherits. They're
+// built by a variable's initialiser, not init, so that Go builds them before
+// any package-level grammar that uses them, even in this package.
+var builtins = newBuiltins()
 
-func init() {
+func newBuiltins() *Grammar {
+	b := &Grammar{name: "Grammar", rules: map[string]*rule{}}
 	tokens := map[string]Node{
 		"ws":    Seq(aNotWithinWord, Star(Space)), // token ws { <!ww> \s* }
 		"alpha": Class(isAlpha),
@@ -605,6 +608,7 @@ func init() {
 		"punct": Class(unicode.IsPunct),
 	}
 	for name, body := range tokens {
-		builtins.Token(name, body)
+		b.Token(name, body)
 	}
+	return b
 }

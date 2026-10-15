@@ -1,6 +1,7 @@
 package grammar_test
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -128,4 +129,57 @@ grammar Shapes {
 	// Output:
 	// 2 tags; code 42 ; bang !
 	// 0 tags; code 42 ; bang none
+}
+
+// Values reduces a match to the values in it: each match becomes its made
+// value if an action made one, a hash of its captures if it has any, and its
+// text otherwise. That's usually the shape you want to read, or to pass to
+// scalar.To.
+func ExampleValues() {
+	g := grammar.MustCompile(`
+grammar Person {
+    token TOP   { <name> ',' <.ws> <born> }
+    token name  { <first> ' ' <last> }
+    token first { \w+ }
+    token last  { \w+ }
+    token born  { \d ** 4 }
+}`)
+	out, _ := grammar.Values(g.Parse("Ada Lovelace, 1815")).ToYAML()
+	fmt.Print(string(out))
+	// Output:
+	// born: "1815"
+	// name:
+	//   first: Ada
+	//   last: Lovelace
+}
+
+// To fills a struct from a match, by way of Values: capture names match
+// field names, ignoring case, as in encoding/json, and a json tag can name
+// one that doesn't, such as a positional capture or a rule called
+// pay-range. A capture that didn't match leaves its field at its zero value.
+// If the text didn't match at all, To returns ErrNoMatch.
+func ExampleTo() {
+	type Range struct {
+		Min    float64 `json:"min"`
+		Max    float64 `json:"max"`
+		Period string
+	}
+	acts := grammar.Actions(map[string]func(*scalar.SV) any{
+		"money":  func(m *scalar.SV) any { return m.At("amount.made") }, // a money is its amount
+		"amount": PayActions{}.Amount,
+		"period": func(m *scalar.SV) any { return strings.TrimSpace(m.At("~").Str()) },
+	})
+
+	r, err := grammar.To[Range](Pay.Parse("£45k - £55,000 per annum", acts))
+	fmt.Printf("%+v %v\n", r, err)
+
+	r, err = grammar.To[Range](Pay.Parse("£18.50", acts))
+	fmt.Printf("%+v %v\n", r, err)
+
+	_, err = grammar.To[Range](Pay.Parse("negotiable", acts))
+	fmt.Println(err, errors.Is(err, grammar.ErrNoMatch))
+	// Output:
+	// {Min:45000 Max:55000 Period:per annum} <nil>
+	// {Min:18.5 Max:0 Period:} <nil>
+	// grammar: no match true
 }
