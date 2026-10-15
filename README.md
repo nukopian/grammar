@@ -276,13 +276,18 @@ g.Parse("Front End Developer (React)").At("title.made")   // "Front-end Develope
 In Raku syntax a list is `@name`, and in Go `grammar.Words(list)`. It
 matches the longest phrase at the current position, and like Raku's, it's
 one atom: it never gives back part of what it matched, even in a `regex`.
-It doesn't check word boundaries, so "Java" in a list matches the start of
-"JavaScript"; write `@langs >>` to require the word to end there.
+Like Raku's, it doesn't check word boundaries, so "Java" in a list matches
+the start of "JavaScript". Give the list the `WholeWords()` option (below)
+to match only whole words, rather than writing `<< @langs >>` everywhere.
 
 **Canonical values.** A rule whose whole body is a list, such as
 `token title { @titles }`, gets the canonical value of what it matched as
 its `made` value. An action for that rule sees it there, and may replace
-it.
+it. So does a named capture of a list inside a bigger rule, so a list needs
+no rule of its own: in `token TOP { $<level>=@levels? \s* $<role>=[ \N+ ] }`,
+`level`'s `made` is "Senior" for "Snr Developer", and `grammar.To` reads it
+straight into a struct. A quantified list (`@levels?`) has a canonical value
+when what it matched is one of its phrases.
 
 **Loading synonyms.** `Add(canonical, synonyms...)` adds phrases one group
 at a time. `AddRule` and `AddRules` take rules in the format Elasticsearch
@@ -294,12 +299,18 @@ hr, ph => Hour             each phrase on the left means Hour
 pm => product manager, project manager
 ```
 
+In `AddRules`, a rule ending with a comma carries on onto the next line, so
+long rules can be wrapped. `WordLists(map[string]string{...}, opts...)`
+builds a list for each set of rules, keyed by name, ready to pass to
+`Compile`: one call instead of a loop per list.
+
 **Matching options**, given to `NewWordList`:
 
 | Option | Effect |
 |---|---|
 | `FoldCase()` | ignore case everywhere the list is used. Without it, the list ignores case only under `:i`, as in Raku. |
 | `LooseSpacing()` | any run of spaces, hyphens, dashes and underscores matches any other, so "front-end" matches "front end". There must still be some spacing: "frontend" is a different phrase. |
+| `WholeWords()` | match a phrase only where it isn't part of a longer word: "lead" doesn't match "leadership". It's `<< @list >>` without writing the boundaries, except that a phrase starting or ending with punctuation, such as "c++", can end where the punctuation does. The longest phrase that fits still wins. |
 
 **Ambiguity.** A phrase added for two canonical values, such as "PM" for
 both product and project manager, matches as the first. `Ambiguous()` lists
@@ -406,6 +417,7 @@ action runs once.
 | `g.Subparse(text)` | match from the start of text, not necessarily to the end |
 | `g.Find(text)` | the first match anywhere in text |
 | `g.FindAll(text)` | every match in text, left to right, not overlapping |
+| `g.Split(text)` | the text between matches, with each match's text in place, as Raku's `split` with `:v` does |
 | `g.ParseErr(text)`, `g.SubparseErr(text)` | as `Parse` and `Subparse`, with a `*ParseError` saying why when the text doesn't match |
 
 Each returns undef (or an empty array) when nothing matches. Each takes
@@ -608,7 +620,7 @@ Before changing anything, it helps to know how the package is put together:
 | **Interpolation**: `$var`, `<$regex>`, `<{ … }>` | Patterns chosen at run time. | Word lists cover literal phrases, and `Re` covers regex strings. A named-pattern binding, passed to `Compile` as lists are, would cover the rest. | partly | 2 |
 | **Goal matching**: `'(' ~ ')' <inner>` | Brackets in titles, such as "Engineer (Remote, FTC)", with an error saying the closing bracket is missing. | Sugar for `Seq(open, inner, close)`. `ParseErr` already reports a missing `')'`; goal matching would add Raku's wording ("couldn't find final ')'"). | yes | 1 |
 | **Failure reports from `Find` and `FindAll`** | Finding out why pay wasn't found in a posting, rather than why one string didn't parse. | Track failures across every start position and report the furthest. The noise is the hard part: most positions fail at once, for no interesting reason. | partly | 2 |
-| **Capture order**: `.caps`, `.chunks` | Where the order of different captures matters, such as qualifiers in a title. A match keeps order within one name (arrays) but not between names. | `build` has the captures in order; expose them as a list of name and match pairs. They can't go under a key a capture might use, so pick a reserved key, as `~` is, or add a function. | yes | 1 |
+| **Capture order**: `.caps`, `.chunks` | Where the order of different captures matters, such as qualifiers in a title. A match keeps order within one name (arrays) but not between names. `Split` covers the commonest need, text and separators in order. | `build` has the captures in order; expose them as a list of name and match pairs. They can't go under a key a capture might use, so pick a reserved key, as `~` is, or add a function. | yes | 1 |
 | **Unicode properties**: `<:Lu>`, `<:Letter>`, `<:Script<Latin>>` | Text in other languages and scripts. | In `classExpr`, map property names to Go's `unicode` tables. | yes | 1 |
 | **Conjunctions**: `&`, `&&` | "Something that matches both", such as a word that's in a list and isn't a stopword. | A node that matches its first part, then checks the others match exactly the same text. | yes | 2 |
 | **Backtracking control**: `:`, `::`, `:::`, `<commit>`, `<cut>` | Taming slow, heavily backtracking `regex` rules. | Possessive quantifiers (`+:`) exist. The rest need the matcher to unwind to a marked point, which continuation-passing makes awkward: probably panics and recovers at the right level. Tokens and memoisation (below) usually make it unnecessary. | partly | 3 |
@@ -640,7 +652,6 @@ Before changing anything, it helps to know how the package is put together:
 | **No time or step limit.** | Untrusted input meeting a `regex` that backtracks badly. `scalar` has `RegexTimeout` for the same reason. | Count steps in `state` and give up past a limit. | yes | 1 |
 | **`extendable` is worked out at every step.** | Only for speed. | Cache it per node, at construction or in a map. | yes | 1 |
 | **Word lists: no optional spacing** ("frontend" vs "front end"), **plurals, stemming or fuzzy matching**. | Synonym data that doesn't list every spelling. | Optional spacing and plurals can be normalised in `Add` and in matching (effort 1–2 each). Fuzzy matching belongs elsewhere: compare embeddings for near misses, and send the rest to the LLM (effort 3+). | yes | 1–3 |
-| **Word lists: no built-in word boundaries.** | Almost always for words: "Java" matches the start of "JavaScript". | Write `@list >>` (works now), or add a `WholeWords()` option that checks for a boundary after each phrase. | yes | 1 |
 | **Word lists can't change while in use.** | Refreshing synonyms in a long-running service. | Build a new list and grammar, and swap them in with an `atomic.Pointer`. Needs no change here. | yes | 1 |
 | **The Raku-syntax parser is hand-written,** not built with the package's own builder as first planned. | Only if the syntax grows much larger. | Rewrite it as a grammar of Raku regex syntax, with actions building nodes. | yes | 3 |
 
@@ -1323,6 +1334,30 @@ if errors.As(err, &pe) {
 ```
 2 1 [<money>] 55k
 grammar Pay: line 2, column 1: expected <money>, found "55k"
+```
+
+#### `Grammar.Split`
+
+Split returns the text between the grammar's matches, with each match's text in place between them, as Raku's split with :v does: "a, b" split at commas is "a", ", ", "b".
+
+Split gives the text between matches with the matches in place, as Raku's split with :v does: here, a paragraph split at headings run into it.
+
+```go
+g := grammar.MustCompile(`
+grammar Inline {
+    token TOP { <?after '.' \s+> [ 'What you will do' | 'How to apply' ] }
+}`)
+for _, piece := range g.Split("We're hiring. What you will do Lead a team. How to apply Email us.").All() {
+	fmt.Printf("%q\n", piece)
+}
+```
+
+```
+"We're hiring. "
+"What you will do"
+" Lead a team. "
+"How to apply"
+" Email us."
 ```
 
 ### Reference: Building rules in Go
@@ -2128,6 +2163,79 @@ true
 true
 true
 false
+```
+
+#### `WholeWords`
+
+WholeWords matches a phrase only where it isn't part of a longer word: "java" doesn't match the start of "JavaScript", nor "lead" the start of "leadership".
+
+WholeWords matches a phrase only where it isn't part of a longer word, which \<\< @list >> would do, without having to write the boundaries.
+
+```go
+levels := grammar.NewWordList("levels", grammar.FoldCase(), grammar.WholeWords()).
+	Add("Lead", "team lead", "team leader").Add("Senior", "snr")
+g := grammar.MustCompile(`grammar L { token TOP { @levels } }`, levels)
+
+for _, title := range []string{"Team Leader (Care)", "Snr Engineer", "Leadership Trainer", "SNR-level role"} {
+	fmt.Printf("%-20q %v\n", title, g.Find(title).At("made").Or("-"))
+}
+```
+
+```
+"Team Leader (Care)" Lead
+"Snr Engineer"       Senior
+"Leadership Trainer" -
+"SNR-level role"     Senior
+```
+
+#### `WordLists`
+
+WordLists makes a word list of each set of synonym rules in lists, named by its key and read as AddRules reads them, with opts for every list.
+
+WordLists makes a list for each set of synonym rules, ready for Compile: one call instead of a loop per list. A rule ending with a comma carries on onto the next line.
+
+```go
+uses, err := grammar.WordLists(map[string]string{
+	"units": `Year, annum, yr, pa,
+	          p.a., per annum
+	          Week, wk`,
+	"levels": "Senior, snr, sr\nJunior, jnr, graduate",
+}, grammar.FoldCase())
+if err != nil {
+	fmt.Println(err)
+	return
+}
+g := grammar.MustCompile(`
+grammar Rate {
+    token TOP   { <level> \s+ <unit> }
+    token level { @levels }
+    token unit  { @units }
+}`, uses...)
+m := g.Parse("Snr per annum")
+fmt.Println(m.At("level.made"), m.At("unit.made"))
+```
+
+```
+Senior Year
+```
+
+#### `Named.wordList`
+
+A named capture of a word list, $\<name>=@list, has the canonical value as its made value, so a list inside a bigger rule needs no rule of its own, and grammar.To can read it straight into a struct.
+
+```go
+levels := grammar.NewWordList("levels", grammar.FoldCase()).Add("Senior", "snr", "sr")
+g := grammar.MustCompile(`grammar T { token TOP { $<level>=@levels? \s* $<role>=[ \N+ ] } }`, levels)
+
+for _, title := range []string{"Snr Software Engineer", "Software Engineer"} {
+	t, _ := grammar.To[struct{ Level, Role string }](g.Parse(title))
+	fmt.Printf("%+v\n", t)
+}
+```
+
+```
+{Level:Senior Role:Software Engineer}
+{Level: Role:Software Engineer}
 ```
 
 <!-- reference:end -->

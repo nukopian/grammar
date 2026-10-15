@@ -666,7 +666,9 @@ type named struct {
 
 // Named is $<name>=n. Named(name, Capture(n)) captures with a scope of its
 // own, as $<name>=( ... ) does, and Named(name, Call(rule)) is
-// Alias(name, rule), as $<name>=<rule> is <name=rule>.
+// Alias(name, rule), as $<name>=<rule> is <name=rule>. Named(name,
+// Words(list)), $<name>=@list, has the canonical value of what it matched
+// as its made value, as a rule that's only a list does.
 func Named(name string, n Node) Node {
 	switch n := n.(type) {
 	case *group:
@@ -683,7 +685,7 @@ func Named(name string, n Node) Node {
 
 func (n *named) match(st *state, pos int, c *capList, e env, k cont) bool {
 	return n.inner.match(st, pos, c, e, func(p int, cc *capList) bool {
-		return k(p, &capList{n.name, &mnode{from: pos, to: p, sc: emptyScope}, cc})
+		return k(p, &capList{n.name, &mnode{from: pos, to: p, sc: emptyScope, words: wordsBody(n.inner)}, cc})
 	})
 }
 

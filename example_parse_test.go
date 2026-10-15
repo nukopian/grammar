@@ -233,3 +233,21 @@ func ExampleParseError_Error() {
 	// 2 1 [<money>] 55k
 	// grammar Pay: line 2, column 1: expected <money>, found "55k"
 }
+
+// Split gives the text between matches with the matches in place, as Raku's
+// split with :v does: here, a paragraph split at headings run into it.
+func ExampleGrammar_Split() {
+	g := grammar.MustCompile(`
+grammar Inline {
+    token TOP { <?after '.' \s+> [ 'What you will do' | 'How to apply' ] }
+}`)
+	for _, piece := range g.Split("We're hiring. What you will do Lead a team. How to apply Email us.").All() {
+		fmt.Printf("%q\n", piece)
+	}
+	// Output:
+	// "We're hiring. "
+	// "What you will do"
+	// " Lead a team. "
+	// "How to apply"
+	// " Email us."
+}

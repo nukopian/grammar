@@ -217,3 +217,62 @@ func ExampleLooseSpacing() {
 	// true
 	// false
 }
+
+// WholeWords matches a phrase only where it isn't part of a longer word,
+// which << @list >> would do, without having to write the boundaries.
+func ExampleWholeWords() {
+	levels := grammar.NewWordList("levels", grammar.FoldCase(), grammar.WholeWords()).
+		Add("Lead", "team lead", "team leader").Add("Senior", "snr")
+	g := grammar.MustCompile(`grammar L { token TOP { @levels } }`, levels)
+
+	for _, title := range []string{"Team Leader (Care)", "Snr Engineer", "Leadership Trainer", "SNR-level role"} {
+		fmt.Printf("%-20q %v\n", title, g.Find(title).At("made").Or("-"))
+	}
+	// Output:
+	// "Team Leader (Care)" Lead
+	// "Snr Engineer"       Senior
+	// "Leadership Trainer" -
+	// "SNR-level role"     Senior
+}
+
+// WordLists makes a list for each set of synonym rules, ready for Compile:
+// one call instead of a loop per list. A rule ending with a comma carries on
+// onto the next line.
+func ExampleWordLists() {
+	uses, err := grammar.WordLists(map[string]string{
+		"units": `Year, annum, yr, pa,
+		          p.a., per annum
+		          Week, wk`,
+		"levels": "Senior, snr, sr\nJunior, jnr, graduate",
+	}, grammar.FoldCase())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	g := grammar.MustCompile(`
+grammar Rate {
+    token TOP   { <level> \s+ <unit> }
+    token level { @levels }
+    token unit  { @units }
+}`, uses...)
+	m := g.Parse("Snr per annum")
+	fmt.Println(m.At("level.made"), m.At("unit.made"))
+	// Output:
+	// Senior Year
+}
+
+// A named capture of a word list, $<name>=@list, has the canonical value as
+// its made value, so a list inside a bigger rule needs no rule of its own,
+// and grammar.To can read it straight into a struct.
+func ExampleNamed_wordList() {
+	levels := grammar.NewWordList("levels", grammar.FoldCase()).Add("Senior", "snr", "sr")
+	g := grammar.MustCompile(`grammar T { token TOP { $<level>=@levels? \s* $<role>=[ \N+ ] } }`, levels)
+
+	for _, title := range []string{"Snr Software Engineer", "Software Engineer"} {
+		t, _ := grammar.To[struct{ Level, Role string }](g.Parse(title))
+		fmt.Printf("%+v\n", t)
+	}
+	// Output:
+	// {Level:Senior Role:Software Engineer}
+	// {Level: Role:Software Engineer}
+}

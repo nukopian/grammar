@@ -352,6 +352,33 @@ func (g *Grammar) FindAll(text string, opts ...Option) *scalar.AV {
 	return all
 }
 
+// Split returns the text between the grammar's matches, with each match's
+// text in place between them, as Raku's split with :v does: "a, b" split at
+// commas is "a", ", ", "b". The pieces are found as FindAll finds matches,
+// and there's always text before the first match and after the last, even
+// if it's empty. For a match's captures, use FindAll.
+func (g *Grammar) Split(text string, opts ...Option) *scalar.AV {
+	o, in := g.prepare(opts), []rune(text)
+	s, empty := g.startsOf(o.rule)
+	pieces := scalar.Array()
+	from := 0
+	for at := 0; at <= len(in); {
+		if !canStart(s, empty, in, at) {
+			at++
+			continue
+		}
+		m := g.run(in, at, false, o)
+		if m == nil {
+			at++
+			continue
+		}
+		pieces.Push(string(in[from:m.from]), string(in[m.from:m.to]))
+		from = m.to
+		at = max(m.to, at+1)
+	}
+	return pieces.Push(string(in[from:]))
+}
+
 // prepare applies opts, and panics if Check finds a problem, as a bad regex
 // panics in scalar. Check's result is kept until a grammar changes.
 func (g *Grammar) prepare(opts []Option) options {
