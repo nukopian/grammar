@@ -545,6 +545,17 @@ Before changing anything, it helps to know how the package is put together:
 | **Word lists can't change while in use.** | Refreshing synonyms in a long-running service. | Build a new list and grammar, and swap them in with an `atomic.Pointer`. Needs no change here. | yes | 1 |
 | **The Raku-syntax parser is hand-written,** not built with the package's own builder as first planned. | Only if the syntax grows much larger. | Rewrite it as a grammar of Raku regex syntax, with actions building nodes. | yes | 3 |
 
+## Acknowledgements
+
+The ideas here aren't new. `grammar` follows Raku's grammars, and is
+tested against Rakudo to keep its behaviour faithful to theirs; the match
+values it builds come from `scalar`, which borrows Perl's way with data.
+Thanks to the Raku and Perl communities for decades of thought about
+parsing text well.
+
+Much of the code was written with Claude, Anthropic's AI model, working
+from my direction and review.
+
 ## Reference
 
 One example for every function and method, with the output it prints. The
