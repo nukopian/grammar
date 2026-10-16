@@ -97,7 +97,8 @@ func FuzzWords(f *testing.F) {
 	f.Add("a\\\\, b => c\n# comment\n=>\n, ,", false, true)
 	f.Add("Front-end Developer, Frontend Developer", true, false)
 	f.Fuzz(func(t *testing.T, rules string, fold, loose bool) {
-		for _, joined := range []bool{false, true} {
+		for _, extra := range [][2]bool{{false, false}, {true, false}, {false, true}, {true, true}} {
+			joined, plural := extra[0], extra[1]
 			var opts []ListOption
 			if fold {
 				opts = append(opts, FoldCase())
@@ -107,6 +108,9 @@ func FuzzWords(f *testing.F) {
 			}
 			if joined {
 				opts = append(opts, JoinedSpacing())
+			}
+			if plural {
+				opts = append(opts, Plurals())
 			}
 			l := NewWordList("w", opts...)
 			l.AddRules(rules) // errors are fine; panics aren't
@@ -118,6 +122,9 @@ func FuzzWords(f *testing.F) {
 					// (Joining the bytes of invalid UTF-8 could make a
 					// character that was never in the phrase.)
 					texts = append(texts, strings.Join(strings.FieldsFunc(phrase, isListSpace), ""))
+				}
+				if p := pluralOf(phrase); plural && p != "" {
+					texts = append(texts, p) // and its plural
 				}
 				for _, text := range texts {
 					if text == "" {

@@ -23,12 +23,18 @@ type WordList struct {
 	loose  bool
 	joined bool
 	whole  bool
+	plural bool
 	root   *trie
 	values map[string][]string // a normalised phrase's canonical values, in the order added
 
 	// The same, with case folded, for matching under :i.
 	rootFold   *trie
 	valuesFold map[string][]string
+
+	// made are the keys of values that only Plurals made, and madeFold the
+	// same for valuesFold, so Phrases, Len and Ambiguous can leave them out,
+	// and a phrase added as itself can take one over.
+	made, madeFold map[string]bool
 }
 
 type trie struct {
@@ -71,6 +77,26 @@ func LooseSpacing() ListOption { return func(l *WordList) { l.loose = true } }
 // another, so add the joined word too where it means something else.
 func JoinedSpacing() ListOption { return func(l *WordList) { l.joined = true } }
 
+// Plurals lets each phrase match its plural too, as postings write "Care
+// Assistants" for a list's "Care Assistant": the canonical value is the
+// same. Without it, a list must spell out both forms, or use a stem such
+// as "opportunit" that matches neither word whole.
+//
+// Only the last word changes ("sales assistants", not "saleses
+// assistants"), by the regular English rules: -es after s, x, z, ch and
+// sh ("coaches"), -ies for a y after a consonant ("secretaries"), and -s
+// otherwise ("engineers", "days"). The ending is lower case, as for
+// acronyms ("PMs"); with FoldCase, case doesn't matter anyway. A phrase
+// that doesn't end with a letter, such as "level 2" or "c++", has no
+// plural. Irregular plurals ("people", "analyses") are ordinary synonyms:
+// add them.
+//
+// The plurals are made, not added: Phrases, Len and Ambiguous show only
+// what was added, while Canonical and matching know the plurals. A phrase
+// added as itself beats a plural made from another, whichever came first,
+// so with "new" and "news" both in the list, "news" means news.
+func Plurals() ListOption { return func(l *WordList) { l.plural = true } }
+
 // WholeWords matches a phrase only where it isn't part of a longer word:
 // "java" doesn't match the start of "JavaScript", nor "lead" the start of
 // "leadership". It's << @list >> without having to write the boundaries,
@@ -82,7 +108,7 @@ func WholeWords() ListOption { return func(l *WordList) { l.whole = true } }
 // refers to it: @name.
 func NewWordList(name string, opts ...ListOption) *WordList {
 	l := &WordList{name: name, root: &trie{}, values: map[string][]string{},
-		rootFold: &trie{}, valuesFold: map[string][]string{}}
+		rootFold: &trie{}, valuesFold: map[string][]string{}, made: map[string]bool{}, madeFold: map[string]bool{}}
 	for _, opt := range opts {
 		opt(l)
 	}
@@ -92,8 +118,9 @@ func NewWordList(name string, opts ...ListOption) *WordList {
 // Name returns the list's name.
 func (l *WordList) Name() string { return l.name }
 
-// Len returns how many distinct phrases the list holds.
-func (l *WordList) Len() int { return len(l.values) }
+// Len returns how many distinct phrases the list holds, not counting
+// plurals that Plurals made.
+func (l *WordList) Len() int { return len(l.values) - len(l.made) }
 
 // Add adds canonical and each of synonyms to the list, all meaning
 // canonical. A phrase added for two canonical values means both; see
@@ -104,10 +131,53 @@ func (l *WordList) Add(canonical string, synonyms ...string) *WordList {
 		if key == "" {
 			continue
 		}
-		insert(l.root, l.values, key, canonical)
-		insert(l.rootFold, l.valuesFold, strings.ToLower(key), canonical)
+		l.addKey(key, canonical, false)
+		if plural := pluralOf(key); l.plural && plural != "" {
+			l.addKey(plural, canonical, true)
+		}
 	}
 	return l
+}
+
+// addKey adds key, meaning canonical, to the list, and its case-folded
+// form to the folded trie. A made plural doesn't replace a phrase added as
+// itself, and a phrase added as itself replaces a made plural.
+func (l *WordList) addKey(key, canonical string, made bool) {
+	add := func(root *trie, values map[string][]string, madeKeys map[string]bool, key string) {
+		_, exists := values[key]
+		switch {
+		case made && exists && !madeKeys[key]:
+			return
+		case made:
+			madeKeys[key] = true
+		case madeKeys[key]:
+			delete(values, key)
+			delete(madeKeys, key)
+		}
+		insert(root, values, key, canonical)
+	}
+	add(l.root, l.values, l.made, key)
+	add(l.rootFold, l.valuesFold, l.madeFold, strings.ToLower(key))
+}
+
+// pluralOf returns phrase with its last word made plural by the regular
+// English rules, or "" if it doesn't end with a letter.
+func pluralOf(phrase string) string {
+	rs := []rune(phrase)
+	n := len(rs)
+	if n == 0 || !unicode.IsLetter(rs[n-1]) {
+		return ""
+	}
+	lower := strings.ToLower(phrase)
+	switch {
+	case strings.HasSuffix(lower, "s") || strings.HasSuffix(lower, "x") || strings.HasSuffix(lower, "z") ||
+		strings.HasSuffix(lower, "ch") || strings.HasSuffix(lower, "sh"):
+		return phrase + "es"
+	case n >= 2 && unicode.ToLower(rs[n-1]) == 'y' && unicode.IsLetter(rs[n-2]) &&
+		!strings.ContainsRune("aeiou", unicode.ToLower(rs[n-2])):
+		return string(rs[:n-1]) + "ies"
+	}
+	return phrase + "s"
 }
 
 func insert(root *trie, values map[string][]string, key, canonical string) {
@@ -279,15 +349,25 @@ func (l *WordList) valuesIn(fold bool) map[string][]string {
 func (l *WordList) Ambiguous() map[string][]string {
 	out := map[string][]string{}
 	for k, v := range l.values {
-		if len(v) > 1 {
+		if len(v) > 1 && !l.made[k] {
 			out[k] = slices.Clone(v)
 		}
 	}
 	return out
 }
 
-// Phrases returns the list's phrases, normalised, in sorted order.
-func (l *WordList) Phrases() []string { return slices.Sorted(maps.Keys(l.values)) }
+// Phrases returns the list's phrases, normalised, in sorted order, without
+// the plurals that Plurals made.
+func (l *WordList) Phrases() []string {
+	var out []string
+	for k := range l.values {
+		if !l.made[k] {
+			out = append(out, k)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
 
 func isListSpace(r rune) bool {
 	return unicode.IsSpace(r) || r == '-' || r == '_' || unicode.Is(unicode.Pd, r)

@@ -243,6 +243,27 @@ func ExampleJoinedSpacing() {
 	// [On-site]
 }
 
+// Plurals lets each phrase match its plural, with the same canonical
+// value. Only the last word changes, by the regular English rules; the
+// plurals don't show in Phrases, which lists what was added.
+func ExamplePlurals() {
+	roles := grammar.NewWordList("roles", grammar.FoldCase(), grammar.WholeWords(), grammar.Plurals()).
+		Add("Care Assistant", "carer").Add("Secretary").Add("Coach")
+	g := grammar.MustCompile(`grammar R { token TOP { @roles } }`, roles)
+
+	for _, text := range []string{"Care Assistants", "carers", "secretaries", "coaches", "Coachs"} {
+		fmt.Printf("%-18q %v\n", text, g.Parse(text).At("made").Or("-"))
+	}
+	fmt.Println(roles.Phrases())
+	// Output:
+	// "Care Assistants"  Care Assistant
+	// "carers"           Care Assistant
+	// "secretaries"      Secretary
+	// "coaches"          Coach
+	// "Coachs"           -
+	// [care assistant carer coach secretary]
+}
+
 // WholeWords matches a phrase only where it isn't part of a longer word,
 // which << @list >> would do, without having to write the boundaries.
 func ExampleWholeWords() {

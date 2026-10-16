@@ -311,6 +311,7 @@ builds a list for each set of rules, keyed by name, ready to pass to
 | `FoldCase()` | ignore case everywhere the list is used. Without it, the list ignores case only under `:i`, as in Raku. |
 | `LooseSpacing()` | any run of spaces, hyphens, dashes and underscores matches any other, so "front-end" matches "front end". There must still be some spacing: "frontend" is a different phrase, unless the list has `JoinedSpacing()` too. |
 | `JoinedSpacing()` | the text may leave out the spacing in a phrase, so "on site" matches "onsite" and "front-end" matches "frontend". Write the spaced form; see below. |
+| `Plurals()` | each phrase matches its plural too, with the same canonical value: "Care Assistant" matches "Care Assistants". Regular English plurals of the last word only; see below. |
 | `WholeWords()` | match a phrase only where it isn't part of a longer word: "lead" doesn't match "leadership". It's `<< @list >>` without writing the boundaries, except that a phrase starting or ending with punctuation, such as "c++", can end where the punctuation does. The longest phrase that fits still wins. |
 
 **Joined spellings.** Postings write the same term spaced, hyphenated and
@@ -347,6 +348,43 @@ times the text's length. In practice the difference doesn't show:
 `BenchmarkListJoined` and `BenchmarkListExact`, a `Find` over a sentence
 with and without the option, are within each other's noise.
 Without the option, a list matches as before, and as Raku's does.
+
+**Plurals.** Postings use both "Care Assistant" and "Care Assistants",
+"development opportunity" and "development opportunities". Without help, a
+list must spell out both, or use a stem such as "opportunit" that matches
+neither word whole, which then can't be used with `WholeWords`. With
+`Plurals()`, each phrase matches its plural too, and means the same:
+
+```go
+roles := grammar.NewWordList("roles", grammar.FoldCase(), grammar.Plurals()).
+	Add("Care Assistant", "carer").Add("Secretary")
+// "care assistants", "carers" and "secretaries" match, meaning "Care Assistant" and "Secretary"
+```
+
+The plural is made from the last word only, by the regular English rules:
+
+| Last word ends in | Plural | Examples |
+|---|---|---|
+| s, x, z, ch, sh | -es | coach → coaches, box → boxes |
+| a consonant then y | y → -ies | secretary → secretaries |
+| anything else | -s | engineer → engineers, day → days, PM → PMs |
+| something other than a letter | none | "level 2", "c++" |
+
+The ending is added in lower case, which is right for acronyms ("PMs");
+with `FoldCase`, case doesn't matter anyway. Rules this simple get some
+words wrong, but harmlessly: "sales" gets "saleses", which no text will
+ever contain. Irregular plurals ("people", "analyses") are ordinary
+synonyms: add them. Stemming ("visiting" for "visit") is a different job,
+and isn't done.
+
+The plurals are made, not added. `Phrases()`, `Len()` and `Ambiguous()`
+show only what you added, so a list's contents read as you wrote them,
+while matching and `Canonical` know the plurals: `Canonical("PMs")` is
+what "PM" means. A phrase added as itself always beats a plural made from
+another, whichever was added first, so with "new" and "news" both in a
+list, "news" means news, not more than one new. The options combine:
+with `JoinedSpacing` too, "front end developer" matches "frontend
+developers".
 
 **Ambiguity.** A phrase added for two canonical values, such as "PM" for
 both product and project manager, matches as the first. `Ambiguous()` lists
@@ -616,7 +654,7 @@ whatever the grammar or text:
 |---|---|
 | `FuzzCompile` | `Compile` never panics, however mangled the source |
 | `FuzzMatch` | for grammars built around a fuzzed rule: no panics; `Parse` and `ParseErr` agree; a parse matches all of the text; `Find` finds what `FindAll` finds first; skipping start positions changes nothing |
-| `FuzzWords` | synonym rules never panic, and every phrase in a list matches itself; with `JoinedSpacing`, run together too |
+| `FuzzWords` | synonym rules never panic, and every phrase in a list matches itself; with `JoinedSpacing`, run together too, and with `Plurals`, its plural |
 
 `go test` runs them on their seeds and on the inputs that once failed, kept
 in `testdata/fuzz`. To search for new failures:
@@ -700,7 +738,7 @@ Before changing anything, it helps to know how the package is put together:
 | **Positions count runes, not graphemes.** A letter followed by a combining accent is two characters here, and one in Raku, so `.` can match half of it. | Text in decomposed form (NFD), which is unusual in job postings: most text arrives composed (NFC). | Normalise input to NFC with `golang.org/x/text/unicode/norm`, already a dependency, which fixes almost all of it (effort 1). For full grapheme semantics, segment the input with `rivo/uniseg` and match on graphemes (effort 3). | yes | 1 / 3 |
 | **`<alias=name>` captures under both names,** as Raku does. | When you expect only the alias. | Nothing to fix: use `<alias=.name>`. | by design | — |
 | **`Re` takes Perl-style regex syntax.** | Only that it isn't Raku syntax. It's for patterns you already have. | — | by design | — |
-| **Word lists add to Raku's `@list`:** canonical values, `FoldCase`, `LooseSpacing`, `JoinedSpacing` and `WholeWords`. | Never for Raku-compatible lists: without the options, a list matches as Raku's does. | — | by design | — |
+| **Word lists add to Raku's `@list`:** canonical values, `FoldCase`, `LooseSpacing`, `JoinedSpacing`, `Plurals` and `WholeWords`. | Never for Raku-compatible lists: without the options, a list matches as Raku's does. | — | by design | — |
 
 ### Engineering
 
@@ -713,7 +751,7 @@ Before changing anything, it helps to know how the package is put together:
 | **`<?after …>` tries every earlier position.** It matches its pattern ending at the current position by trying each start before it, so it costs time in proportion to how far into the text it is, and heavy use in `FindAll` grows with the square of the text's length. | Long texts with many lookbehinds. | Where the pattern's length is fixed or bounded (a literal, a class, a bounded repeat), try only those start positions. | yes | 2 |
 | **Nested alternations in a `regex` double their work at each level.** `\|` matches each branch to measure it, then matches the winner again for real. In a `token` the second match is skipped, as the first is final. | Deeply nested alternations inside `regex` rules, which are rare. | Part of true longest-token matching (above), which decides from prefixes without matching branches in full. | yes | 5 |
 | **`extendable` is worked out at every step.** | Only for speed. | Cache it per node, at construction or in a map. | yes | 1 |
-| **Word lists: no plurals, stemming or fuzzy matching.** (`JoinedSpacing` covers "frontend" against "front end".) | Synonym data that doesn't list every spelling. | Regular plurals can be added in `Add` (effort 1). Fuzzy matching belongs elsewhere: compare embeddings for near misses, and send the rest to the LLM (effort 3+). | yes | 1–3 |
+| **Word lists: no stemming or fuzzy matching.** (`JoinedSpacing` covers "frontend" against "front end", and `Plurals` regular plurals.) | Synonym data that doesn't list every form of a word: "visiting" for "visit". | Stemming could follow `Plurals`, making forms in `Add`, but English stems are irregular enough to need a real stemmer, such as Porter's (effort 2–3). Fuzzy matching belongs elsewhere: compare embeddings for near misses, and send the rest to the LLM (effort 3+). | yes | 2–3 |
 | **Word lists can't change while in use.** | Refreshing synonyms in a long-running service. | Build a new list and grammar, and swap them in with an `atomic.Pointer`. Needs no change here. | yes | 1 |
 | **The Raku-syntax parser is hand-written,** not built with the package's own builder as first planned. | Only if the syntax grows much larger. | Rewrite it as a grammar of Raku regex syntax, with actions building nodes. | yes | 3 |
 
@@ -2185,7 +2223,7 @@ Product Manager
 
 #### `WordList.Phrases`
 
-Phrases returns the list's phrases, normalised, in sorted order.
+Phrases returns the list's phrases, normalised, in sorted order, without the plurals that Plurals made.
 
 Phrases lists every phrase, as the list stores it: case folded with FoldCase, spacing collapsed with LooseSpacing.
 
@@ -2200,7 +2238,7 @@ fmt.Println(l.Phrases())
 
 #### `WordList.Len`
 
-Len returns how many distinct phrases the list holds.
+Len returns how many distinct phrases the list holds, not counting plurals that Plurals made.
 
 Len counts distinct phrases: a synonym added twice counts once.
 
@@ -2302,6 +2340,32 @@ fmt.Println(places.Canonical("officebased"))
 "Officebased"  On-site
 "onsiteness"   -
 [On-site]
+```
+
+#### `Plurals`
+
+Plurals lets each phrase match its plural too, as postings write "Care Assistants" for a list's "Care Assistant": the canonical value is the same.
+
+Plurals lets each phrase match its plural, with the same canonical value. Only the last word changes, by the regular English rules; the plurals don't show in Phrases, which lists what was added.
+
+```go
+roles := grammar.NewWordList("roles", grammar.FoldCase(), grammar.WholeWords(), grammar.Plurals()).
+	Add("Care Assistant", "carer").Add("Secretary").Add("Coach")
+g := grammar.MustCompile(`grammar R { token TOP { @roles } }`, roles)
+
+for _, text := range []string{"Care Assistants", "carers", "secretaries", "coaches", "Coachs"} {
+	fmt.Printf("%-18q %v\n", text, g.Parse(text).At("made").Or("-"))
+}
+fmt.Println(roles.Phrases())
+```
+
+```
+"Care Assistants"  Care Assistant
+"carers"           Care Assistant
+"secretaries"      Secretary
+"coaches"          Coach
+"Coachs"           -
+[care assistant carer coach secretary]
 ```
 
 #### `WholeWords`
