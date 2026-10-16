@@ -431,20 +431,20 @@ func Actions(a any) Option { return func(o *options) { o.actions = newActions(a)
 // Parse matches the whole of text, as Raku's .parse does, and returns the
 // match, or undef if text doesn't match.
 func (g *Grammar) Parse(text string, opts ...Option) *scalar.SV {
-	o, in := g.prepare(opts), []rune(text)
+	o, in := g.prepare(opts), []rune(nfc(text))
 	return o.result(in, g.runState(g.newState(in), 0, true, o))
 }
 
 // Subparse matches from the start of text, without needing to reach the
 // end, as Raku's .subparse does.
 func (g *Grammar) Subparse(text string, opts ...Option) *scalar.SV {
-	o, in := g.prepare(opts), []rune(text)
+	o, in := g.prepare(opts), []rune(nfc(text))
 	return o.result(in, g.runState(g.newState(in), 0, false, o))
 }
 
 // Find returns the first match anywhere in text, or undef.
 func (g *Grammar) Find(text string, opts ...Option) *scalar.SV {
-	o, in := g.prepare(opts), []rune(text)
+	o, in := g.prepare(opts), []rune(nfc(text))
 	s, empty := g.startsOf(o.rule)
 	st := g.newState(in)
 	for from := 0; from <= len(in); from++ {
@@ -460,7 +460,7 @@ func (g *Grammar) Find(text string, opts ...Option) *scalar.SV {
 
 // FindAll returns every match in text, left to right and not overlapping.
 func (g *Grammar) FindAll(text string, opts ...Option) *scalar.AV {
-	o, in := g.prepare(opts), []rune(text)
+	o, in := g.prepare(opts), []rune(nfc(text))
 	all := scalar.Array()
 	s, empty := g.startsOf(o.rule)
 	st := g.newState(in)
@@ -486,7 +486,7 @@ func (g *Grammar) FindAll(text string, opts ...Option) *scalar.AV {
 // and there's always text before the first match and after the last, even
 // if it's empty. For a match's captures, use FindAll.
 func (g *Grammar) Split(text string, opts ...Option) *scalar.AV {
-	o, in := g.prepare(opts), []rune(text)
+	o, in := g.prepare(opts), []rune(nfc(text))
 	s, empty := g.startsOf(o.rule)
 	pieces := scalar.Array()
 	st := g.newState(in)
@@ -560,7 +560,7 @@ func (g *Grammar) SubparseErr(text string, opts ...Option) (*scalar.SV, error) {
 }
 
 func (g *Grammar) parseErr(text string, whole bool, opts []Option) (match *scalar.SV, err error) {
-	o, in := g.prepare(opts), []rune(text)
+	o, in := g.prepare(opts), []rune(nfc(text))
 	st := g.newState(in)
 	st.tr = &tracker{}
 	defer func() {

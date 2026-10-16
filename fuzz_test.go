@@ -129,8 +129,14 @@ func FuzzWords(f *testing.F) {
 				if joined && utf8.ValidString(phrase) {
 					// Run together, it still matches, and means something.
 					// (Joining the bytes of invalid UTF-8 could make a
-					// character that was never in the phrase.)
-					texts = append(texts, strings.Join(strings.FieldsFunc(phrase, isListSpace), ""))
+					// character that was never in the phrase. And where a
+					// word starts with a bare combining mark, joining can
+					// put two marks together, which NFC then reorders, so
+					// the text is no longer the phrase without its spaces:
+					// those are left out.)
+					if run := strings.Join(strings.FieldsFunc(phrase, isListSpace), ""); nfc(run) == run {
+						texts = append(texts, run)
+					}
 				}
 				if p := pluralOf(phrase); plural && p != "" {
 					texts = append(texts, p) // and its plural

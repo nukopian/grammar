@@ -377,6 +377,7 @@ func isListSpace(r rune) bool {
 // matched: with case folded and runs of spacing collapsed, if the list says
 // so.
 func (l *WordList) normalise(phrase string) string {
+	phrase = nfc(phrase)
 	if l.fold {
 		phrase = strings.ToLower(phrase)
 	}

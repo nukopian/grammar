@@ -27,7 +27,7 @@ import (
 // match (@units). The syntax is a subset of Raku's; the package README
 // lists what's in it.
 func Compile(src string, uses ...Use) (g *Grammar, err error) {
-	p := &parser{src: []rune(src), grammars: map[string]*Grammar{}, lists: map[string]*WordList{}}
+	p := &parser{src: []rune(nfc(src)), grammars: map[string]*Grammar{}, lists: map[string]*WordList{}}
 	for _, u := range uses {
 		switch u := u.(type) {
 		case *Grammar:

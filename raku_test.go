@@ -236,6 +236,13 @@ var rakuCases = []struct {
 	role MiRole4 { token b { r } }
 	grammar MiQ4 { token b { q } }
 	grammar MiS4 is MiP4 is MiQ4 does MiRole4 { token a { y } }`, Inputs: []string{"yr", "yq", "xr", "yp"}},
+	// Text is read in NFC, so a letter and a combining accent are one
+	// character, as in Raku: positions count it once, . takes it whole, and
+	// composed and decomposed spellings match each other, on either side.
+	{Src: `grammar Nfc1 { token TOP { 'Café' \s+ <w> }; token w { \w+ } }`, Inputs: []string{"Cafe\u0301 ok", "Caf\u00e9 ok"}},
+	{Src: `grammar Nfc2 { token TOP { . . $<rest>=[ \w+ ] } }`, Inputs: []string{"e\u0301xyz", "\u00e9xyz"}},
+	{Src: "grammar Nfc3 { token TOP { 'Cafe\u0301' } }", Inputs: []string{"Caf\u00e9", "Cafe\u0301"}},
+	{Src: `grammar Nfc4 { token TOP { <[a..z é]>+ } }`, Inputs: []string{"re\u0301sume\u0301", "r\u00e9sum\u00e9"}},
 	{Src: `grammar Order7 { token TOP { <a> ' '? <b>+ (x) <c=a> $<n>=[ \d+ ] <.a>? '-' <d=.b> }; token a { a }; token b { b } }`,
 		Inputs: []string{"a bbxa12a-b", "abxa1-b"}},
 }

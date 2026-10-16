@@ -554,6 +554,32 @@ A match captured under two names, as `<min=money>` captures under both
 `min` and `money`, is one match under both, not two copies, as in Raku. Its
 action runs once.
 
+### Accented letters: text is read in NFC
+
+An accented letter can be written two ways: as one character (`é`), or as
+a letter followed by a combining accent (`e` and U+0301). They look the
+same, and Unicode says they're equivalent, but they're different runes,
+so a grammar written one way wouldn't match text written the other, and
+`.` could match half of the letter. Most text arrives composed, but text
+copied from some editors, PDFs and Mac file names doesn't.
+
+So text is read in NFC, Unicode's composed form: the text given to
+`Parse`, `Find` and the rest, and a grammar's literals, sets and regexes,
+and a word list's phrases. Either spelling matches either, and `.` or
+`<:L>` takes the accented letter whole. Raku goes further, reading text
+as whole graphemes (see the differences table), but agrees on these.
+
+A match describes the text as it was read: its `~`, `from` and `to`, a
+failure's column, and `Split`'s pieces are of the text in NFC. For text in
+NFC already, nearly all text, that's the text itself; for text that
+isn't, positions count composed characters, as Raku's do, so normalise the
+original with `golang.org/x/text/unicode/norm` before slicing it by them.
+
+Checking that text is in NFC takes about 1 ns a byte (`BenchmarkNFC`), but
+a shortcut skips the check for text below U+0300 (English with `£` and
+accented Latin letters), so a posting in plain English costs nothing
+measurable.
+
 ### Captures in order: `Caps` and `Chunks`
 
 A match is a hash, so it keeps the order of each name's matches (an
@@ -869,7 +895,7 @@ Before changing anything, it helps to know how the package is put together:
 | **`\|` picks the branch whose first match is longest.** Raku picks by the longest declarative prefix, roughly the part of each branch before anything that could backtrack. | Rarely: they agree on ordinary alternations of words and phrases. They can differ when branches share a start and something after it decides. | True longest-token matching (above). | yes | 5 |
 | **Actions run after the whole match succeeds,** innermost first. Raku runs each as its rule matches, including for matches it later backtracks out of. | Only for actions with side effects, such as counting or logging. | Run actions in `call`'s `finish`, keeping their values on the `mnode`. Running after is easier to reason about, so keep it unless something needs the other. | by design | 2 |
 | **Text is read as UTF-8, a rune at a time.** A byte that isn't valid UTF-8 becomes U+FFFD (`�`), as Go's `[]rune(text)` does, so a match's `~` holds `�` where the text held the bad byte. Raku can't hold such text at all: it fails to decode it. | Scraped text with bad bytes in it, when the exact bytes matter. | Clean or decode the text first, or match byte strings as `scalar` does (each byte a character from 0 to 255). | by design | 2 |
-| **Positions count runes, not graphemes.** A letter followed by a combining accent is two characters here, and one in Raku, so `.` can match half of it. | Text in decomposed form (NFD), which is unusual in job postings: most text arrives composed (NFC). | Normalise input to NFC with `golang.org/x/text/unicode/norm`, already a dependency, which fixes almost all of it (effort 1). For full grapheme semantics, segment the input with `rivo/uniseg` and match on graphemes (effort 3). | yes | 1 / 3 |
+| **Positions count runes, not graphemes,** in NFC. Text is read in NFC, so an accented letter that has a composed form is one character, as in Raku. One that doesn't, such as q with a combining tilde (q̃), is two here, and one grapheme in Raku, so `.` can match half of it. | Rare in job postings: languages whose letters have no composed form, and emoji sequences. | Segment the input with `rivo/uniseg` and match on graphemes. | yes | 3 |
 | **`<alias=name>` captures under both names,** as Raku does. | When you expect only the alias. | Nothing to fix: use `<alias=.name>`. | by design | — |
 | **`Re` takes Perl-style regex syntax.** | Only that it isn't Raku syntax. It's for patterns you already have. | — | by design | — |
 | **Word lists add to Raku's `@list`:** canonical values, `FoldCase`, `LooseSpacing`, `JoinedSpacing`, `Plurals` and `WholeWords`. | Never for Raku-compatible lists: without the options, a list matches as Raku's does. | — | by design | — |

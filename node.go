@@ -285,7 +285,7 @@ func extendable(n Node) bool {
 type lit struct{ rs []rune }
 
 // Lit matches s exactly, or ignoring case inside IgnoreCase.
-func Lit(s string) Node { return lit{[]rune(s)} }
+func Lit(s string) Node { return lit{[]rune(nfc(s))} }
 
 func (n lit) match(st *state, pos int, c *capList, e env, k cont) bool {
 	if pos+len(n.rs) > len(st.in) {
@@ -387,6 +387,7 @@ type re struct {
 // if it were a token. As with scalar's regexes, an invalid pattern panics,
 // and so does a match that runs longer than scalar.RegexTimeout.
 func Re(pattern string) Node {
+	pattern = nfc(pattern)
 	src := `\G(?:` + pattern + `)`
 	n := re{regexp2.MustCompile(src, regexp2.None), regexp2.MustCompile(src, regexp2.IgnoreCase), pattern, reCanBeEmpty(pattern)}
 	n.rx.MatchTimeout, n.rxI.MatchTimeout = scalar.RegexTimeout, scalar.RegexTimeout
