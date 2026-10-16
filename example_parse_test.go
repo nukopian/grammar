@@ -234,6 +234,50 @@ func ExampleParseError_Error() {
 	// grammar Pay: line 2, column 1: expected <money>, found "55k"
 }
 
+// StepLimit stops a match that backtracks badly. Nested repeats in a regex
+// rule, as here, try every way of sharing the a's out before giving up, so
+// each extra a doubles the time: 30 of them would take minutes. The
+// default limit stops it in about a second; this one is lower.
+func ExampleStepLimit() {
+	g := grammar.MustCompile(`grammar Blowup { regex TOP { [ a+ ]+ $ } }`)
+	grammar.StepLimit = 100_000
+	defer func() { grammar.StepLimit = 10_000_000 }()
+
+	_, err := g.ParseErr(strings.Repeat("a", 30) + "b")
+	fmt.Println(err)
+	// Output:
+	// grammar Blowup: gave up after 100000 steps (see StepLimit)
+}
+
+// Parse, Find and the rest panic with a *StepLimitError, as scalar's regexes
+// panic past scalar.RegexTimeout. A program that reads texts it can't trust
+// can recover it, and go on to the next text.
+func ExampleStepLimitError_Error() {
+	g := grammar.MustCompile(`grammar Blowup { regex TOP { [ a+ ]+ $ } }`)
+	grammar.StepLimit = 100_000
+	defer func() { grammar.StepLimit = 10_000_000 }()
+
+	find := func(text string) (m *scalar.SV, err error) {
+		defer func() {
+			if r := recover(); r != nil {
+				e, ok := r.(*grammar.StepLimitError)
+				if !ok {
+					panic(r) // some other problem
+				}
+				m, err = &scalar.SV{}, e
+			}
+		}()
+		return g.Find(text), nil
+	}
+	for _, text := range []string{"aaa", strings.Repeat("a", 30) + "b"} {
+		m, err := find(text)
+		fmt.Printf("%q %v\n", m.At("~"), err)
+	}
+	// Output:
+	// "aaa" <nil>
+	// "" grammar Blowup: gave up after 100000 steps (see StepLimit)
+}
+
 // Split gives the text between matches with the matches in place, as Raku's
 // split with :v does: here, a paragraph split at headings run into it.
 func ExampleGrammar_Split() {

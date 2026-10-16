@@ -512,6 +512,30 @@ which rule postings fail at, for instance, to see what a grammar is
 missing. Working the report out costs a little, so `Parse` doesn't; use
 `ParseErr` when you want to know why.
 
+### Runaway matches
+
+A `regex` rule backtracks, so a badly written one can take a very long time
+on a text it nearly matches. `regex TOP { [ a+ ]+ $ }` tries every way of
+sharing the a's out between the repeats before giving up, so each extra
+`a` doubles the time: 30 of them, then a `b`, would take minutes. To stop
+one odd posting from hanging a whole run, every call counts the matcher's
+steps (a repeat taking an item, an alternation, a rule call, a lookbehind
+trying a start), and gives up past `grammar.StepLimit`: 10 million by
+default, about a second. `Find`, `FindAll` and `Split` count across every
+position they try, so the limit is for the whole call.
+
+Past the limit, `Parse`, `Subparse`, `Find`, `FindAll` and `Split` panic
+with a `*StepLimitError`, as a `scalar` regex panics past
+`scalar.RegexTimeout`; `ParseErr` and `SubparseErr` return it as their
+error. A program reading texts it can't trust can recover it and go on to
+the next text (see the `StepLimitError` example). Steps are counted rather
+than timed, so a text that runs out runs out every time, on any machine.
+
+The job-posting grammars in this repository take at most a few hundred
+thousand steps a call; counting costs nothing measurable
+(`BenchmarkFindAll`). Set `StepLimit` at startup, before matching; zero
+or less means no limit.
+
 ### Mistakes in grammars
 
 `Compile` returns an error for bad syntax, with the line and column, for a
@@ -562,8 +586,8 @@ go test ./internal/scalar/grammar -run '^$' -fuzz '^FuzzMatch$' -fuzztime 2m
 ```
 
 `FuzzMatch` keeps texts short and leaves out `regex` rules and `:!r`,
-whose backtracking can take exponential time by design (see the gaps
-table's step limit). A failure it finds is written to `testdata/fuzz`;
+whose backtracking can take exponential time by design (see [Runaway
+matches](#runaway-matches)). A failure it finds is written to `testdata/fuzz`;
 commit it, so it's checked from then on.
 
 ## Gaps and possible additions
@@ -649,7 +673,6 @@ Before changing anything, it helps to know how the package is put together:
 | **Left recursion through a regex isn't always caught.** `Check` asks whether each `Re` pattern matches an empty string, to decide whether a call after it is at the same position. A pattern that can match nothing only in context, such as a lookahead, may be judged wrongly, and a rule that then recurses on the left still overflows the stack, which kills the program. | Only with `Re` terminals that can match empty text in some places and not others. | Treat any `Re` with a lookaround as able to match empty text, at the cost of rejecting a few grammars that are fine. | yes | 1 |
 | **`<?after …>` tries every earlier position.** It matches its pattern ending at the current position by trying each start before it, so it costs time in proportion to how far into the text it is, and heavy use in `FindAll` grows with the square of the text's length. | Long texts with many lookbehinds. | Where the pattern's length is fixed or bounded (a literal, a class, a bounded repeat), try only those start positions. | yes | 2 |
 | **Nested alternations in a `regex` double their work at each level.** `\|` matches each branch to measure it, then matches the winner again for real. In a `token` the second match is skipped, as the first is final. | Deeply nested alternations inside `regex` rules, which are rare. | Part of true longest-token matching (above), which decides from prefixes without matching branches in full. | yes | 5 |
-| **No time or step limit.** | Untrusted input meeting a `regex` that backtracks badly. `scalar` has `RegexTimeout` for the same reason. | Count steps in `state` and give up past a limit. | yes | 1 |
 | **`extendable` is worked out at every step.** | Only for speed. | Cache it per node, at construction or in a map. | yes | 1 |
 | **Word lists: no optional spacing** ("frontend" vs "front end"), **plurals, stemming or fuzzy matching**. | Synonym data that doesn't list every spelling. | Optional spacing and plurals can be normalised in `Add` and in matching (effort 1–2 each). Fuzzy matching belongs elsewhere: compare embeddings for near misses, and send the rest to the LLM (effort 3+). | yes | 1–3 |
 | **Word lists can't change while in use.** | Refreshing synonyms in a long-running service. | Build a new list and grammar, and swap them in with an `atomic.Pointer`. Needs no change here. | yes | 1 |
@@ -1334,6 +1357,55 @@ if errors.As(err, &pe) {
 ```
 2 1 [<money>] 55k
 grammar Pay: line 2, column 1: expected <money>, found "55k"
+```
+
+#### `StepLimit`
+
+StepLimit stops a match that backtracks badly. Nested repeats in a regex rule, as here, try every way of sharing the a's out before giving up, so each extra a doubles the time: 30 of them would take minutes. The default limit stops it in about a second; this one is lower.
+
+```go
+g := grammar.MustCompile(`grammar Blowup { regex TOP { [ a+ ]+ $ } }`)
+grammar.StepLimit = 100_000
+defer func() { grammar.StepLimit = 10_000_000 }()
+
+_, err := g.ParseErr(strings.Repeat("a", 30) + "b")
+fmt.Println(err)
+```
+
+```
+grammar Blowup: gave up after 100000 steps (see StepLimit)
+```
+
+#### `StepLimitError.Error`
+
+Parse, Find and the rest panic with a \*StepLimitError, as scalar's regexes panic past scalar.RegexTimeout. A program that reads texts it can't trust can recover it, and go on to the next text.
+
+```go
+g := grammar.MustCompile(`grammar Blowup { regex TOP { [ a+ ]+ $ } }`)
+grammar.StepLimit = 100_000
+defer func() { grammar.StepLimit = 10_000_000 }()
+
+find := func(text string) (m *scalar.SV, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			e, ok := r.(*grammar.StepLimitError)
+			if !ok {
+				panic(r) // some other problem
+			}
+			m, err = &scalar.SV{}, e
+		}
+	}()
+	return g.Find(text), nil
+}
+for _, text := range []string{"aaa", strings.Repeat("a", 30) + "b"} {
+	m, err := find(text)
+	fmt.Printf("%q %v\n", m.At("~"), err)
+}
+```
+
+```
+"aaa" <nil>
+"" grammar Blowup: gave up after 100000 steps (see StepLimit)
 ```
 
 #### `Grammar.Split`

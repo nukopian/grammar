@@ -42,6 +42,23 @@ type state struct {
 	// tr tracks failures, for ParseErr and SubparseErr. It's nil
 	// otherwise, so ordinary parsing pays nothing for it.
 	tr *tracker
+
+	// steps counts the matcher's steps, against limit (0: no limit). Find,
+	// FindAll and Split share one state, and so one count, across every
+	// position they try.
+	steps, limit int
+}
+
+// tick counts one step of the matcher: a repeat taking an item, an
+// alternation, a rule call, or a lookbehind trying a start. Anything that
+// backtracks badly does these over and over, so counting them bounds the
+// time a match can take. Past the limit, it panics with a *StepLimitError,
+// which ParseErr and SubparseErr return as an error.
+func (st *state) tick() {
+	st.steps++
+	if st.limit > 0 && st.steps > st.limit {
+		panic(&StepLimitError{Grammar: st.g.name, Limit: st.limit})
+	}
 }
 
 // tracker records failures for a failure report. far is the furthest
@@ -419,6 +436,7 @@ type alt []Node
 func Alt(nodes ...Node) Node { return alt(nodes) }
 
 func (n alt) match(st *state, pos int, c *capList, e env, k cont) bool {
+	st.tick()
 	type cand struct {
 		i, end int
 		caps   *capList
@@ -459,6 +477,7 @@ type first []Node
 func First(nodes ...Node) Node { return first(nodes) }
 
 func (n first) match(st *state, pos int, c *capList, e env, k cont) bool {
+	st.tick()
 	for _, b := range n {
 		if b.match(st, pos, c, e, k) {
 			return true
@@ -518,6 +537,7 @@ func (q *Quant) match(st *state, pos int, c *capList, e env, k cont) bool {
 }
 
 func (q *Quant) iter(st *state, pos int, c *capList, e env, count int, k cont) bool {
+	st.tick()
 	more := func() bool {
 		if q.max >= 0 && count >= q.max {
 			return false
@@ -589,6 +609,7 @@ func Alias(alias, name string) Node { return &call{name: name, capture: true, al
 func AliasOnly(alias, name string) Node { return &call{name: name, alias: alias} }
 
 func (n *call) match(st *state, pos int, c *capList, e env, k cont) bool {
+	st.tick()
 	r := st.g.lookup(n.name)
 	if r == nil {
 		panic("grammar: no rule " + n.name + " in " + st.g.name)
@@ -711,6 +732,7 @@ func (n *look) match(st *state, pos int, c *capList, e env, k cont) bool {
 	}
 	if n.behind {
 		for from := pos; from >= 0 && !ok; from-- {
+			st.tick()
 			ok = n.inner.match(st, from, c, e, func(p int, _ *capList) bool { return p == pos })
 		}
 	} else {

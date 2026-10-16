@@ -274,6 +274,29 @@ func walk(n Node, f func(Node)) {
 	}
 }
 
+// StepLimit caps the steps one call of Parse, Subparse, Find, FindAll,
+// Split, ParseErr or SubparseErr may take, so that a regex rule that
+// backtracks badly can't hang the program on an unexpected text, as
+// scalar.RegexTimeout does for scalar's regexes. A step is a repeat taking
+// an item, an alternation, a rule call, or a lookbehind trying a start. Past
+// the limit, the call panics with a *StepLimitError; ParseErr and
+// SubparseErr return it instead. Zero or less means no limit. Set it at
+// startup, before matching.
+//
+// A step takes about 100ns, so the default is about a second. The job-posting
+// grammars here take at most a few hundred thousand steps a call.
+var StepLimit = 10_000_000
+
+// StepLimitError says a match ran past StepLimit.
+type StepLimitError struct {
+	Grammar string
+	Limit   int
+}
+
+func (e *StepLimitError) Error() string {
+	return fmt.Sprintf("grammar %s: gave up after %d steps (see StepLimit)", e.Grammar, e.Limit)
+}
+
 // Option changes how Parse, Subparse, Find and FindAll match.
 type Option func(*options)
 
@@ -306,25 +329,26 @@ func Actions(a any) Option { return func(o *options) { o.actions = newActions(a)
 // match, or undef if text doesn't match.
 func (g *Grammar) Parse(text string, opts ...Option) *scalar.SV {
 	o, in := g.prepare(opts), []rune(text)
-	return o.result(in, g.run(in, 0, true, o))
+	return o.result(in, g.runState(g.newState(in), 0, true, o))
 }
 
 // Subparse matches from the start of text, without needing to reach the
 // end, as Raku's .subparse does.
 func (g *Grammar) Subparse(text string, opts ...Option) *scalar.SV {
 	o, in := g.prepare(opts), []rune(text)
-	return o.result(in, g.run(in, 0, false, o))
+	return o.result(in, g.runState(g.newState(in), 0, false, o))
 }
 
 // Find returns the first match anywhere in text, or undef.
 func (g *Grammar) Find(text string, opts ...Option) *scalar.SV {
 	o, in := g.prepare(opts), []rune(text)
 	s, empty := g.startsOf(o.rule)
+	st := g.newState(in)
 	for from := 0; from <= len(in); from++ {
 		if !canStart(s, empty, in, from) {
 			continue
 		}
-		if m := g.run(in, from, false, o); m != nil {
+		if m := g.runState(st, from, false, o); m != nil {
 			return o.result(in, m)
 		}
 	}
@@ -336,12 +360,13 @@ func (g *Grammar) FindAll(text string, opts ...Option) *scalar.AV {
 	o, in := g.prepare(opts), []rune(text)
 	all := scalar.Array()
 	s, empty := g.startsOf(o.rule)
+	st := g.newState(in)
 	for from := 0; from <= len(in); {
 		if !canStart(s, empty, in, from) {
 			from++
 			continue
 		}
-		m := g.run(in, from, false, o)
+		m := g.runState(st, from, false, o)
 		if m == nil {
 			from++
 			continue
@@ -361,13 +386,14 @@ func (g *Grammar) Split(text string, opts ...Option) *scalar.AV {
 	o, in := g.prepare(opts), []rune(text)
 	s, empty := g.startsOf(o.rule)
 	pieces := scalar.Array()
+	st := g.newState(in)
 	from := 0
 	for at := 0; at <= len(in); {
 		if !canStart(s, empty, in, at) {
 			at++
 			continue
 		}
-		m := g.run(in, at, false, o)
+		m := g.runState(st, at, false, o)
 		if m == nil {
 			at++
 			continue
@@ -398,8 +424,9 @@ func (g *Grammar) prepare(opts []Option) options {
 	return o
 }
 
-func (g *Grammar) run(in []rune, from int, whole bool, o options) *mnode {
-	return g.runState(&state{in: in, g: g}, from, whole, o)
+// newState starts a match over in, with the step limit in force now.
+func (g *Grammar) newState(in []rune) *state {
+	return &state{in: in, g: g, limit: StepLimit}
 }
 
 func (g *Grammar) runState(st *state, from int, whole bool, o options) *mnode {
@@ -428,9 +455,20 @@ func (g *Grammar) SubparseErr(text string, opts ...Option) (*scalar.SV, error) {
 	return g.parseErr(text, false, opts)
 }
 
-func (g *Grammar) parseErr(text string, whole bool, opts []Option) (*scalar.SV, error) {
+func (g *Grammar) parseErr(text string, whole bool, opts []Option) (match *scalar.SV, err error) {
 	o, in := g.prepare(opts), []rune(text)
-	st := &state{in: in, g: g, tr: &tracker{}}
+	st := g.newState(in)
+	st.tr = &tracker{}
+	defer func() {
+		// Running out of steps is an error here, not a panic.
+		if r := recover(); r != nil {
+			e, ok := r.(*StepLimitError)
+			if !ok {
+				panic(r)
+			}
+			match, err = &scalar.SV{}, e
+		}
+	}()
 	if m := g.runState(st, 0, whole, o); m != nil {
 		return o.result(in, m), nil
 	}
