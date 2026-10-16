@@ -1011,6 +1011,14 @@ Before changing anything, it helps to know how the package is put together:
 | **Word lists can't change while in use.** | Refreshing synonyms in a long-running service. | Build a new list and grammar, and swap them in with an `atomic.Pointer`. Needs no change here. | yes | 1 |
 | **The Raku-syntax parser is hand-written,** not built with the package's own builder as first planned. | Only if the syntax grows much larger. | Rewrite it as a grammar of Raku regex syntax, with actions building nodes. | yes | 3 |
 
+## Licence
+
+Copyright 2026 Iain Campbell. `grammar` is free software; you can
+redistribute it and/or modify it under the terms of the Artistic License
+2.0, as Rakudo is (`Artistic-2.0`); see [LICENSE](LICENSE). It uses the
+`scalar` package, which is under the same terms as Perl itself; see
+[its licence](../README.md#licence).
+
 ## Acknowledgements
 
 The ideas here aren't new. `grammar` follows Raku's grammars, and is
@@ -1019,8 +1027,14 @@ values it builds come from `scalar`, which borrows Perl's way with data.
 Thanks to the Raku and Perl communities for decades of thought about
 parsing text well.
 
-Much of the code was written with Claude, Anthropic's AI model, working
-from my direction and review.
+`grammar` was conceived and directed by Iain Campbell (nukopian). He set
+its rules: Raku as the baseline, checked against Rakudo itself; tests
+first; speed changes kept only when measured; and features added when
+real use called for them. He decided what to build and what not to, and
+reviewed and committed each change. Most of the code, tests and
+documentation were written by Claude, Anthropic's AI model, working to
+that direction; nearly all its commits credit Claude in a
+`Co-Authored-By` trailer.
 
 ## Reference
 
