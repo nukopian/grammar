@@ -200,6 +200,7 @@ escaped.
 | `<<` `>>` | `WordStart`, `WordEnd` | start and end of a word |
 | `<?before x>`, `<!before x>` | `Before(x)`, `NotBefore(x)` | x follows (or doesn't), without matching it |
 | `<?after x>`, `<!after x>` | `After(x)`, `NotAfter(x)` | x comes just before (or doesn't) |
+| `<?>`, `<!>` | | always matches, never matches, matching no text: `$<none>=[ <?> ]` is an empty capture |
 | `:i` | `IgnoreCase(x)` | ignore case, for the rest of the group |
 | `:r`, `:!r` | `Ratchet(x, on)` | stop or start backtracking, for the rest of the group |
 | `:s`, `:!s` | `Silent("ws")` where the spaces go | make spaces in the rule match spaces in the text, or stop, for the rest of the group, as in a `rule` |
@@ -483,6 +484,35 @@ A match captured under two names, as `<min=money>` captures under both
 `min` and `money`, is one match under both, not two copies, as in Raku. Its
 action runs once.
 
+### Captures in order: `Caps` and `Chunks`
+
+A match is a hash, so it keeps the order of each name's matches (an
+array), but not the order of different names. Where that matters, such as
+the qualifiers in "Senior Engineer (Remote, Contract)", where each kind is
+its own capture, `grammar.Caps(m)` gives a match's captures in the order
+they come in the text, as Raku's `.caps` does:
+
+```go
+// token TOP { <title> [ ' (' [ <arrangement> | <contract> ]+ % ', ' ')' ]? }
+for name, c := range grammar.Caps(m) {
+	fmt.Println(name, c.At("~")) // title, then arrangement and contract as the text has them
+}
+```
+
+A capture that matched more than once gives each match in its own place,
+so the captures of a repeat come out interleaved. A match under two names
+comes under both. `grammar.Chunks(m)` is the same, with the text between
+captures under `~`, as Raku's `.chunks` does, so the chunks rebuild the
+text: useful for marking up the parts of a title, or for checking what a
+grammar left uncaptured.
+
+Captures come by where they start, then where they end, so an empty
+capture comes before a longer one at the same place, as it was made first.
+Captures at the very same place, such as an alias and its rule's name,
+come in name order. Raku leaves those to its hash, so its order changes
+from one run to the next; `TestCapsMatchRaku` checks every Raku case with
+its ties put in name order.
+
 ## Parsing
 
 | Method | Does |
@@ -722,7 +752,6 @@ Before changing anything, it helps to know how the package is put together:
 | **Interpolation**: `$var`, `<$regex>`, `<{ … }>` | Patterns chosen at run time. | Word lists cover literal phrases, and `Re` covers regex strings. A named-pattern binding, passed to `Compile` as lists are, would cover the rest. | partly | 2 |
 | **Goal matching**: `'(' ~ ')' <inner>` | Brackets in titles, such as "Engineer (Remote, FTC)", with an error saying the closing bracket is missing. | Sugar for `Seq(open, inner, close)`. `ParseErr` already reports a missing `')'`; goal matching would add Raku's wording ("couldn't find final ')'"). | yes | 1 |
 | **Failure reports from `Find` and `FindAll`** | Finding out why pay wasn't found in a posting, rather than why one string didn't parse. | Track failures across every start position and report the furthest. The noise is the hard part: most positions fail at once, for no interesting reason. | partly | 2 |
-| **Capture order**: `.caps`, `.chunks` | Where the order of different captures matters, such as qualifiers in a title. A match keeps order within one name (arrays) but not between names. `Split` covers the commonest need, text and separators in order. | `build` has the captures in order; expose them as a list of name and match pairs. They can't go under a key a capture might use, so pick a reserved key, as `~` is, or add a function. | yes | 1 |
 | **Unicode properties**: `<:Lu>`, `<:Letter>`, `<:Script<Latin>>` | Text in other languages and scripts. | In `classExpr`, map property names to Go's `unicode` tables. | yes | 1 |
 | **Conjunctions**: `&`, `&&` | "Something that matches both", such as a word that's in a list and isn't a stopword. | A node that matches its first part, then checks the others match exactly the same text. | yes | 2 |
 | **Backtracking control**: `:`, `::`, `:::`, `<commit>`, `<cut>` | Taming slow, heavily backtracking `regex` rules. | Possessive quantifiers (`+:`) exist. The rest need the matcher to unwind to a marked point, which continuation-passing makes awkward: probably panics and recovers at the right level. Tokens and memoisation (below) usually make it unnecessary. | partly | 3 |
@@ -732,6 +761,7 @@ Before changing anything, it helps to know how the package is put together:
 
 | Difference | When it matters | What it would take | Fixable | Effort |
 |---|---|---|---|---|
+| **`Caps` puts captures at the same place in name order.** Raku's `.caps` leaves them in hash order, which changes from run to run. | Never for captures at different places. An alias and its rule's name, or two empty captures at one spot, come in a fixed order here and a varying one in Raku. | — | by design | — |
 | **`\|` picks the branch whose first match is longest.** Raku picks by the longest declarative prefix, roughly the part of each branch before anything that could backtrack. | Rarely: they agree on ordinary alternations of words and phrases. They can differ when branches share a start and something after it decides. | True longest-token matching (above). | yes | 5 |
 | **Actions run after the whole match succeeds,** innermost first. Raku runs each as its rule matches, including for matches it later backtracks out of. | Only for actions with side effects, such as counting or logging. | Run actions in `call`'s `finish`, keeping their values on the `mnode`. Running after is easier to reason about, so keep it unless something needs the other. | by design | 2 |
 | **Text is read as UTF-8, a rune at a time.** A byte that isn't valid UTF-8 becomes U+FFFD (`�`), as Go's `[]rune(text)` does, so a match's `~` holds `�` where the text held the bad byte. Raku can't hold such text at all: it fails to decode it. | Scraped text with bad bytes in it, when the exact bytes matter. | Clean or decode the text first, or match byte strings as `scalar` does (each byte a character from 0 to 255). | by design | 2 |
@@ -1434,6 +1464,58 @@ if errors.As(err, &pe) {
 ```
 2 1 [<money>] 55k
 grammar Pay: line 2, column 1: expected <money>, found "55k"
+```
+
+#### `Caps`
+
+Caps iterates over m's captures in the order they come in the text, as Raku's .caps does: each capture's name and match.
+
+Caps gives a match's captures in the order they come in the text, as Raku's .caps does. A match is a hash, which keeps no order between names; here, the qualifiers of a title are captured by kind, and Caps puts them back in the order the title has them.
+
+```go
+g := grammar.MustCompile(`
+grammar Title {
+    token TOP         { $<title>=[ <-[(]>+? ] ' (' [ <arrangement> | <contract> ]+ % ', ' ')' }
+    token arrangement { :i remote | hybrid | onsite }
+    token contract    { :i contract | permanent | temp }
+}`)
+m := g.Parse("Senior Engineer (Contract, Remote, Temp)")
+for name, c := range grammar.Caps(m) {
+	fmt.Printf("%-11s %s\n", name, c.At("~"))
+}
+```
+
+```
+title       Senior Engineer
+contract    Contract
+arrangement Remote
+contract    Temp
+```
+
+#### `Chunks`
+
+Chunks iterates over m in pieces, as Raku's .chunks does: its captures, in Caps' order, with the text between them under "~", as a string.
+
+Chunks is Caps with the text between the captures, under "~", so the chunks put the text back together: here, to mark up the parts of a pay string.
+
+```go
+m := Pay.Parse("£45k - £55k per annum")
+var b strings.Builder
+for name, c := range grammar.Chunks(m) {
+	switch name {
+	case "~":
+		b.WriteString(c.Str())
+	case "money":
+		// money is min and max again, under a second name
+	default:
+		fmt.Fprintf(&b, "[%s: %s]", name, c.At("~"))
+	}
+}
+fmt.Println(b.String())
+```
+
+```
+[min: £45k] - [max: £55k][period:  per annum]
 ```
 
 #### `StepLimit`

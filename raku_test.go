@@ -172,6 +172,20 @@ var rakuCases = []struct {
 	{Src: `grammar Bare8 { token TOP { a1_b2+ } }`, Inputs: []string{"a1_b22", "a1_b2"}},
 	// Quoted literals and escapes.
 	{Src: `grammar Quote { token TOP { "a\tb" '\'' \- \[ } }`, Inputs: []string{"a\tb'-["}},
+	// Capture order, for Caps and Chunks: an alias after its rule's name,
+	// whichever sorts first; an empty capture before a longer one at the
+	// same place; positional and named captures mixed; captures of a
+	// repeat interleaved; and text between captures.
+	{Src: `grammar Order1 { token TOP { <A=a> <z=a> }; token a { a } }`, Inputs: []string{"aa"}},
+	{Src: `grammar Order2 { token TOP { $<e>=[ <?> ] <w> $<f>=[ <?> ] }; token w { \w+ } }`, Inputs: []string{"ab"}},
+	{Src: `grammar Order8 { token TOP { $<z>=[ <?> ] <a> }; token a { \w+ } }`, Inputs: []string{"ab"}},
+	{Src: `grammar Order3 { token TOP { (a) $<n>=[b] (c) } }`, Inputs: []string{"abc"}},
+	{Src: `grammar Order4 { token TOP { ( <a> ( <a> ) ) 'z' }; token a { a } }`, Inputs: []string{"aaz"}},
+	{Src: `grammar Order5 { token TOP { [ <a> | <b> ]+ % ',' }; token a { a }; token b { b } }`, Inputs: []string{"a,b,a"}},
+	{Src: `grammar Order6 { token TOP { 'x' <.a> 'y' }; token a { a } }`, Inputs: []string{"xay"}},
+	{Src: `grammar Always { token TOP { a <?> b [ <!> c | d ] } }`, Inputs: []string{"abd", "abc"}},
+	{Src: `grammar Order7 { token TOP { <a> ' '? <b>+ (x) <c=a> $<n>=[ \d+ ] <.a>? '-' <d=.b> }; token a { a }; token b { b } }`,
+		Inputs: []string{"a bbxa12a-b", "abxa1-b"}},
 }
 
 var units = map[string][]string{"units": {"year", "yr", "years", "wk", "a.b"}}

@@ -120,3 +120,18 @@ func TestParseErrSameMatches(t *testing.T) {
 		}
 	}
 }
+
+// <!> never matches, and says nothing about what the text needed, so a
+// failure report leaves it out, though it marks how far the parse got.
+func TestParseErrNever(t *testing.T) {
+	for _, c := range []struct{ src, text, want string }{
+		{`grammar N1 { token TOP { a <!> } }`, "a", "grammar N1: line 1, column 2: expected something else, found end of text"},
+		{`grammar N2 { token TOP { a [ <!> | b ] } }`, "ac", `grammar N2: line 1, column 2: expected 'b', found "c"`},
+	} {
+		g := MustCompile(c.src)
+		_, err := g.ParseErr(c.text)
+		if want := c.want; err == nil || err.Error() != want {
+			t.Errorf("%s: %v, want %s", g.Name(), err, want)
+		}
+	}
+}

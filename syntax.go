@@ -695,6 +695,10 @@ func (p *parser) assertion() Node {
 	case p.peek("?") || p.peek("!"):
 		neg := p.eat("!")
 		p.eat("?")
+		if p.eat(">") {
+			// <?> always matches, and <!> never does.
+			return &look{inner: seq(nil), neg: neg}
+		}
 		name := p.ident()
 		p.expect(">")
 		return &look{inner: Silent(name), neg: neg}

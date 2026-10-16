@@ -234,6 +234,49 @@ func ExampleParseError_Error() {
 	// grammar Pay: line 2, column 1: expected <money>, found "55k"
 }
 
+// Caps gives a match's captures in the order they come in the text, as
+// Raku's .caps does. A match is a hash, which keeps no order between names;
+// here, the qualifiers of a title are captured by kind, and Caps puts them
+// back in the order the title has them.
+func ExampleCaps() {
+	g := grammar.MustCompile(`
+grammar Title {
+    token TOP         { $<title>=[ <-[(]>+? ] ' (' [ <arrangement> | <contract> ]+ % ', ' ')' }
+    token arrangement { :i remote | hybrid | onsite }
+    token contract    { :i contract | permanent | temp }
+}`)
+	m := g.Parse("Senior Engineer (Contract, Remote, Temp)")
+	for name, c := range grammar.Caps(m) {
+		fmt.Printf("%-11s %s\n", name, c.At("~"))
+	}
+	// Output:
+	// title       Senior Engineer
+	// contract    Contract
+	// arrangement Remote
+	// contract    Temp
+}
+
+// Chunks is Caps with the text between the captures, under "~", so the
+// chunks put the text back together: here, to mark up the parts of a pay
+// string.
+func ExampleChunks() {
+	m := Pay.Parse("£45k - £55k per annum")
+	var b strings.Builder
+	for name, c := range grammar.Chunks(m) {
+		switch name {
+		case "~":
+			b.WriteString(c.Str())
+		case "money":
+			// money is min and max again, under a second name
+		default:
+			fmt.Fprintf(&b, "[%s: %s]", name, c.At("~"))
+		}
+	}
+	fmt.Println(b.String())
+	// Output:
+	// [min: £45k] - [max: £55k][period:  per annum]
+}
+
 // StepLimit stops a match that backtracks badly. Nested repeats in a regex
 // rule, as here, try every way of sharing the a's out before giving up, so
 // each extra a doubles the time: 30 of them would take minutes. The

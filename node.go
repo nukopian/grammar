@@ -121,7 +121,7 @@ func (st *state) fail(pos int, n Node, e env) {
 	if desc == "" {
 		desc = describe(n, e.ci)
 	}
-	if !slices.Contains(t.exp, desc) {
+	if desc != "" && !slices.Contains(t.exp, desc) {
 		t.exp = append(t.exp, desc)
 	}
 }
@@ -147,6 +147,9 @@ func describe(n Node, ci bool) string {
 	case *call:
 		return "<" + n.name + ">"
 	case *look:
+		if inner, ok := n.inner.(seq); ok && len(inner) == 0 {
+			return "" // <?> or <!>: nothing the text could have had
+		}
 		if n.neg {
 			return "not " + describe(n.inner, ci)
 		}
