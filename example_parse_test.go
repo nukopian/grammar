@@ -234,6 +234,21 @@ func ExampleParseError_Error() {
 	// grammar Pay: line 2, column 1: expected <money>, found "55k"
 }
 
+// Matching recurses as it goes, a level or so for each item matched, and
+// past DepthLimit it stops with a *DepthLimitError, which can be
+// recovered, rather than running out of stack, which can't: Go would end
+// the program. ParseErr returns it. Here the limit is low, to show it.
+func ExampleDepthLimitError_Error() {
+	g := grammar.MustCompile(`grammar Long { token TOP { <[a..z]>* } }`)
+	grammar.DepthLimit = 1_000
+	defer func() { grammar.DepthLimit = 250_000 }()
+
+	_, err := g.ParseErr(strings.Repeat("a", 600))
+	fmt.Println(err)
+	// Output:
+	// grammar Long: match too deep: gave up past 1000 levels (see DepthLimit)
+}
+
 // Caps gives a match's captures in the order they come in the text, as
 // Raku's .caps does. A match is a hash, which keeps no order between names;
 // here, the qualifiers of a title are captured by kind, and Caps puts them

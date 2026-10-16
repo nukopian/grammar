@@ -114,3 +114,54 @@ func TestParseErrRepanics(t *testing.T) {
 	}()
 	g.ParseErr("x")
 }
+
+// Matching recurses as it goes, so a long enough match would overflow the
+// stack, which kills the program; past DepthLimit, it stops with an error
+// that can be recovered instead. The fuzzer found the first of these: an
+// empty literal required two million times.
+func TestDepthLimit(t *testing.T) {
+	withStepLimit(t, 0, func() {
+		for name, f := range map[string]func(){
+			"empty repeat": func() { MustCompile(`grammar D1 { token TOP { '' ** 2111111 } }`).Parse("") },
+			"long repeat":  func() { MustCompile(`grammar D2 { token TOP { a* } }`).Parse(strings.Repeat("a", 3_000_000)) },
+			"recursion":    func() { MustCompile(`grammar D3 { token TOP { a <TOP>? } }`).Parse(strings.Repeat("a", 3_000_000)) },
+			"heavy regex": func() {
+				MustCompile(`grammar D4 { regex TOP { [ <x> [ <y> | <z> ] <.ws> ]* }; token x { a }; token y { b }; token z { c } }`).
+					Parse(strings.Repeat("ab ", 1_000_000))
+			},
+		} {
+			e := depthLimitPanic(t, f)
+			if e == nil {
+				t.Errorf("%s: no DepthLimitError", name)
+				continue
+			}
+			if !strings.Contains(e.Error(), "too deep") {
+				t.Errorf("%s: %v", name, e)
+			}
+		}
+	})
+	// The Err forms return it.
+	_, err := MustCompile(`grammar D5 { token TOP { '' ** 2111111 } }`).ParseErr("")
+	var e *DepthLimitError
+	if !errors.As(err, &e) {
+		t.Errorf("ParseErr = %v, want a *DepthLimitError", err)
+	}
+	// Ordinary depths are fine.
+	if !MustCompile(`grammar D6 { token TOP { a* } }`).Parse(strings.Repeat("a", 50_000)).Defined() {
+		t.Error("a* on 50,000 a's didn't match")
+	}
+}
+
+func depthLimitPanic(t *testing.T, f func()) (e *DepthLimitError) {
+	t.Helper()
+	defer func() {
+		if r := recover(); r != nil {
+			var ok bool
+			if e, ok = r.(*DepthLimitError); !ok {
+				panic(r)
+			}
+		}
+	}()
+	f()
+	return nil
+}

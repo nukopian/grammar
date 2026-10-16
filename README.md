@@ -676,6 +676,33 @@ thousand steps a call; counting costs nothing measurable
 (`BenchmarkFindAll`). Set `StepLimit` at startup, before matching; zero
 or less means no limit.
 
+A match can also go too deep. Matching recurses as it goes, a level or so
+for each item matched, so a long enough match runs out of stack, such as
+`a*` over a million a's, or `'' ** 2111111`, which the fuzzer found. Go
+ends the program when a goroutine's stack passes its limit (1 GB on
+64-bit systems), and nothing can recover from that. So every call also
+counts how deep it is, and past `grammar.DepthLimit` it panics with a
+`*DepthLimitError`, which can be recovered, and which `ParseErr` and
+`SubparseErr` return, as for `StepLimit`.
+
+The default, 250,000 levels, comes from measuring how much stack a level
+takes, by running grammars of different shapes until they ran out:
+
+| Shape | Stack a level |
+|---|---|
+| `token TOP { a* }`, and `'' ** n` | 572 bytes |
+| `token TOP { a <TOP>? }` (a rule calling itself) | 685 bytes |
+| `regex TOP { [ <x> [ <y> \| <z> ] <.ws> ]* }` | 633 bytes |
+| `regex TOP { [ ( ( ( ( 'a' ) ) ) ) ]* }` (nested captures) | 585 bytes |
+| `regex TOP { [ 'a' 'b' 'c' 'd' 'e' 'f' 'g' 'h' ]* }` | 1,047 bytes |
+
+Every node that recurses into another counts a level, so no shape can
+take much more than the largest of these, and 250,000 levels stay within
+a quarter of the stack. That still lets `.*` match about 125,000
+characters; the longest paragraph `grammarsections` sees is about 2,000.
+A program that raises Go's limit with `debug.SetMaxStack` can raise
+`DepthLimit` in proportion. Counting costs nothing measurable either.
+
 ### Mistakes in grammars
 
 `Compile` returns an error for bad syntax, with the line and column, for a
@@ -1517,6 +1544,23 @@ if errors.As(err, &pe) {
 ```
 2 1 [<money>] 55k
 grammar Pay: line 2, column 1: expected <money>, found "55k"
+```
+
+#### `DepthLimitError.Error`
+
+Matching recurses as it goes, a level or so for each item matched, and past DepthLimit it stops with a \*DepthLimitError, which can be recovered, rather than running out of stack, which can't: Go would end the program. ParseErr returns it. Here the limit is low, to show it.
+
+```go
+g := grammar.MustCompile(`grammar Long { token TOP { <[a..z]>* } }`)
+grammar.DepthLimit = 1_000
+defer func() { grammar.DepthLimit = 250_000 }()
+
+_, err := g.ParseErr(strings.Repeat("a", 600))
+fmt.Println(err)
+```
+
+```
+grammar Long: match too deep: gave up past 1000 levels (see DepthLimit)
 ```
 
 #### `Caps`

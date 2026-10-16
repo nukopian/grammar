@@ -48,7 +48,27 @@ type state struct {
 	// FindAll and Split share one state, and so one count, across every
 	// position they try.
 	steps, limit int
+
+	// depth is how deeply the matcher has recursed, against maxDepth (0:
+	// no limit); see deeper.
+	depth, maxDepth int
 }
+
+// deeper counts one more level of the matcher's recursion: an atom stepped
+// over, a repeat taking an item, or a rule call. Matching recurses as it
+// goes, a level or so for each item it has matched, so a long match goes
+// deep, and Go's stack, though it grows, has a limit, past which the
+// program dies with no chance to recover. Past maxDepth, deeper panics
+// with a *DepthLimitError instead, which ParseErr and SubparseErr return
+// as an error. Each deeper is paired with a shallower.
+func (st *state) deeper() {
+	st.depth++
+	if st.maxDepth > 0 && st.depth > st.maxDepth {
+		panic(&DepthLimitError{Grammar: st.g.name, Limit: st.maxDepth})
+	}
+}
+
+func (st *state) shallower() { st.depth-- }
 
 // tick counts one step of the matcher: a repeat taking an item, an
 // alternation, a rule call, or a lookbehind trying a start. Anything that
@@ -226,11 +246,18 @@ func once(n Node, st *state, pos int, c *capList, e env) (int, *capList, bool) {
 // follows it fails, as in Raku, so that token { .*? x } finds the x; see
 // extendable.
 func step(n Node, st *state, pos int, c *capList, e env, k cont) bool {
+	st.deeper()
+	var ok bool
 	if !e.ratchet || extendable(n) {
-		return n.match(st, pos, c, e, k)
+		ok = n.match(st, pos, c, e, k)
+	} else {
+		var p int
+		var cc *capList
+		p, cc, ok = once(n, st, pos, c, e)
+		ok = ok && k(p, cc)
 	}
-	p, cc, ok := once(n, st, pos, c, e)
-	return ok && k(p, cc)
+	st.shallower()
+	return ok
 }
 
 // extendable reports whether n holds a frugal quantifier that can still
@@ -565,6 +592,8 @@ func Alt(nodes ...Node) Node { return alt(nodes) }
 
 func (n alt) match(st *state, pos int, c *capList, e env, k cont) bool {
 	st.tick()
+	st.deeper()
+	defer st.shallower()
 	type cand struct {
 		i, end int
 		caps   *capList
@@ -613,6 +642,8 @@ func Goal(open, close, inner Node) Node { return &goal{open, inner, close} }
 func (n *goal) seq() seq { return seq{n.open, n.inner, n.close} }
 
 func (n *goal) match(st *state, pos int, c *capList, e env, k cont) bool {
+	st.deeper()
+	defer st.shallower()
 	return step(n.open, st, pos, c, e, func(p int, cc *capList) bool {
 		return step(n.inner, st, p, cc, e, func(p int, cc *capList) bool {
 			return n.closeAt(st, pos, p, cc, e, k)
@@ -664,6 +695,8 @@ func First(nodes ...Node) Node { return first(nodes) }
 
 func (n first) match(st *state, pos int, c *capList, e env, k cont) bool {
 	st.tick()
+	st.deeper()
+	defer st.shallower()
 	for _, b := range n {
 		if b.match(st, pos, c, e, k) {
 			return true
@@ -724,6 +757,8 @@ func (q *Quant) match(st *state, pos int, c *capList, e env, k cont) bool {
 
 func (q *Quant) iter(st *state, pos int, c *capList, e env, count int, k cont) bool {
 	st.tick()
+	st.deeper()
+	defer st.shallower()
 	more := func() bool {
 		if q.max >= 0 && count >= q.max {
 			return false
@@ -796,6 +831,8 @@ func AliasOnly(alias, name string) Node { return &call{name: name, alias: alias}
 
 func (n *call) match(st *state, pos int, c *capList, e env, k cont) bool {
 	st.tick()
+	st.deeper()
+	defer st.shallower()
 	r := st.g.lookup(n.name)
 	if r == nil {
 		panic("grammar: no rule " + n.name + " in " + st.g.name)
@@ -853,6 +890,8 @@ func Capture(n Node) Node {
 }
 
 func (n *group) match(st *state, pos int, c *capList, e env, k cont) bool {
+	st.deeper()
+	defer st.shallower()
 	key := n.name
 	if key == "" {
 		key = e.sc.posKey[n]
@@ -891,6 +930,8 @@ func Named(name string, n Node) Node {
 }
 
 func (n *named) match(st *state, pos int, c *capList, e env, k cont) bool {
+	st.deeper()
+	defer st.shallower()
 	return n.inner.match(st, pos, c, e, func(p int, cc *capList) bool {
 		return k(p, &capList{n.name, &mnode{from: pos, to: p, sc: emptyScope, words: wordsBody(n.inner)}, cc})
 	})
@@ -912,6 +953,8 @@ func After(n Node) Node     { return &look{inner: n, behind: true} }
 func NotAfter(n Node) Node  { return &look{inner: n, neg: true, behind: true} }
 
 func (n *look) match(st *state, pos int, c *capList, e env, k cont) bool {
+	st.deeper()
+	defer st.shallower()
 	var ok bool
 	if st.tr != nil {
 		st.tr.quiet++ // what's inside a lookaround failing is no news
@@ -949,6 +992,8 @@ func IgnoreCase(n Node) Node { t := true; return &mode{inner: n, ci: &t} }
 func Ratchet(n Node, on bool) Node { return &mode{inner: n, ratchet: &on} }
 
 func (n *mode) match(st *state, pos int, c *capList, e env, k cont) bool {
+	st.deeper()
+	defer st.shallower()
 	if n.ci != nil {
 		e.ci = *n.ci
 	}
@@ -962,6 +1007,8 @@ func (n *mode) match(st *state, pos int, c *capList, e env, k cont) bool {
 type commit struct{ inner Node }
 
 func (n commit) match(st *state, pos int, c *capList, e env, k cont) bool {
+	st.deeper()
+	defer st.shallower()
 	p, cc, ok := once(n.inner, st, pos, c, e)
 	return ok && k(p, cc)
 }

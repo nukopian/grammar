@@ -58,6 +58,15 @@ func FuzzMatch(f *testing.F) {
 		if err != nil {
 			return
 		}
+		// Running past StepLimit or DepthLimit is a panic by design, as for
+		// '' ** 2111111; nothing else is.
+		defer func() {
+			switch r := recover().(type) {
+			case nil, *StepLimitError, *DepthLimitError:
+			default:
+				panic(r)
+			}
+		}()
 		for _, sub := range []bool{false, true} {
 			parse, parseErr := g.Parse, g.ParseErr
 			if sub {

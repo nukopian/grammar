@@ -291,6 +291,32 @@ func walk(n Node, f func(Node)) {
 // grammars here take at most a few hundred thousand steps a call.
 var StepLimit = 10_000_000
 
+// DepthLimit caps how deeply one call of Parse, Subparse, Find, FindAll,
+// Split, ParseErr or SubparseErr may recurse. Matching recurses as it
+// goes, a level or so for each item matched, so a long enough match, such
+// as a* over a few hundred thousand a's, would run out of stack, and Go
+// ends the program when that happens, with no chance to recover. Past the
+// limit, the call panics with a *DepthLimitError instead, as StepLimit's
+// does; ParseErr and SubparseErr return it. Zero or less means no limit.
+// Set it at startup, before matching.
+//
+// Each level takes at most about 1 KB of stack, measured over a range of
+// grammars, so the default, 250,000 levels, stays within a quarter of Go's
+// default stack limit (1 GB on 64-bit systems), and lets a* or .* match
+// about 125,000 characters. A program that raises the stack limit with
+// debug.SetMaxStack can raise this too.
+var DepthLimit = 250_000
+
+// DepthLimitError says a match recursed past DepthLimit.
+type DepthLimitError struct {
+	Grammar string
+	Limit   int
+}
+
+func (e *DepthLimitError) Error() string {
+	return fmt.Sprintf("grammar %s: match too deep: gave up past %d levels (see DepthLimit)", e.Grammar, e.Limit)
+}
+
 // StepLimitError says a match ran past StepLimit.
 type StepLimitError struct {
 	Grammar string
@@ -430,7 +456,7 @@ func (g *Grammar) prepare(opts []Option) options {
 
 // newState starts a match over in, with the step limit in force now.
 func (g *Grammar) newState(in []rune) *state {
-	return &state{in: in, g: g, limit: StepLimit}
+	return &state{in: in, g: g, limit: StepLimit, maxDepth: DepthLimit}
 }
 
 func (g *Grammar) runState(st *state, from int, whole bool, o options) *mnode {
@@ -464,13 +490,15 @@ func (g *Grammar) parseErr(text string, whole bool, opts []Option) (match *scala
 	st := g.newState(in)
 	st.tr = &tracker{}
 	defer func() {
-		// Running out of steps is an error here, not a panic.
-		if r := recover(); r != nil {
-			e, ok := r.(*StepLimitError)
-			if !ok {
-				panic(r)
-			}
+		// Running out of steps or depth is an error here, not a panic.
+		switch e := recover().(type) {
+		case nil:
+		case *StepLimitError:
 			match, err = &scalar.SV{}, e
+		case *DepthLimitError:
+			match, err = &scalar.SV{}, e
+		default:
+			panic(e)
 		}
 	}()
 	if m := g.runState(st, 0, whole, o); m != nil {
