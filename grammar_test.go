@@ -234,3 +234,14 @@ func BenchmarkFindAll(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkParse parses one pay string: the matcher's work on a short
+// text, with no positions to skip.
+func BenchmarkParse(b *testing.B) {
+	b.ReportAllocs()
+	for b.Loop() {
+		if !pay.Subparse("£45,000 - £55,000 per annum").Defined() {
+			b.Fatal("no match")
+		}
+	}
+}
