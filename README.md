@@ -189,6 +189,7 @@ escaped.
 | `x y` | `Seq(x, y)` | x then y |
 | `x \| y` | `Alt(x, y)` | whichever of x or y matches more text |
 | `x \|\| y` | `First(x, y)` | x if it matches, otherwise y |
+| `x & y`, `x && y` | `Conj(x, y)` | x and y both, over the same text; see below |
 | `[ … ]` | (just nest nodes) | grouping, with no capture |
 | `x?` `x*` `x+` | `Opt(x)`, `Star(x)`, `Plus(x)` | quantifiers, greedy |
 | `x ** 2..5`, `x ** 3`, `x ** 2..*` | `Repeat(x, 2, 5)` | between 2 and 5 of x; `-1` for no limit |
@@ -283,6 +284,22 @@ Under `:i`, a set ignores case and a property doesn't, as in Raku:
 whatever the case of the rule. The same goes for the named classes:
 `:i <+upper>` takes only capitals. A property that doesn't exist is an
 error when the grammar compiles.
+
+**Conjunctions**, `&` and `&&`, match text that every branch matches,
+all of it: each branch starts in the same place and must end in the same
+place. `@titles & [ <:Lu> \S* ]+ % ' '` is a phrase from a list that's
+also written in title case, and `<:Lu>+ & @acronyms` an acronym written
+in capitals. In a `regex`, the branches backtrack until they agree, so
+`[ \w+ && ab ] c` matches "abc", as `\w+` gives back the c; in a
+`token`, each takes its first match, and they must agree on that. The
+captures of every branch are kept. `&` binds tighter than `|`, and `&&`
+tighter than `||`, as in Raku; Raku may try `&`'s branches in any order,
+which can't make a difference here, so both go left to right.
+
+As every branch must cover the same text, a branch that matches nothing,
+such as a lookahead, can never agree with one that matches something:
+`<w> & <!stop>` never matches. To match a word that isn't a stopword,
+look ahead first: `<!stop> <w>`.
 
 ## Word lists
 
@@ -814,7 +831,6 @@ Before changing anything, it helps to know how the package is put together:
 | **`<@list>`**: each entry matched as a regex | Lists of patterns built from data. | Compile each entry with the syntax parser's regex code into an `Alt`. `Compile` rejects `<@list>` now, so that synonym data isn't treated as patterns by mistake; keep `@list` for literal phrases. | yes | 2 |
 | **Interpolation**: `$var`, `<$regex>`, `<{ … }>` | Patterns chosen at run time. | Word lists cover literal phrases, and `Re` covers regex strings. A named-pattern binding, passed to `Compile` as lists are, would cover the rest. | partly | 2 |
 | **Failure reports from `Find` and `FindAll`** | Finding out why pay wasn't found in a posting, rather than why one string didn't parse. | Track failures across every start position and report the furthest. The noise is the hard part: most positions fail at once, for no interesting reason. | partly | 2 |
-| **Conjunctions**: `&`, `&&` | "Something that matches both", such as a word that's in a list and isn't a stopword. | A node that matches its first part, then checks the others match exactly the same text. | yes | 2 |
 | **Backtracking control**: `:`, `::`, `:::`, `<commit>`, `<cut>` | Taming slow, heavily backtracking `regex` rules. | Possessive quantifiers (`+:`) exist. The rest need the matcher to unwind to a marked point, which continuation-passing makes awkward: probably panics and recovers at the right level. Tokens and memoisation (below) usually make it unnecessary. | partly | 3 |
 | **Multiple inheritance**: `grammar C is A is B` | Rarely: roles do this better. | Make `parent` a list, and look up along each in order. | yes | 1 |
 
@@ -1820,6 +1836,25 @@ fmt.Println(err)
 ```
 (Remote, FTC)
 grammar Quals: line 1, column 13: expected ', ' or ')' to close '(' from line 1, column 1, found end of text
+```
+
+#### `Conj`
+
+Conj is Raku's & and &&: every node matches, over the same text, as in [ <:Lu> \S* ]+ % ' ' & @titles, a list phrase in title case.
+
+Conj is & and &&: every node matches, over the same text. Here, an acronym from a list, but only where it's written in capitals.
+
+```go
+acronyms := grammar.NewWordList("acronyms", grammar.FoldCase(), grammar.WholeWords()).Add("SQL").Add("AWS")
+g := grammar.New("Acronym").Token("TOP",
+	grammar.Conj(grammar.Plus(grammar.Class(unicode.IsUpper)), grammar.Words(acronyms)))
+// Raku: token TOP { <:Lu>+ & @acronyms }
+
+fmt.Println(g.FindAll("SQL, sql, AWS and SQLITE").Map(func(m *scalar.SV) any { return m.At("~") }).Join(" "))
+```
+
+```
+SQL AWS
 ```
 
 #### `Opt`

@@ -232,6 +232,9 @@ func canBeEmpty(n Node, empty map[string]bool) bool {
 		return !slices.ContainsFunc(n, func(c Node) bool { return !canBeEmpty(c, empty) })
 	case *goal:
 		return canBeEmpty(n.seq(), empty)
+	case conj:
+		// Its branches match the same text, so all or none are empty.
+		return !slices.ContainsFunc(n, func(c Node) bool { return !canBeEmpty(c, empty) })
 	case alt, first:
 		return slices.ContainsFunc(children(n), func(c Node) bool { return canBeEmpty(c, empty) })
 	case *Quant:
@@ -687,6 +690,10 @@ func (sc *scope) count(n Node, next int) (map[string]int, int) {
 		// Positional captures are numbered as written, open ~ close
 		// inner, as in Raku, though they match as open, inner, close.
 		return sc.count(seq{n.open, n.close, n.inner}, next)
+	case conj:
+		// Every branch's captures are kept, numbered on from one to the
+		// next, as in a sequence.
+		return sc.count(seq(n), next)
 	case seq:
 		for _, c := range n {
 			var m map[string]int

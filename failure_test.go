@@ -198,3 +198,18 @@ func TestGoalSyntaxErrors(t *testing.T) {
 		}
 	}
 }
+
+// Branches of a conjunction that match different text are reported where
+// they part.
+func TestParseErrConj(t *testing.T) {
+	for _, c := range []struct{ src, text, want string }{
+		{`grammar A { token TOP { [ \w+ & <[a..c]>+ ] } }`, "abcd", `grammar A: line 1, column 4: expected \w and <[a..c]> to match the same text, found "d"`},
+		{`grammar B { token TOP { [ <:Lu> \w+ & <[A..Z a..z]>+ ] '!' } }`, "Zoë!", `grammar B: line 1, column 3: expected <:Lu> and <[A..Z a..z]> to match the same text, found "ë!"`},
+		{`grammar C { token TOP { [ \w+ & \d+ ] } }`, "ab", `grammar C: line 1, column 1: expected \d, found "ab"`},
+	} {
+		_, err := MustCompile(c.src).ParseErr(c.text)
+		if err == nil || err.Error() != c.want {
+			t.Errorf("%s on %q: %v\nwant %s", c.src, c.text, err, c.want)
+		}
+	}
+}

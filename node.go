@@ -193,6 +193,8 @@ func describe(n Node, ci bool) string {
 		}
 	case *goal:
 		return describe(n.open, ci)
+	case conj:
+		return describe(n[0], ci)
 	case alt, first:
 		var descs []string
 		for _, c := range children(n) {
@@ -687,6 +689,45 @@ func lineCol(in []rune, at int) (line, col int) {
 	return line, col
 }
 
+type conj []Node
+
+// Conj is Raku's & and &&: every node matches, over the same text, as in
+// [ <:Lu> \S* ]+ % ' ' & @titles, a list phrase in title case. Each must
+// start where the first does and end where it ends. In a regex, they
+// backtrack until they agree: [ \w+ && ab ] c matches "abc", as \w+ gives
+// back the c. In a token, each takes its first match, and they must agree
+// on that. The captures of all of them are kept. Raku may try &'s branches
+// in any order, and && left to right; with no code to watch, the two are
+// the same, so both are Conj, tried left to right.
+func Conj(nodes ...Node) Node { return conj(nodes) }
+
+func (n conj) match(st *state, pos int, c *capList, e env, k cont) bool {
+	st.tick()
+	st.deeper()
+	defer st.shallower()
+	return step(n[0], st, pos, c, e, func(end int, cc *capList) bool {
+		return n.rest(1, st, pos, end, cc, e, k)
+	})
+}
+
+// rest matches the nodes from i on over in[start:end], each ending exactly
+// at end. Where one ends elsewhere, a failure report says where they part,
+// and which they were.
+func (n conj) rest(i int, st *state, start, end int, c *capList, e env, k cont) bool {
+	if i == len(n) {
+		return k(end, c)
+	}
+	return step(n[i], st, start, c, e, func(p int, cc *capList) bool {
+		if p != end {
+			if st.tr != nil {
+				st.failAs(min(p, end), describe(n[0], e.ci)+" and "+describe(n[i], e.ci)+" to match the same text")
+			}
+			return false
+		}
+		return n.rest(i+1, st, start, end, cc, e, k)
+	})
+}
+
 type first []Node
 
 // First is Raku's ||: the first branch that matches wins.
@@ -1017,6 +1058,8 @@ func children(n Node) []Node {
 	switch n := n.(type) {
 	case seq:
 		return n
+	case conj:
+		return n
 	case *goal:
 		return n.seq()
 	case alt:
@@ -1071,6 +1114,8 @@ func distinct(n Node, seen map[*group]bool) (Node, bool) {
 	switch n := n.(type) {
 	case seq:
 		return seq(copied), true
+	case conj:
+		return conj(copied), true
 	case *goal:
 		return &goal{copied[0], copied[1], copied[2]}, true
 	case alt:

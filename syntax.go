@@ -327,12 +327,11 @@ func (p *parser) regex() Node {
 		p.sig = outer
 	}()
 	p.ws()
-	if !p.eat("||") {
-		p.eat("|")
-	}
-	branches := []Node{p.alts()}
+	// As in Raku, any of the operators may come first, with nothing before.
+	_ = p.eat("||") || p.eat("&&") || p.eat("|") || p.eat("&")
+	branches := []Node{p.conjs()}
 	for p.ws(); p.eat("||"); p.ws() {
-		branches = append(branches, p.alts())
+		branches = append(branches, p.conjs())
 	}
 	if len(branches) == 1 {
 		return branches[0]
@@ -340,16 +339,45 @@ func (p *parser) regex() Node {
 	return first(branches)
 }
 
+// The operators between branches, loosest first, as in Raku: ||, &&, |,
+// then &.
+
+// conjs reads branches joined by &&.
+func (p *parser) conjs() Node {
+	branches := []Node{p.alts()}
+	for p.ws(); p.eat("&&"); p.ws() {
+		branches = append(branches, p.alts())
+	}
+	if len(branches) == 1 {
+		return branches[0]
+	}
+	return conj(branches)
+}
+
+// alts reads branches joined by |.
 func (p *parser) alts() Node {
-	branches := []Node{p.branch()}
+	branches := []Node{p.tightConjs()}
 	for p.ws(); p.peek("|") && !p.peek("||"); p.ws() {
+		p.i++
+		branches = append(branches, p.tightConjs())
+	}
+	if len(branches) == 1 {
+		return branches[0]
+	}
+	return alt(branches)
+}
+
+// tightConjs reads branches joined by &.
+func (p *parser) tightConjs() Node {
+	branches := []Node{p.branch()}
+	for p.ws(); p.peek("&") && !p.peek("&&"); p.ws() {
 		p.i++
 		branches = append(branches, p.branch())
 	}
 	if len(branches) == 1 {
 		return branches[0]
 	}
-	return alt(branches)
+	return conj(branches)
 }
 
 // branch is one alternative of a group. Adverbs from earlier in the group
@@ -423,10 +451,10 @@ func (p *parser) sequence() Node {
 }
 
 // atSequenceEnd reports whether the sequence being read ends here: at the
-// end of the source, a branch's |, a group's closing ] or ), the end of
-// the rule, or the > that ends a lookaround.
+// end of the source, a branch's | or &, a group's closing ] or ), the end
+// of the rule, or the > that ends a lookaround.
 func (p *parser) atSequenceEnd() bool {
-	return p.eof() || p.peek("|") || p.peek("]") || p.peek(")") || p.peek("}") || p.assert > 0 && p.peek(">")
+	return p.eof() || p.peek("|") || p.peek("&") || p.peek("]") || p.peek(")") || p.peek("}") || p.assert > 0 && p.peek(">")
 }
 
 // spacedTerm reads a quantified term and, in a rule, the space after it.

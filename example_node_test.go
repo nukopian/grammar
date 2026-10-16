@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"unicode"
 
+	"github.com/nukopian/job-meta/internal/scalar"
 	"github.com/nukopian/job-meta/internal/scalar/grammar"
 )
 
@@ -105,6 +106,19 @@ func ExampleGoal() {
 	// Output:
 	// (Remote, FTC)
 	// grammar Quals: line 1, column 13: expected ', ' or ')' to close '(' from line 1, column 1, found end of text
+}
+
+// Conj is & and &&: every node matches, over the same text. Here, an
+// acronym from a list, but only where it's written in capitals.
+func ExampleConj() {
+	acronyms := grammar.NewWordList("acronyms", grammar.FoldCase(), grammar.WholeWords()).Add("SQL").Add("AWS")
+	g := grammar.New("Acronym").Token("TOP",
+		grammar.Conj(grammar.Plus(grammar.Class(unicode.IsUpper)), grammar.Words(acronyms)))
+	// Raku: token TOP { <:Lu>+ & @acronyms }
+
+	fmt.Println(g.FindAll("SQL, sql, AWS and SQLITE").Map(func(m *scalar.SV) any { return m.At("~") }).Join(" "))
+	// Output:
+	// SQL AWS
 }
 
 // Opt is ?: zero or one.

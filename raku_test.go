@@ -206,6 +206,19 @@ var rakuCases = []struct {
 	{Src: `grammar Uni6 { token TOP { :i <:Lu> <[A..Z]> <-[A..Z]> <:Lu + [x]> <[a..z] - :Ll> } }`,
 		Inputs: []string{"Aa1XA", "aa1XA", "AA1XA", "Aa1xA", "Aa1Xa"}},
 	{Src: `grammar Uni7 { token TOP { :i <+upper> <-upper> } }`, Inputs: []string{"Aa", "aa", "AA"}},
+	// Conjunctions: every branch matches the same text. In a regex they
+	// backtrack until they agree; in a token each takes its first match.
+	// & binds tighter than |, and && than ||.
+	{Src: `grammar Conj1 { token TOP { [ \w+ & <[a..c]>+ ] } }`, Inputs: []string{"abc", "abcd"}},
+	{Src: `grammar Conj2 { regex TOP { [ \w+ && ab ] c } }`, Inputs: []string{"abc", "abd"}},
+	{Src: `grammar Conj3 { token TOP { [ \w+ && ab ] c } }`, Inputs: []string{"abc"}},
+	{Src: `grammar Conj4 { token TOP { <x=w> & <y=w> }; token w { \w+ } }`, Inputs: []string{"ab"}},
+	{Src: `grammar Conj5 { token TOP { a & a | b } }`, Inputs: []string{"a", "b"}},
+	{Src: `grammar Conj6 { token TOP { a && b || c } }`, Inputs: []string{"c", "a"}},
+	{Src: `grammar Conj7 { token TOP { [ ab & a ] } }`, Sub: true, Inputs: []string{"ab"}},
+	{Src: `grammar Conj8 { token TOP { (\w) (\w) & (..) } }`, Inputs: []string{"ab"}},
+	{Src: `grammar Conj9 { token TOP { & a & . && \w } }`, Inputs: []string{"a", "b"}},
+	{Src: `grammar Conj10 { regex TOP { [ <:Lu> \S* ]+ % ' ' & [ \w+ ]+ % ' ' } }`, Inputs: []string{"Senior Engineer", "Senior engineer", "Senior C++"}},
 	{Src: `grammar Order7 { token TOP { <a> ' '? <b>+ (x) <c=a> $<n>=[ \d+ ] <.a>? '-' <d=.b> }; token a { a }; token b { b } }`,
 		Inputs: []string{"a bbxa12a-b", "abxa1-b"}},
 }
