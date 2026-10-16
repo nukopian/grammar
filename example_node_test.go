@@ -89,6 +89,24 @@ func ExampleFirst() {
 	// false
 }
 
+// Goal is Raku's goal matching, '(' ~ ')' x: x between brackets, written
+// with the brackets together. It matches as Seq(open, x, close) does;
+// what it adds is that ParseErr names the opening bracket a missing closer
+// was for, and where it was.
+func ExampleGoal() {
+	quals := grammar.Seq(grammar.Plus(grammar.Class(unicode.IsLetter)),
+		grammar.Star(grammar.Seq(grammar.Lit(", "), grammar.Plus(grammar.Class(unicode.IsLetter)))))
+	g := grammar.New("Quals").Token("TOP", grammar.Goal(grammar.Lit("("), grammar.Lit(")"), quals))
+	// Raku: token TOP { '(' ~ ')' [ <alpha>+ ]+ % ', ' }
+
+	fmt.Println(g.Parse("(Remote, FTC)").At("~"))
+	_, err := g.ParseErr("(Remote, FTC")
+	fmt.Println(err)
+	// Output:
+	// (Remote, FTC)
+	// grammar Quals: line 1, column 13: expected ', ' or ')' to close '(' from line 1, column 1, found end of text
+}
+
 // Opt is ?: zero or one.
 func ExampleOpt() {
 	g := grammar.New("G").Token("TOP", grammar.Seq(grammar.Lit("£"), grammar.Plus(grammar.Digit), grammar.Opt(grammar.Lit("k"))))

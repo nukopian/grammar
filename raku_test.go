@@ -184,6 +184,17 @@ var rakuCases = []struct {
 	{Src: `grammar Order5 { token TOP { [ <a> | <b> ]+ % ',' }; token a { a }; token b { b } }`, Inputs: []string{"a,b,a"}},
 	{Src: `grammar Order6 { token TOP { 'x' <.a> 'y' }; token a { a } }`, Inputs: []string{"xay"}},
 	{Src: `grammar Always { token TOP { a <?> b [ <!> c | d ] } }`, Inputs: []string{"abd", "abc"}},
+	// Goal matching: '(' ~ ')' X is '(' X ')'. A missing closer fails, and
+	// can backtrack into another branch; X is one atom.
+	{Src: `grammar Goal1 { token TOP { 'x' '(' ~ ')' <w> 'y'? }; token w { \w+ } }`,
+		Inputs: []string{"x(ab)y", "x(ab)", "x(ab", "x(a-b)", "y(ab)"}},
+	{Src: `grammar Goal2 { token TOP { [ '(' ~ ')' <w> || '(' \w+ ] }; token w { \w+ } }`, Inputs: []string{"(ab)", "(ab"}},
+	{Src: `grammar Goal3 { token TOP { '[' ~ ']' \w+ ',' } }`, Inputs: []string{"[ab],", "[ab,]"}},
+	{Src: `grammar Goal4 { rule TOP { '(' ~ ')' <w> }; token w { \w+ } }`, Inputs: []string{"( ab )", "(ab)", "( ab ) "}},
+	{Src: `grammar Goal5 { token TOP { <w>* % ',' }; token w { '(' ~ ')' \w+ } }`, Inputs: []string{"(a),(b)", "(a),(b"}},
+	{Src: `grammar Goal6 { token TOP { ( '(' ) ~ ( ')' ) ( \w+ ) } }`, Inputs: []string{"(ab)"}},
+	{Src: `grammar Goal7 { token TOP { '(' ~ ')' [ <w>+ % ',' ] }; token w { \w+ } }`, Inputs: []string{"(a,b)", "(a,b"}},
+	{Src: `grammar Goal8 { regex TOP { '(' ~ ')' .* } }`, Inputs: []string{"(a)b)", "(ab"}},
 	{Src: `grammar Order7 { token TOP { <a> ' '? <b>+ (x) <c=a> $<n>=[ \d+ ] <.a>? '-' <d=.b> }; token a { a }; token b { b } }`,
 		Inputs: []string{"a bbxa12a-b", "abxa1-b"}},
 }

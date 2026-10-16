@@ -135,3 +135,48 @@ func TestParseErrNever(t *testing.T) {
 		}
 	}
 }
+
+// A goal's closer that's missing is reported with where its opener was, as
+// a title's bracket might be many words back.
+func TestParseErrGoal(t *testing.T) {
+	g := MustCompile(`grammar T {
+    token TOP   { <words> [ ' ' '(' ~ ')' <quals> ]? }
+    token words { [ \w+ ]+ % ' ' }
+    token quals { [ \w+ ]+ % ', ' }
+}`)
+	for _, c := range []struct{ text, want string }{
+		{"Senior Engineer (Remote, FTC", `grammar T: line 1, column 29: expected ', ' or ')' to close '(' from line 1, column 17, found end of text`},
+		{"Senior Engineer (Remote; FTC)", `grammar T: line 1, column 24: expected ', ' or ')' to close '(' from line 1, column 17, found "; FTC)"`},
+	} {
+		_, err := g.ParseErr(c.text)
+		if err == nil || err.Error() != c.want {
+			t.Errorf("%q: %v\nwant %s", c.text, err, c.want)
+		}
+	}
+	// After the closer, failures are reported as usual. (In a regex, as
+	// what follows runs inside the closer's match; in a token, it runs
+	// after the closer has committed.)
+	g3 := MustCompile(`grammar A { regex TOP { '(' ~ ')' \w+ 'y' } }`)
+	_, err3 := g3.ParseErr("(ab)z")
+	if want := `grammar A: line 1, column 5: expected 'y', found "z"`; err3 == nil || err3.Error() != want {
+		t.Errorf("%v\nwant %s", err3, want)
+	}
+	// Over lines.
+	g2 := MustCompile(`grammar L { token TOP { 'x' '(' ~ ')' \s* } }`)
+	_, err := g2.ParseErr("x(\n\n")
+	if want := `grammar L: line 3, column 1: expected ')' to close '(' from line 1, column 2, found end of text`; err == nil || err.Error() != want {
+		t.Errorf("%v\nwant %s", err, want)
+	}
+}
+
+// The Go builder's Goal is the same as ~.
+func TestGoalBuilder(t *testing.T) {
+	g := New("G").Token("TOP", Goal(Lit("("), Lit(")"), Plus(Class(isWord))))
+	if !g.Parse("(ab)").Defined() || g.Parse("(ab").Defined() {
+		t.Error("Goal doesn't match as '(' ~ ')' \\w+")
+	}
+	_, err := g.ParseErr("(ab")
+	if want := `grammar G: line 1, column 4: expected ')' to close '(' from line 1, column 1, found end of text`; err == nil || err.Error() != want {
+		t.Errorf("%v\nwant %s", err, want)
+	}
+}

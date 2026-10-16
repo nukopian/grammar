@@ -193,6 +193,7 @@ escaped.
 | `x ** 2..5`, `x ** 3`, `x ** 2..*` | `Repeat(x, 2, 5)` | between 2 and 5 of x; `-1` for no limit |
 | `x+ % ','` | `Plus(x).Sep(Lit(","))` | x separated by commas |
 | `x+ %% ','` | `Plus(x).SepTrailing(Lit(","))` | the same, with an optional comma at the end |
+| `'(' ~ ')' x` | `Goal(Lit("("), Lit(")"), x)` | `'(' x ')'`, with the brackets written together; `ParseErr` names the `'('` a missing `')'` was for |
 | `x*?`, `x+?` | `Star(x).Frugal()` | as few as possible |
 | `x+:` | | possessive: never give any back |
 | `^` `$` | `Start`, `End` | start and end of the text |
@@ -610,6 +611,15 @@ of text`). A few failures are left out as no news: those inside
 lookarounds and `<ws>`, and a class repeat such as `\s*` stopping, as it's
 free to.
 
+A closing bracket written with goal matching, `'(' ~ ')' <qualifiers>`,
+is reported with the bracket it was for, and where that was: a title
+such as "Senior Engineer (Remote, FTC" fails with `expected ', ' or ')'
+to close '(' from line 1, column 17`, which points at the cause, not just
+the end of the text. Goal matching is otherwise just `'(' <qualifiers>
+')'`: as in Raku, a missing closer fails like anything else, so another
+branch can still match. In a `rule`, each part keeps the space written
+after it, so `rule TOP { '(' ~ ')' <w> }` matches "( ab )".
+
 The error is a `*ParseError`, whose fields (`Line`, `Column`, `Offset`,
 `Expected`, `Found`) give the same facts for a program to use: logging
 which rule postings fail at, for instance, to see what a grammar is
@@ -750,7 +760,6 @@ Before changing anything, it helps to know how the package is put together:
 | **Rule parameters and dynamic variables**: `token amount($cur)`, `$*CURRENCY` | Parsing that depends on context, such as a currency that changes how amounts read. | Arguments in the syntax and on `call`, and a stack of dynamic variables in `state`, visible to called rules. Inheritance and roles usually do the job more simply. | yes | 3 |
 | **`<@list>`**: each entry matched as a regex | Lists of patterns built from data. | Compile each entry with the syntax parser's regex code into an `Alt`. `Compile` rejects `<@list>` now, so that synonym data isn't treated as patterns by mistake; keep `@list` for literal phrases. | yes | 2 |
 | **Interpolation**: `$var`, `<$regex>`, `<{ … }>` | Patterns chosen at run time. | Word lists cover literal phrases, and `Re` covers regex strings. A named-pattern binding, passed to `Compile` as lists are, would cover the rest. | partly | 2 |
-| **Goal matching**: `'(' ~ ')' <inner>` | Brackets in titles, such as "Engineer (Remote, FTC)", with an error saying the closing bracket is missing. | Sugar for `Seq(open, inner, close)`. `ParseErr` already reports a missing `')'`; goal matching would add Raku's wording ("couldn't find final ')'"). | yes | 1 |
 | **Failure reports from `Find` and `FindAll`** | Finding out why pay wasn't found in a posting, rather than why one string didn't parse. | Track failures across every start position and report the furthest. The noise is the hard part: most positions fail at once, for no interesting reason. | partly | 2 |
 | **Unicode properties**: `<:Lu>`, `<:Letter>`, `<:Script<Latin>>` | Text in other languages and scripts. | In `classExpr`, map property names to Go's `unicode` tables. | yes | 1 |
 | **Conjunctions**: `&`, `&&` | "Something that matches both", such as a word that's in a list and isn't a stopword. | A node that matches its first part, then checks the others match exactly the same text. | yes | 2 |
@@ -1701,6 +1710,28 @@ fmt.Println(g.Parse("hours").Defined())
 ```
 hour
 false
+```
+
+#### `Goal`
+
+Goal is Raku's goal matching, open ~ close inner: open, then inner, then close, as Seq(open, inner, close) is, written with the brackets together, as in '(' ~ ')' <qualifiers>.
+
+Goal is Raku's goal matching, '(' ~ ')' x: x between brackets, written with the brackets together. It matches as Seq(open, x, close) does; what it adds is that ParseErr names the opening bracket a missing closer was for, and where it was.
+
+```go
+quals := grammar.Seq(grammar.Plus(grammar.Class(unicode.IsLetter)),
+	grammar.Star(grammar.Seq(grammar.Lit(", "), grammar.Plus(grammar.Class(unicode.IsLetter)))))
+g := grammar.New("Quals").Token("TOP", grammar.Goal(grammar.Lit("("), grammar.Lit(")"), quals))
+// Raku: token TOP { '(' ~ ')' [ <alpha>+ ]+ % ', ' }
+
+fmt.Println(g.Parse("(Remote, FTC)").At("~"))
+_, err := g.ParseErr("(Remote, FTC")
+fmt.Println(err)
+```
+
+```
+(Remote, FTC)
+grammar Quals: line 1, column 13: expected ', ' or ')' to close '(' from line 1, column 1, found end of text
 ```
 
 #### `Opt`

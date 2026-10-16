@@ -1,6 +1,7 @@
 package grammar
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"unicode"
@@ -126,6 +127,20 @@ func (st *state) fail(pos int, n Node, e env) {
 	}
 }
 
+// failAs records a failure at pos as fail does, described as desc.
+func (st *state) failAs(pos int, desc string) {
+	t := st.tr
+	if t == nil || t.quiet > 0 || pos < t.far {
+		return
+	}
+	if pos > t.far {
+		t.far, t.exp = pos, t.exp[:0]
+	}
+	if !slices.Contains(t.exp, desc) {
+		t.exp = append(t.exp, desc)
+	}
+}
+
 // describe says what n matches, for a failure report, as the grammar would
 // write it where it can: 'text', \d, <[a..z]>, @list, <rule>.
 func describe(n Node, ci bool) string {
@@ -158,6 +173,8 @@ func describe(n Node, ci bool) string {
 		if len(n) > 0 {
 			return describe(n[0], ci)
 		}
+	case *goal:
+		return describe(n.open, ci)
 	case alt, first:
 		var descs []string
 		for _, c := range children(n) {
@@ -226,6 +243,8 @@ func extendable(n Node) bool {
 		return n.frugal
 	case seq:
 		return slices.ContainsFunc(n, extendable)
+	case *goal:
+		return extendable(n.seq())
 	case *named:
 		return extendable(n.inner)
 	case *mode:
@@ -568,6 +587,64 @@ func (n alt) match(st *state, pos int, c *capList, e env, k cont) bool {
 	return false
 }
 
+type goal struct{ open, inner, close Node }
+
+// Goal is Raku's goal matching, open ~ close inner: open, then inner, then
+// close, as Seq(open, inner, close) is, written with the brackets
+// together, as in '(' ~ ')' <qualifiers>. As in Raku, a missing close
+// fails the match like anything else, so another branch can still match.
+// What it adds is in failure reports: ParseErr says which open the close
+// was for, and where it was: expected ')' to close '(' from line 1,
+// column 17.
+func Goal(open, close, inner Node) Node { return &goal{open, inner, close} }
+
+func (n *goal) seq() seq { return seq{n.open, n.inner, n.close} }
+
+func (n *goal) match(st *state, pos int, c *capList, e env, k cont) bool {
+	return step(n.open, st, pos, c, e, func(p int, cc *capList) bool {
+		return step(n.inner, st, p, cc, e, func(p int, cc *capList) bool {
+			return n.closeAt(st, pos, p, cc, e, k)
+		})
+	})
+}
+
+// closeAt matches the close at pos, for an open at start. If it fails
+// there, the failure is reported as the close for that open; what the
+// close itself expected is left out, as one says the other.
+func (n *goal) closeAt(st *state, start, pos int, c *capList, e env, k cont) bool {
+	t := st.tr
+	if t == nil {
+		return step(n.close, st, pos, c, e, k)
+	}
+	matched := false
+	t.quiet++
+	ok := step(n.close, st, pos, c, e, func(p int, cc *capList) bool {
+		matched = true
+		t.quiet--
+		defer func() { t.quiet++ }()
+		return k(p, cc)
+	})
+	t.quiet--
+	if !matched {
+		line, col := lineCol(st.in, start)
+		st.failAs(pos, fmt.Sprintf("%s to close %s from line %d, column %d", describe(n.close, e.ci), describe(n.open, e.ci), line, col))
+	}
+	return ok
+}
+
+// lineCol returns the line and column of position at in in, both from 1.
+func lineCol(in []rune, at int) (line, col int) {
+	line, col = 1, 1
+	for _, r := range in[:at] {
+		if r == '\n' {
+			line, col = line+1, 1
+		} else {
+			col++
+		}
+	}
+	return line, col
+}
+
 type first []Node
 
 // First is Raku's ||: the first branch that matches wins.
@@ -882,6 +959,8 @@ func children(n Node) []Node {
 	switch n := n.(type) {
 	case seq:
 		return n
+	case *goal:
+		return n.seq()
 	case alt:
 		return n
 	case first:
@@ -934,6 +1013,8 @@ func distinct(n Node, seen map[*group]bool) (Node, bool) {
 	switch n := n.(type) {
 	case seq:
 		return seq(copied), true
+	case *goal:
+		return &goal{copied[0], copied[1], copied[2]}, true
 	case alt:
 		return alt(copied), true
 	case first:

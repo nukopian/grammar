@@ -404,18 +404,37 @@ func (p *parser) sequence() Node {
 			}
 			break
 		}
-		sig := p.sig // as it is where the whitespace after the term is
-		term, spaced := p.quantified()
-		items = append(items, term)
-		if spaced && sig {
-			items = append(items, Silent("ws"))
+		term := p.spacedTerm()
+		if p.eat("~") {
+			// Goal matching: open ~ close inner is open inner close, each
+			// with the space that followed it in the source.
+			p.ws()
+			if p.eof() || p.peek("|") || p.peek("]") || p.peek(")") || p.peek("}") {
+				p.fail("~ needs a closer and something to go between, as in '(' ~ ')' <inner>")
+			}
+			close := p.spacedTerm()
+			if p.eof() || p.peek("|") || p.peek("]") || p.peek(")") || p.peek("}") || p.peek("~") {
+				p.fail("~ needs something to go between the brackets, as in '(' ~ ')' <inner>")
+			}
+			term = Goal(term, close, p.spacedTerm())
 		}
+		items = append(items, term)
 	}
 	return Seq(items...)
 }
 
 // adverbs reads :i, :r, :s and the like: a mode for the caller to fill in,
 // and :s or :!s, if given, which the parser applies itself.
+// spacedTerm reads a quantified term and, in a rule, the space after it.
+func (p *parser) spacedTerm() Node {
+	sig := p.sig // as it is where the whitespace after the term is
+	term, spaced := p.quantified()
+	if spaced && sig {
+		return Seq(term, Silent("ws"))
+	}
+	return term
+}
+
 func (p *parser) adverbs() (*mode, *bool) {
 	m := &mode{}
 	var sig *bool

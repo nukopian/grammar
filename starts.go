@@ -134,6 +134,8 @@ func (f *startFinder) add(n Node, ci bool, s *starts) bool {
 		return false
 	case anchor, *look:
 		return true // they match no text, so what follows starts the match
+	case *goal:
+		return f.add(n.seq(), ci, s)
 	case seq:
 		for _, c := range n {
 			if !f.add(c, ci, s) {
