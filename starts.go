@@ -139,6 +139,12 @@ func (f *startFinder) add(n Node, ci bool, s *starts) bool {
 		return true // they match no text, so what follows starts the match
 	case *goal:
 		return f.add(n.seq(), ci, s)
+	case patterns:
+		empty := false
+		for _, c := range n.l.nodes {
+			empty = f.add(c, ci, s) || empty
+		}
+		return empty
 	case conj:
 		// Every branch starts where the first does, so its starts will do.
 		return f.add(n[0], ci, s)

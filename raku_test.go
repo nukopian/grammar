@@ -16,6 +16,8 @@ var rakuCases = []struct {
 	Sub    bool                `json:"sub"` // subparse rather than parse
 	Inputs []string            `json:"inputs"`
 	Lists  map[string][]string `json:"lists,omitempty"` // word lists, as Raku arrays
+	// Pattern lists, for <@name>: Raku arrays of regexes.
+	Patterns map[string][]string `json:"patterns,omitempty"`
 }{
 	// The pay grammar from the README.
 	{Src: `grammar Pay {
@@ -280,6 +282,17 @@ var rakuCases = []struct {
 	{Src: `grammar Proto6 { regex TOP { <x> b }; proto regex x {*}; regex x:sym<long> { ab }; regex x:sym<short> { a } }`, Inputs: []string{"ab", "abb"}},
 	{Src: `grammar Proto7 { token TOP { <op>+ }; proto token op {*}; token op:sym<+> { <sym> }; token op:sym«->» { <sym> } }`, Inputs: []string{"+->", "-+", "+-"}},
 	{Src: `grammar Proto8 { token TOP { <unit>+ % ', ' }; proto token unit {*}; token unit:sym<year> { <sym> s? }; token unit:sym<week> { <sym> } }`, Inputs: []string{"years, week, year", "weeks"}},
+	// <@list>: each entry a regex, the longest winning and the call
+	// committing to it, even in a regex. Entries see the grammar's rules,
+	// and :i, but not a rule's spaces, and their captures aren't kept.
+	{Src: `grammar Pat1 { token TOP { <@r> } }`, Patterns: map[string][]string{"r": {"a", "ab", "a+"}}, Inputs: []string{"ab", "aaa", "b"}},
+	{Src: `grammar Pat2 { regex TOP { <@o> b } }`, Patterns: map[string][]string{"o": {"a", "ab"}}, Inputs: []string{"ab", "abb"}},
+	{Src: `grammar Pat3 { token TOP { :i <@ci> } }`, Patterns: map[string][]string{"ci": {"perannum", "'per hour'"}}, Inputs: []string{"PERANNUM", "Per Hour"}},
+	{Src: `grammar Pat4 { token TOP { <@calls> }; token w { \w } }`, Patterns: map[string][]string{"calls": {"<w>x", "<alpha>+"}}, Inputs: []string{"qx", "abc"}},
+	{Src: `grammar Pat5 { token TOP { <@caps> \s* (\w) } }`, Patterns: map[string][]string{"caps": {`$<n>=[\d+]k`, `(\d+)m`}}, Inputs: []string{"45k x", "7m y"}},
+	{Src: `grammar Pat6 { token TOP { x <@empty>? y } }`, Patterns: map[string][]string{"empty": {}}, Inputs: []string{"xy"}},
+	{Src: `grammar Pat7 { rule TOP { <@sp> } }`, Patterns: map[string][]string{"sp": {"per annum"}}, Inputs: []string{"perannum", "per annum"}},
+	{Src: `grammar Pat8 { token TOP { <@r>+ % ',' } }`, Patterns: map[string][]string{"r": {`\d+`, `<[a..c]>+`, `'x y'`}}, Inputs: []string{"12,ab,x y", "12,d"}},
 	{Src: `grammar Order7 { token TOP { <a> ' '? <b>+ (x) <c=a> $<n>=[ \d+ ] <.a>? '-' <d=.b> }; token a { a }; token b { b } }`,
 		Inputs: []string{"a bbxa12a-b", "abxa1-b"}},
 }
@@ -309,7 +322,8 @@ sub conv($m) {
 }
 my @out;
 for @(Rakudo::Internals::JSON.from-json($*IN.slurp)) -> $case {
-    my $prelude = ($case<lists> // {}).kv.map(-> $k, $v {
+    my $prelude = (|($case<lists> // {}).pairs, |($case<patterns> // {}).pairs).map(-> $p {
+        my ($k, $v) = $p.kv;
         "my \@$k = " ~ ($v.elems ?? $v.map({ "'" ~ .subst("\\", "\\\\", :g).subst("'", "\\'", :g) ~ "'" }).join(", ") !! "()") ~ ";\n"
     }).join;
     my $g = EVAL $prelude ~ $case<src>;
@@ -333,7 +347,7 @@ print Rakudo::Internals::JSON.to-json(@out, :!pretty);
 		t.Fatalf("raku's output: %v", err)
 	}
 	for i, c := range rakuCases {
-		g, err := Compile(c.Src, caseLists(c.Lists)...)
+		g, err := Compile(c.Src, caseUses(c.Lists, c.Patterns)...)
 		if err != nil {
 			t.Errorf("case %d: %v", i, err)
 			continue
@@ -354,6 +368,16 @@ print Rakudo::Internals::JSON.to-json(@out, :!pretty);
 			}
 		}
 	}
+}
+
+// caseUses turns a case's lists into exact word lists, as Raku's arrays
+// are, and its patterns into pattern lists.
+func caseUses(lists, patterns map[string][]string) []Use {
+	uses := caseLists(lists)
+	for name, ps := range patterns {
+		uses = append(uses, MustPatternList(name, ps...))
+	}
+	return uses
 }
 
 // caseLists turns a case's lists into exact word lists, as Raku's arrays
@@ -388,7 +412,7 @@ func stripMade(m *scalar.SV) {
 // The Raku cases compile here even where raku isn't installed.
 func TestRakuCasesCompile(t *testing.T) {
 	for i, c := range rakuCases {
-		if _, err := Compile(c.Src, caseLists(c.Lists)...); err != nil {
+		if _, err := Compile(c.Src, caseUses(c.Lists, c.Patterns)...); err != nil {
 			t.Errorf("case %d: %v\n%s", i, err, c.Src)
 		}
 	}

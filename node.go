@@ -182,6 +182,8 @@ func describe(n Node, ci bool) string {
 		return "<" + n.name + ">"
 	case symText:
 		return "<sym>"
+	case patterns:
+		return "<@" + n.l.name + ">"
 	case *look:
 		if inner, ok := n.inner.(seq); ok && len(inner) == 0 {
 			return "" // <?> or <!>: nothing the text could have had
@@ -1118,6 +1120,8 @@ func children(n Node) []Node {
 		return n
 	case conj:
 		return n
+	case patterns:
+		return n.l.nodes
 	case *goal:
 		return n.seq()
 	case alt:

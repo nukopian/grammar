@@ -405,6 +405,8 @@ func canBeEmpty(n Node, empty map[string]bool) bool {
 		return !slices.ContainsFunc(n, func(c Node) bool { return !canBeEmpty(c, empty) })
 	case *goal:
 		return canBeEmpty(n.seq(), empty)
+	case patterns:
+		return slices.ContainsFunc(n.l.nodes, func(c Node) bool { return canBeEmpty(c, empty) })
 	case conj:
 		// Its branches match the same text, so all or none are empty.
 		return !slices.ContainsFunc(n, func(c Node) bool { return !canBeEmpty(c, empty) })

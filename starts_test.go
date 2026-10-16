@@ -29,7 +29,7 @@ func TestStartsChangeNothing(t *testing.T) {
 	grammars := []*Grammar{pay, payErr, shapes}
 	var texts []string
 	for _, c := range rakuCases {
-		g, err := Compile(c.Src, caseLists(c.Lists)...)
+		g, err := Compile(c.Src, caseUses(c.Lists, c.Patterns)...)
 		if err != nil {
 			t.Fatal(err)
 		}

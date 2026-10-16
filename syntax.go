@@ -27,13 +27,16 @@ import (
 // match (@units). The syntax is a subset of Raku's; the package README
 // lists what's in it.
 func Compile(src string, uses ...Use) (g *Grammar, err error) {
-	p := &parser{src: []rune(nfc(src)), grammars: map[string]*Grammar{}, lists: map[string]*WordList{}}
+	p := &parser{src: []rune(nfc(src)), grammars: map[string]*Grammar{}, lists: map[string]*WordList{},
+		patterns: map[string]*PatternList{}}
 	for _, u := range uses {
 		switch u := u.(type) {
 		case *Grammar:
 			p.grammars[u.name] = u
 		case *WordList:
 			p.lists[u.name] = u
+		case *PatternList:
+			p.patterns[u.name] = u
 		}
 	}
 	defer func() {
@@ -91,6 +94,7 @@ type parser struct {
 	assert   int // depth of <?before ...> and friends, where > ends the regex
 	grammars map[string]*Grammar
 	lists    map[string]*WordList
+	patterns map[string]*PatternList
 
 	// adv holds, for each group being parsed, innermost last, the adverbs
 	// that cover the rest of it: an adverb covers the rest of its group,
@@ -848,8 +852,16 @@ func (p *parser) assertion() Node {
 		p.expect(">")
 		return &look{inner: Silent(name), neg: neg}
 	}
-	if p.peek("@") {
-		p.fail("<@name> matches each entry as a regex, which isn't supported: use @name, which matches them as text")
+	if p.eat("@") {
+		name := p.ident()
+		p.expect(">")
+		if l, ok := p.patterns[name]; ok {
+			return patterns{l}
+		}
+		if _, ok := p.lists[name]; ok {
+			p.fail("@%s is a word list, of phrases to match as text, with @%s; <@%s> is for a grammar.PatternList", name, name, name)
+		}
+		p.fail("there's no pattern list @%s: pass a grammar.PatternList to Compile", name)
 	}
 	silent := p.eat(".")
 	name := p.ident()

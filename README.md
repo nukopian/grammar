@@ -211,6 +211,7 @@ escaped.
 | `:r`, `:!r` | `Ratchet(x, on)` | stop or start backtracking, for the rest of the group |
 | `:s`, `:!s` | `Silent("ws")` where the spaces go | make spaces in the rule match spaces in the text, or stop, for the rest of the group, as in a `rule` |
 | `@name` | `Words(list)` | the longest phrase in a word list; see [Word lists](#word-lists) |
+| `<@name>` | | the longest match of a pattern list's patterns; see [Pattern lists](#pattern-lists) |
 | | `Re(pattern)` | a Perl-style regex, as `scalar`'s `M` takes, as one atom |
 
 ### Spaces in rules
@@ -446,8 +447,37 @@ phrases and one for case-folded ones, so matching takes about the same time
 however long the list is.
 
 Raku's `<@name>` is something else: it matches each entry as a regex.
-That isn't supported, so `Compile` rejects it rather than treating synonym
-data as patterns.
+Here that's a different kind of list, a `PatternList`, so that synonym
+data is never read as patterns by mistake; see [Pattern lists](#pattern-lists).
+
+## Pattern lists
+
+Some families of things are patterns rather than phrases: amounts written
+`45k`, `45,000` or `45.5k`, or periods with optional spacing. A
+`PatternList` holds them as data, each a regex in Raku syntax, and
+`<@name>` matches them, as Raku's `<@array>` does:
+
+```go
+periods := grammar.MustPatternList("periods", `:i per \s* annum`, `:i 'p.a.'`, `:i pa >>`)
+g := grammar.MustCompile(`grammar Pay { token TOP { '£' \d+ \s* <@periods> } }`, periods)
+```
+
+`<@name>` matches every pattern at the current position and keeps the
+longest match, and, as in Raku, commits to it: if what follows fails, no
+other pattern is tried, even in a `regex`. A pattern can call the
+grammar's rules (`<amount>`, `<alpha>`), and `:i` reaches into it. Each is
+read as a regex, not a rule, so its spaces don't match spaces in the text,
+even in a `rule`: write `\s+`, or quote them, as in `'per annum'`.
+
+What a pattern captures isn't kept, and `<@name>` captures nothing
+itself, as in Raku; to keep what it matched, name it:
+`$<period>=<@periods>`. A pattern can't use a word list.
+
+`NewPatternList` compiles every pattern when the list is made, and
+returns an error naming any that doesn't compile, where Raku fails only
+when it comes to match one; `MustPatternList` panics instead. A pattern
+that calls a rule the grammar doesn't have is caught when the grammar is
+compiled, as any call is.
 
 ## Roles
 
@@ -932,7 +962,6 @@ Before changing anything, it helps to know how the package is put together:
 | **Code blocks**: `{ make … }` | Making values in the grammar itself. | Actions do this. Not worth adding unless grammars are written by people who won't write Go. | by design | — |
 | **True longest-token matching** for `\|` | When `Alt`'s approximation (below) gives a different answer from Raku, which the Raku tests will show; and to speed up large alternations and protos. | Work out each branch's declarative prefix (the part before anything that could backtrack or run code), build an automaton (NFA, then DFA) from the prefixes, and try branches in order of how much of the text their prefix matches. This is what Rakudo does in NQP. | yes | 5 |
 | **Rule parameters and dynamic variables**: `token amount($cur)`, `$*CURRENCY` | Parsing that depends on context, such as a currency that changes how amounts read. | Arguments in the syntax and on `call`, and a stack of dynamic variables in `state`, visible to called rules. Inheritance and roles usually do the job more simply. | yes | 3 |
-| **`<@list>`**: each entry matched as a regex | Lists of patterns built from data. | Compile each entry with the syntax parser's regex code into an `Alt`. `Compile` rejects `<@list>` now, so that synonym data isn't treated as patterns by mistake; keep `@list` for literal phrases. | yes | 2 |
 | **Interpolation**: `$var`, `<$regex>`, `<{ … }>` | Patterns chosen at run time. | Word lists cover literal phrases, and `Re` covers regex strings. A named-pattern binding, passed to `Compile` as lists are, would cover the rest. | partly | 2 |
 | **Failure reports from `Find` and `FindAll`** | Finding out why pay wasn't found in a posting, rather than why one string didn't parse. | Track failures across every start position and report the furthest. The noise is the hard part: most positions fail at once, for no interesting reason. | partly | 2 |
 | **Backtracking control beyond `:`**: `::`, `:::`, `<commit>`, `<cut>` | Taming slow, heavily backtracking `regex` rules. `:` after an atom (`[ a \| ab ]:`, `<w>:`) is supported, as Rakudo supports it. | Rakudo doesn't implement these either (2025.11: `::` and `:::` are "not yet implemented", and `<commit>` and `<cut>` are taken as calls to rules of those names), so there's nothing to check them against, and a grammar using them wouldn't run in Raku; `Compile` rejects `::` and `:::`. They need the matcher to unwind to a marked point, which continuation-passing makes awkward. `:`, tokens and `StepLimit` usually do the job. | partly | 3 |
@@ -943,6 +972,7 @@ Before changing anything, it helps to know how the package is put together:
 |---|---|---|---|---|
 | **A grammar that calls a rule it doesn't have is an error,** even if an extension would supply it. Raku allows it, and fails only if the rule is called. | Only for grammars meant to be completed by extensions: write those as roles, which may call rules they don't have. | — | by design | — |
 | **`<p:sym<x>>` is an error.** Raku reads it as a call to the proto `<p>`, ignoring the `:sym<x>`, which is never what it looks like. | Only when calling one variant directly: give its rules a name of their own instead. | — | by design | — |
+| **A pattern list's bad pattern is an error when the list is made.** Raku fails only when it comes to match it. | Never for patterns that compile. | — | by design | — |
 | **An unknown Unicode property is an error.** Raku's `<:Bogus>` matches nothing, silently. | Never for a property that exists. A misspelt one fails when the grammar compiles, rather than making a rule that can never match. | — | by design | — |
 | **`Caps` puts captures at the same place in name order.** Raku's `.caps` leaves them in hash order, which changes from run to run. | Never for captures at different places. An alias and its rule's name, or two empty captures at one spot, come in a fixed order here and a varying one in Raku. | — | by design | — |
 | **`\|`, and a call to a proto, pick the branch whose first match is longest,** and of equal ones, the first. Raku picks by the longest declarative prefix, roughly the part of each branch before anything that could backtrack. | Rarely: they agree on ordinary alternations of words and phrases. They can differ when branches share a start and something after it decides. | True longest-token matching (above). | yes | 5 |
@@ -2870,6 +2900,66 @@ for _, title := range []string{"Snr Software Engineer", "Software Engineer"} {
 ```
 {Level:Senior Role:Software Engineer}
 {Level: Role:Software Engineer}
+```
+
+#### `NewPatternList`
+
+NewPatternList compiles patterns into a list called name, which is how Raku syntax refers to it: <@name>.
+
+A pattern list holds patterns as data, each a regex in Raku syntax, for \<@name> to match, as Raku's \<@array> does: the longest match wins. Here, the ways a period is written, matched with their spacing and case.
+
+```go
+periods, err := grammar.NewPatternList("periods",
+	`:i per \s* annum`, `:i 'p.a.'`, `:i pa >>`, `:i per \s* hour`)
+if err != nil {
+	fmt.Println(err)
+	return
+}
+g := grammar.MustCompile(`grammar Pay { token TOP { '£' $<amount>=[ \d+ ] \s* $<period>=<@periods> } }`, periods)
+for _, text := range []string{"£45000 per annum", "£45000 PA", "£18 per hour", "£45000 p.a."} {
+	fmt.Println(g.Parse(text).At("period.~"))
+}
+
+_, err = grammar.NewPatternList("bad", `\d+ k`, `per [ annum`)
+fmt.Println(err)
+```
+
+```
+per annum
+PA
+per hour
+p.a.
+pattern list bad: pattern "per [ annum": grammar: line 1, column 12: expected ]
+```
+
+#### `MustPatternList`
+
+MustPatternList is NewPatternList, panicking if a pattern doesn't compile.
+
+MustPatternList is NewPatternList, panicking if a pattern doesn't compile, for lists written into the program.
+
+```go
+amounts := grammar.MustPatternList("amounts", `\d+ k`, `\d ** 1..3 [ ',' \d ** 3 ]+`, `\d+`)
+g := grammar.MustCompile(`grammar A { token TOP { '£' <@amounts> } }`, amounts)
+fmt.Println(g.FindAll("£45k, £45,000 or £45").Map(func(m *scalar.SV) any { return m.At("~") }).Join(" | "))
+```
+
+```
+£45k | £45,000 | £45
+```
+
+#### `PatternList.Name`
+
+Name returns the list's name.
+
+Name is how Raku syntax refers to the list: \<@periods>.
+
+```go
+fmt.Println(grammar.MustPatternList("periods", `pa`).Name())
+```
+
+```
+periods
 ```
 
 <!-- reference:end -->

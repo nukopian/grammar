@@ -104,7 +104,7 @@ func TestParseErrDescriptions(t *testing.T) {
 // Ordinary parsing doesn't track failures, and gives the same results.
 func TestParseErrSameMatches(t *testing.T) {
 	for _, c := range rakuCases {
-		g, err := Compile(c.Src, caseLists(c.Lists)...)
+		g, err := Compile(c.Src, caseUses(c.Lists, c.Patterns)...)
 		if err != nil {
 			continue
 		}

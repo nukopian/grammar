@@ -96,7 +96,8 @@ sub tree($m) {
 }
 my @out;
 for @(Rakudo::Internals::JSON.from-json($*IN.slurp)) -> $case {
-    my $prelude = ($case<lists> // {}).kv.map(-> $k, $v {
+    my $prelude = (|($case<lists> // {}).pairs, |($case<patterns> // {}).pairs).map(-> $p {
+        my ($k, $v) = $p.kv;
         "my \@$k = " ~ ($v.elems ?? $v.map({ "'" ~ .subst("\\", "\\\\", :g).subst("'", "\\'", :g) ~ "'" }).join(", ") !! "()") ~ ";\n"
     }).join;
     my $g = EVAL $prelude ~ $case<src>;
@@ -120,7 +121,7 @@ print Rakudo::Internals::JSON.to-json(@out, :!pretty);
 		t.Fatalf("raku's output: %v", err)
 	}
 	for i, c := range rakuCases {
-		g, err := Compile(c.Src, caseLists(c.Lists)...)
+		g, err := Compile(c.Src, caseUses(c.Lists, c.Patterns)...)
 		if err != nil {
 			t.Errorf("case %d: %v", i, err)
 			continue

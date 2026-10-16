@@ -3,6 +3,8 @@ package grammar_test
 import (
 	"fmt"
 
+	"github.com/nukopian/job-meta/internal/scalar"
+
 	"github.com/nukopian/job-meta/internal/scalar/grammar"
 )
 
@@ -321,4 +323,46 @@ func ExampleNamed_wordList() {
 	// Output:
 	// {Level:Senior Role:Software Engineer}
 	// {Level: Role:Software Engineer}
+}
+
+// A pattern list holds patterns as data, each a regex in Raku syntax, for
+// <@name> to match, as Raku's <@array> does: the longest match wins. Here,
+// the ways a period is written, matched with their spacing and case.
+func ExampleNewPatternList() {
+	periods, err := grammar.NewPatternList("periods",
+		`:i per \s* annum`, `:i 'p.a.'`, `:i pa >>`, `:i per \s* hour`)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	g := grammar.MustCompile(`grammar Pay { token TOP { '£' $<amount>=[ \d+ ] \s* $<period>=<@periods> } }`, periods)
+	for _, text := range []string{"£45000 per annum", "£45000 PA", "£18 per hour", "£45000 p.a."} {
+		fmt.Println(g.Parse(text).At("period.~"))
+	}
+
+	_, err = grammar.NewPatternList("bad", `\d+ k`, `per [ annum`)
+	fmt.Println(err)
+	// Output:
+	// per annum
+	// PA
+	// per hour
+	// p.a.
+	// pattern list bad: pattern "per [ annum": grammar: line 1, column 12: expected ]
+}
+
+// MustPatternList is NewPatternList, panicking if a pattern doesn't
+// compile, for lists written into the program.
+func ExampleMustPatternList() {
+	amounts := grammar.MustPatternList("amounts", `\d+ k`, `\d ** 1..3 [ ',' \d ** 3 ]+`, `\d+`)
+	g := grammar.MustCompile(`grammar A { token TOP { '£' <@amounts> } }`, amounts)
+	fmt.Println(g.FindAll("£45k, £45,000 or £45").Map(func(m *scalar.SV) any { return m.At("~") }).Join(" | "))
+	// Output:
+	// £45k | £45,000 | £45
+}
+
+// Name is how Raku syntax refers to the list: <@periods>.
+func ExamplePatternList_Name() {
+	fmt.Println(grammar.MustPatternList("periods", `pa`).Name())
+	// Output:
+	// periods
 }
