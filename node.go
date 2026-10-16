@@ -3,6 +3,7 @@ package grammar
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -182,6 +183,11 @@ func describe(n Node, ci bool) string {
 		return "<" + n.name + ">"
 	case symText:
 		return "<sym>"
+	case backref:
+		if _, err := strconv.Atoi(n.key); err == nil {
+			return "$" + n.key
+		}
+		return "$<" + n.key + ">"
 	case patterns:
 		return "<@" + n.l.name + ">"
 	case *look:
@@ -732,6 +738,33 @@ func (n conj) rest(i int, st *state, start, end int, c *capList, e env, k cont) 
 		}
 		return n.rest(i+1, st, start, end, cc, e, k)
 	})
+}
+
+type backref struct{ key string }
+
+// Backref is $<name>, or $0 for the first positional capture: it matches
+// the text the capture last matched, as Raku's does: a separator used
+// again, as in \d+ $<sep>=<[,.]> \d ** 3 - \d+ $<sep> \d ** 3, or a
+// closing quote. Of a capture that matched more than once, it's the last
+// match; inside a repeated group, this time round's. As in Raku, it
+// matches exactly, even under :i, and fails if the capture hasn't matched
+// yet. It sees captures in the rule it's in, not in a capture group around
+// it.
+func Backref(name string) Node { return backref{name} }
+
+func (n backref) match(st *state, pos int, c *capList, e env, k cont) bool {
+	for cc := c; cc != nil; cc = cc.next {
+		if cc.key != n.key {
+			continue
+		}
+		want := st.in[cc.m.from:cc.m.to]
+		if pos+len(want) > len(st.in) || !slices.Equal(st.in[pos:pos+len(want)], want) {
+			break
+		}
+		return k(pos+len(want), c)
+	}
+	st.fail(pos, n, e)
+	return false
 }
 
 type first []Node

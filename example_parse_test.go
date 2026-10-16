@@ -249,6 +249,22 @@ func ExampleDepthLimitError_Error() {
 	// grammar Long: match too deep: gave up after 1000 levels (see DepthLimit)
 }
 
+// Backref is $<name>: the text a capture matched, again. Here a pay range
+// must use the same thousands separator in both figures, so a range that
+// mixes them, likely two figures run together, isn't read as one.
+func ExampleBackref() {
+	g := grammar.MustCompile(`
+grammar SameSep {
+    token TOP { \d+ $<sep>=<[,.]> \d ** 3 \s* '-' \s* \d+ $<sep> \d ** 3 }
+}`)
+	for _, text := range []string{"45,000 - 55,000", "45,000 - 55.000"} {
+		fmt.Printf("%-16q %v\n", text, g.Parse(text).Defined())
+	}
+	// Output:
+	// "45,000 - 55,000" true
+	// "45,000 - 55.000" false
+}
+
 // Caps gives a match's captures in the order they come in the text, as
 // Raku's .caps does. A match is a hash, which keeps no order between names;
 // here, the qualifiers of a title are captured by kind, and Caps puts them

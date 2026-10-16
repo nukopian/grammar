@@ -399,8 +399,8 @@ func canBeEmpty(n Node, empty map[string]bool) bool {
 		return len(n.rs) == 0
 	case re:
 		return n.empty
-	case anchor, *look:
-		return true
+	case anchor, *look, backref:
+		return true // a backreference's capture may have matched nothing
 	case seq:
 		return !slices.ContainsFunc(n, func(c Node) bool { return !canBeEmpty(c, empty) })
 	case *goal:

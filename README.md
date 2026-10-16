@@ -259,6 +259,7 @@ In Go there's no sigspace: put `grammar.Silent("ws")` where the spaces go.
 | `( … )` | `Capture(x)` | `0`, `1`, … in order, each a match with captures of its own |
 | `$<k>=[ … ]`, `$<k>=\d+` | `Named("k", x)` | `k`, the text only |
 | `$<k>=( … )` | `Named("k", Capture(x))` | `k`, with captures of its own |
+| `$<k>`, `$0` | `Backref("k")`, `Backref("0")` | the text the capture last matched, again, exactly: `$<q>=<['"]> \w+ $<q>` closes a quote with the same mark |
 
 Raku's built-in rules are there too: `<ws>` (optional whitespace, but not
 inside a word), `<alpha>` (a letter or `_`), `<digit>`, `<alnum>`,
@@ -962,7 +963,7 @@ Before changing anything, it helps to know how the package is put together:
 | **Code blocks**: `{ make … }` | Making values in the grammar itself. | Actions do this. Not worth adding unless grammars are written by people who won't write Go. | by design | — |
 | **True longest-token matching** for `\|` | When `Alt`'s approximation (below) gives a different answer from Raku, which the Raku tests will show; and to speed up large alternations and protos. | Work out each branch's declarative prefix (the part before anything that could backtrack or run code), build an automaton (NFA, then DFA) from the prefixes, and try branches in order of how much of the text their prefix matches. This is what Rakudo does in NQP. | yes | 5 |
 | **Rule parameters and dynamic variables**: `token amount($cur)`, `$*CURRENCY` | Parsing that depends on context, such as a currency that changes how amounts read. | Arguments in the syntax and on `call`, and a stack of dynamic variables in `state`, visible to called rules. Inheritance and roles usually do the job more simply. | yes | 3 |
-| **Interpolation**: `$var`, `<$regex>`, `<{ … }>` | Patterns chosen at run time. | Word lists cover literal phrases, and `Re` covers regex strings. A named-pattern binding, passed to `Compile` as lists are, would cover the rest. | partly | 2 |
+| **Interpolation**: `$var`, `<$regex>`, `<{ … }>` | Patterns chosen at run time. Backreferences, `$<name>` and `$0`, are supported. | Word lists cover literal phrases, pattern lists (`<@name>`) patterns from data, and `Re` regex strings. Variables would come with rule parameters (below). | partly | 2 |
 | **Failure reports from `Find` and `FindAll`** | Finding out why pay wasn't found in a posting, rather than why one string didn't parse. | Track failures across every start position and report the furthest. The noise is the hard part: most positions fail at once, for no interesting reason. | partly | 2 |
 | **Backtracking control beyond `:`**: `::`, `:::`, `<commit>`, `<cut>` | Taming slow, heavily backtracking `regex` rules. `:` after an atom (`[ a \| ab ]:`, `<w>:`) is supported, as Rakudo supports it. | Rakudo doesn't implement these either (2025.11: `::` and `:::` are "not yet implemented", and `<commit>` and `<cut>` are taken as calls to rules of those names), so there's nothing to check them against, and a grammar using them wouldn't run in Raku; `Compile` rejects `::` and `:::`. They need the matcher to unwind to a marked point, which continuation-passing makes awkward. `:`, tokens and `StepLimit` usually do the job. | partly | 3 |
 
@@ -1779,6 +1780,27 @@ fmt.Println(err)
 
 ```
 grammar Long: match too deep: gave up after 1000 levels (see DepthLimit)
+```
+
+#### `Backref`
+
+Backref is $<name>, or $0 for the first positional capture: it matches the text the capture last matched, as Raku's does: a separator used again, as in \d+ $<sep>=<[,.]> \d ** 3 - \d+ $<sep> \d ** 3, or a closing quote.
+
+Backref is $\<name>: the text a capture matched, again. Here a pay range must use the same thousands separator in both figures, so a range that mixes them, likely two figures run together, isn't read as one.
+
+```go
+g := grammar.MustCompile(`
+grammar SameSep {
+    token TOP { \d+ $<sep>=<[,.]> \d ** 3 \s* '-' \s* \d+ $<sep> \d ** 3 }
+}`)
+for _, text := range []string{"45,000 - 55,000", "45,000 - 55.000"} {
+	fmt.Printf("%-16q %v\n", text, g.Parse(text).Defined())
+}
+```
+
+```
+"45,000 - 55,000" true
+"45,000 - 55.000" false
 ```
 
 #### `Caps`

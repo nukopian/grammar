@@ -293,6 +293,19 @@ var rakuCases = []struct {
 	{Src: `grammar Pat6 { token TOP { x <@empty>? y } }`, Patterns: map[string][]string{"empty": {}}, Inputs: []string{"xy"}},
 	{Src: `grammar Pat7 { rule TOP { <@sp> } }`, Patterns: map[string][]string{"sp": {"per annum"}}, Inputs: []string{"perannum", "per annum"}},
 	{Src: `grammar Pat8 { token TOP { <@r>+ % ',' } }`, Patterns: map[string][]string{"r": {`\d+`, `<[a..c]>+`, `'x y'`}}, Inputs: []string{"12,ab,x y", "12,d"}},
+	// Backreferences: $<name> and $0 match the text the capture last
+	// matched, exactly, even under :i, and fail if it hasn't matched.
+	{Src: `grammar Back1 { token TOP { $<q>=<['"]> \w+ $<q> } }`, Inputs: []string{"'ab'", `"ab"`, `'ab"`}},
+	{Src: `grammar Back2 { token TOP { (\d) \- $0 } }`, Inputs: []string{"3-3", "3-4"}},
+	{Src: `grammar Back3 { token TOP { [ $<x>=[a] ]? $<x> c } }`, Inputs: []string{"c", "aac"}},
+	{Src: `grammar Back4 { token TOP { [ $<x>=[\w] ]+ % \- \s $<x> } }`, Inputs: []string{"a-b a b", "a-b ab", "a-b b"}},
+	{Src: `grammar Back5 { token TOP { :i $<q>=[\w+] \s $<q> } }`, Inputs: []string{"ab AB", "ab ab"}},
+	{Src: `grammar Back6 { token TOP { \d+ $<s>=<[,.]> \d ** 3 \s* \- \s* \d+ $<s> \d ** 3 } }`, Inputs: []string{"45,000 - 55,000", "45,000 - 55.000"}},
+	{Src: `grammar Back7 { token TOP { <a> $<a> }; token a { x } }`, Inputs: []string{"xx", "xy"}},
+	{Src: `grammar Back8 { token TOP { [ $<q>=[a] b $<q> ]+ } }`, Inputs: []string{"abaaba", "abaabb"}},
+	{Src: `grammar Back9 { token TOP { $<q>=[a] $<r>=$<q> } }`, Inputs: []string{"aa"}},
+	{Src: `grammar Back10 { regex TOP { $<x>=[a+] $<x> } }`, Inputs: []string{"aaaa", "aaa"}},
+	{Src: `grammar Back11 { token TOP { $<q>=[\w] $<q>+ } }`, Inputs: []string{"aaa", "ab"}},
 	{Src: `grammar Order7 { token TOP { <a> ' '? <b>+ (x) <c=a> $<n>=[ \d+ ] <.a>? '-' <d=.b> }; token a { a }; token b { b } }`,
 		Inputs: []string{"a bbxa12a-b", "abxa1-b"}},
 }

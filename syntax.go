@@ -567,12 +567,26 @@ func (p *parser) adverbs() (*mode, *bool) {
 func (p *parser) quantified() (Node, bool) {
 	var capName string
 	if p.eat("$<") {
-		capName = p.ident()
+		name := p.ident()
 		p.expect(">")
-		p.expect("=")
+		if !p.eat("=") {
+			// $<name> on its own: a backreference.
+			return p.quantifier(Backref(name))
+		}
+		capName = name
 		p.single = true
 	}
-	n, spaced := p.quantifier(p.atom())
+	var atom Node
+	if capName != "" && p.peek("$<") {
+		// $<r>=$<q>: a backreference, captured.
+		p.eat("$<")
+		atom = Backref(p.ident())
+		p.expect(">")
+		p.single = false
+	} else {
+		atom = p.atom()
+	}
+	n, spaced := p.quantifier(atom)
 	if capName != "" {
 		n = Named(capName, n)
 	}
@@ -720,6 +734,9 @@ func (p *parser) atom() Node {
 		return LineStart
 	case p.eat("^"):
 		return Start
+	case p.peek("$") && p.i+1 < len(p.src) && unicode.IsDigit(p.src[p.i+1]):
+		p.eat("$")
+		return Backref(strconv.Itoa(p.number()))
 	case p.eat("$$"):
 		return LineEnd
 	case p.eat("$"):
