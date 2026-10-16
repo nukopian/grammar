@@ -421,6 +421,9 @@ func (p *parser) sequence() Node {
 		if p.atSequenceEnd() {
 			break
 		}
+		if p.commitColon() {
+			p.fail("a : on its own stops backtracking into the atom before it, and there's no atom before this one")
+		}
 		if p.peek(":") {
 			m, sig := p.adverbs()
 			if sig != nil {
@@ -531,6 +534,14 @@ func (p *parser) quantified() (Node, bool) {
 func (p *parser) quantifier(atom Node) (Node, bool) {
 	sig := p.sig
 	spaced := p.space()
+	if p.peek("::") {
+		p.fail("::, ::: and the like aren't supported, as Rakudo doesn't support them either: use : after an atom, or a token")
+	}
+	if p.commitColon() {
+		// atom: never gives back what it first matched, as in a token.
+		p.eat(":")
+		return commit{atom}, p.space()
+	}
 	if !p.peek("**") && !p.peek("?") && !p.peek("*") && !p.peek("+") {
 		return atom, spaced
 	}
@@ -587,6 +598,21 @@ func (p *parser) quantifier(atom Node) (Node, bool) {
 		return commit{q}, spaced
 	}
 	return q, spaced
+}
+
+// commitColon reports whether a : comes next on its own, as in [ a | ab ]:
+// or <w> : x, which stops backtracking into the atom before it, rather
+// than starting an adverb such as :i or :!r, which has its name straight
+// after the colon, as in Raku.
+func (p *parser) commitColon() bool {
+	if !p.peek(":") || p.peek("::") {
+		return false
+	}
+	if p.i+1 >= len(p.src) {
+		return true
+	}
+	next := p.src[p.i+1]
+	return !unicode.IsLetter(next) && next != '_' && next != '!'
 }
 
 // quantifierAt reports whether a quantifier follows position at, after any

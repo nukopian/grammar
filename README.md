@@ -198,7 +198,7 @@ escaped.
 | `x+ %% ','` | `Plus(x).SepTrailing(Lit(","))` | the same, with an optional comma at the end |
 | `'(' ~ ')' x` | `Goal(Lit("("), Lit(")"), x)` | `'(' x ')'`, with the brackets written together; `ParseErr` names the `'('` a missing `')'` was for |
 | `x*?`, `x+?` | `Star(x).Frugal()` | as few as possible |
-| `x+:` | | possessive: never give any back |
+| `x+:`, `x:` | | never give back what x first matched: a possessive repeat, or any atom committed, as in a token; `[ a \| ab ]: b` can't match "ab" |
 | `^` `$` | `Start`, `End` | start and end of the text |
 | `^^` `$$` | `LineStart`, `LineEnd` | start and end of a line |
 | `<<` `>>` | `WordStart`, `WordEnd` | start and end of a word |
@@ -892,7 +892,7 @@ Before changing anything, it helps to know how the package is put together:
 | **`<@list>`**: each entry matched as a regex | Lists of patterns built from data. | Compile each entry with the syntax parser's regex code into an `Alt`. `Compile` rejects `<@list>` now, so that synonym data isn't treated as patterns by mistake; keep `@list` for literal phrases. | yes | 2 |
 | **Interpolation**: `$var`, `<$regex>`, `<{ … }>` | Patterns chosen at run time. | Word lists cover literal phrases, and `Re` covers regex strings. A named-pattern binding, passed to `Compile` as lists are, would cover the rest. | partly | 2 |
 | **Failure reports from `Find` and `FindAll`** | Finding out why pay wasn't found in a posting, rather than why one string didn't parse. | Track failures across every start position and report the furthest. The noise is the hard part: most positions fail at once, for no interesting reason. | partly | 2 |
-| **Backtracking control**: `:`, `::`, `:::`, `<commit>`, `<cut>` | Taming slow, heavily backtracking `regex` rules. | Possessive quantifiers (`+:`) exist. The rest need the matcher to unwind to a marked point, which continuation-passing makes awkward: probably panics and recovers at the right level. Tokens and memoisation (below) usually make it unnecessary. | partly | 3 |
+| **Backtracking control beyond `:`**: `::`, `:::`, `<commit>`, `<cut>` | Taming slow, heavily backtracking `regex` rules. `:` after an atom (`[ a \| ab ]:`, `<w>:`) is supported, as Rakudo supports it. | Rakudo doesn't implement these either (2025.11: `::` and `:::` are "not yet implemented", and `<commit>` and `<cut>` are taken as calls to rules of those names), so there's nothing to check them against, and a grammar using them wouldn't run in Raku; `Compile` rejects `::` and `:::`. They need the matcher to unwind to a marked point, which continuation-passing makes awkward. `:`, tokens and `StepLimit` usually do the job. | partly | 3 |
 
 ### Differences from Raku
 

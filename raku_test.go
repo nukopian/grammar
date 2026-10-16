@@ -243,6 +243,16 @@ var rakuCases = []struct {
 	{Src: `grammar Nfc2 { token TOP { . . $<rest>=[ \w+ ] } }`, Inputs: []string{"e\u0301xyz", "\u00e9xyz"}},
 	{Src: "grammar Nfc3 { token TOP { 'Cafe\u0301' } }", Inputs: []string{"Caf\u00e9", "Cafe\u0301"}},
 	{Src: `grammar Nfc4 { token TOP { <[a..z é]>+ } }`, Inputs: []string{"re\u0301sume\u0301", "r\u00e9sum\u00e9"}},
+	// : after an atom: never backtrack into it, as a token wouldn't. Raku
+	// reads ': b', with a space, as : then b, and :b as an adverb.
+	{Src: `grammar Colon1 { regex TOP { [ a | ab ]: b } }`, Inputs: []string{"abb", "ab"}},
+	{Src: `grammar Colon2 { regex TOP { \w+: b } }`, Inputs: []string{"aab"}},
+	{Src: `grammar Colon3 { regex TOP { <w>: c }; regex w { a+ } }`, Inputs: []string{"aac"}},
+	{Src: `grammar Colon4 { regex TOP { <w>: b }; regex w { a+ b? } }`, Inputs: []string{"aab"}},
+	{Src: `grammar Colon5 { regex TOP { <w> b }; regex w { a+ b? } }`, Inputs: []string{"aab"}},
+	{Src: `grammar Colon6 { regex TOP { [ a | ab ] : b } }`, Inputs: []string{"abb", "ab"}},
+	{Src: `grammar Colon7 { regex TOP { (a+): $<rest>=[ a* ]: a } }`, Inputs: []string{"aaa"}},
+	{Src: `grammar Colon8 { regex TOP { a :i B } }`, Inputs: []string{"ab", "aB"}},
 	{Src: `grammar Order7 { token TOP { <a> ' '? <b>+ (x) <c=a> $<n>=[ \d+ ] <.a>? '-' <d=.b> }; token a { a }; token b { b } }`,
 		Inputs: []string{"a bbxa12a-b", "abxa1-b"}},
 }
