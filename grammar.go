@@ -218,14 +218,14 @@ func (g *Grammar) leftRecursion(names []string) error {
 }
 
 // canBeEmpty reports whether n can match empty text, given which rules can.
-// For a regex, it asks whether the regex matches an empty string.
+// For a regex, it asks whether the regex can match empty text anywhere,
+// such as (?=x) before an x; see reCanBeEmpty.
 func canBeEmpty(n Node, empty map[string]bool) bool {
 	switch n := n.(type) {
 	case lit:
 		return len(n.rs) == 0
 	case re:
-		ok, _ := n.rx.MatchString("")
-		return ok
+		return n.empty
 	case anchor, *look:
 		return true
 	case seq:

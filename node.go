@@ -317,6 +317,7 @@ var (
 type re struct {
 	rx, rxI *regexp2.Regexp
 	pattern string
+	empty   bool // can match empty text somewhere; see reCanBeEmpty
 }
 
 // Re matches pattern, a Perl-style regex (as scalar's M takes), at the
@@ -325,9 +326,102 @@ type re struct {
 // and so does a match that runs longer than scalar.RegexTimeout.
 func Re(pattern string) Node {
 	src := `\G(?:` + pattern + `)`
-	n := re{regexp2.MustCompile(src, regexp2.None), regexp2.MustCompile(src, regexp2.IgnoreCase), pattern}
+	n := re{regexp2.MustCompile(src, regexp2.None), regexp2.MustCompile(src, regexp2.IgnoreCase), pattern, reCanBeEmpty(pattern)}
 	n.rx.MatchTimeout, n.rxI.MatchTimeout = scalar.RegexTimeout, scalar.RegexTimeout
 	return n
+}
+
+// reCanBeEmpty reports whether pattern can match empty text anywhere, for
+// Check's left-recursion test. Matching it against an empty string isn't
+// enough: (?=x) and \b match nothing there, but match empty text before an
+// x or a word. A zero-width assertion only ever rules matches out, so the
+// pattern without its assertions matches everything the pattern does, and
+// can match empty text if the pattern can. If the stripped pattern doesn't
+// compile, as when a backreference refers to a group inside a lookaround,
+// assume it can.
+func reCanBeEmpty(pattern string) bool {
+	rx, err := regexp2.Compile(`\A(?:`+stripAssertions(pattern)+`)`, regexp2.None)
+	if err != nil {
+		return true
+	}
+	ok, err := rx.MatchString("")
+	return ok || err != nil
+}
+
+// stripAssertions removes pattern's zero-width assertions: lookarounds,
+// \b, \B, \A, \z, \Z, \G, ^ and $. Inside a character class, those are
+// characters, and stay.
+func stripAssertions(pattern string) string {
+	rs := []rune(pattern)
+	var out []rune
+	for i := 0; i < len(rs); i++ {
+		switch r := rs[i]; {
+		case r == '\\' && i+1 < len(rs):
+			if !strings.ContainsRune("bBAzZG", rs[i+1]) {
+				out = append(out, r, rs[i+1])
+			}
+			i++
+		case r == '[':
+			end := classEnd(rs, i)
+			out = append(out, rs[i:end]...)
+			i = end - 1
+		case r == '^' || r == '$':
+		case r == '(' && isLookaround(rs[i+1:]):
+			i = groupEnd(rs, i) - 1
+		default:
+			out = append(out, r)
+		}
+	}
+	return string(out)
+}
+
+// isLookaround reports whether rest, the pattern after a (, starts a
+// lookaround: ?=, ?!, ?<= or ?<!. (?<name> is a named group.
+func isLookaround(rest []rune) bool {
+	s := string(rest[:min(len(rest), 3)])
+	return strings.HasPrefix(s, "?=") || strings.HasPrefix(s, "?!") || s == "?<=" || s == "?<!"
+}
+
+// classEnd returns the index after the character class starting at
+// rs[start]. A ] first in the class, or after ^, is a character.
+func classEnd(rs []rune, start int) int {
+	i := start + 1
+	if i < len(rs) && rs[i] == '^' {
+		i++
+	}
+	if i < len(rs) && rs[i] == ']' {
+		i++
+	}
+	for ; i < len(rs); i++ {
+		switch rs[i] {
+		case '\\':
+			i++
+		case ']':
+			return i + 1
+		}
+	}
+	return len(rs)
+}
+
+// groupEnd returns the index after the group starting at rs[start], minding
+// nested groups, escapes and classes.
+func groupEnd(rs []rune, start int) int {
+	depth := 0
+	for i := start; i < len(rs); i++ {
+		switch rs[i] {
+		case '\\':
+			i++
+		case '[':
+			i = classEnd(rs, i) - 1
+		case '(':
+			depth++
+		case ')':
+			if depth--; depth == 0 {
+				return i + 1
+			}
+		}
+	}
+	return len(rs)
 }
 
 func (n re) match(st *state, pos int, c *capList, e env, k cont) bool {
