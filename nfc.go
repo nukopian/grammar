@@ -1,6 +1,10 @@
 package grammar
 
-import "golang.org/x/text/unicode/norm"
+import (
+	"unicode/utf8"
+
+	"golang.org/x/text/unicode/norm"
+)
 
 // Text is read in NFC, Unicode's composed form: an accented letter written
 // as a letter and a combining accent, as some text arrives, becomes the one
@@ -15,8 +19,8 @@ import "golang.org/x/text/unicode/norm"
 // column, and Split's pieces are of the text in NFC. For text already in
 // NFC, nearly all text, that's the text itself.
 
-// nfc returns s in NFC, and s itself if it's in NFC already, which it
-// checks without copying.
+// nfc returns s in NFC, and s itself if it's valid UTF-8 in NFC already,
+// which it checks without copying.
 //
 // Checking takes about 1 ns a byte, so it starts with a shortcut. Every
 // character below U+0300 is in NFC and never combines with the one before
@@ -27,6 +31,13 @@ import "golang.org/x/text/unicode/norm"
 // with. English text with £ and accented Latin letters takes the shortcut
 // all the way.
 func nfc(s string) string {
+	// Invalid UTF-8 first: each byte that isn't is read as U+FFFD, as Go
+	// reads text into runes. The normaliser would leave such a byte alone,
+	// and stop normalising there, so a phrase and the text it's read from
+	// could normalise differently.
+	if !utf8.ValidString(s) {
+		s = string([]rune(s))
+	}
 	i := 0
 	for i < len(s) && s[i] < 0xCC {
 		i++

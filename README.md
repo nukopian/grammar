@@ -575,7 +575,11 @@ NFC already, nearly all text, that's the text itself; for text that
 isn't, positions count composed characters, as Raku's do, so normalise the
 original with `golang.org/x/text/unicode/norm` before slicing it by them.
 
-Checking that text is in NFC takes about 1 ns a byte (`BenchmarkNFC`), but
+A byte that isn't valid UTF-8 is read as U+FFFD first, as Go reads text
+into runes, everywhere text is read, so a phrase and the text it's found
+in always agree.
+
+Checking that text is in NFC takes about 1.3 ns a byte (`BenchmarkNFC`), but
 a shortcut skips the check for text below U+0300 (English with `£` and
 accented Latin letters), so a posting in plain English costs nothing
 measurable.

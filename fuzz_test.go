@@ -77,9 +77,9 @@ func FuzzMatch(f *testing.F) {
 			if d := m.Diff(m2); d != "" || m.Defined() != (err == nil) {
 				t.Fatalf("Parse and ParseErr disagree (sub %v): %s, err %v", sub, d, err)
 			}
-			// Text is read as Go reads it into runes: each byte that isn't
-			// UTF-8 becomes U+FFFD.
-			if read := string([]rune(text)); !sub && m.Defined() && m.At("~").Str() != read {
+			// Text is read as Go reads it into runes, each byte that isn't
+			// UTF-8 becoming U+FFFD, and then in NFC.
+			if read := nfc(text); !sub && m.Defined() && m.At("~").Str() != read {
 				t.Fatalf("Parse matched %q of %q", m.At("~").Str(), read)
 			}
 			Values(m)

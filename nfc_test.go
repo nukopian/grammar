@@ -77,10 +77,26 @@ func TestNFCShortcut(t *testing.T) {
 	for _, s := range []string{
 		"", "plain", "£45,000", "caf\u00e9", "cafe\u0301", "e\u0301", "\u0301", "\u00a3\u0301",
 		"\u201cquoted\u201d", "x\u201ce\u0301", "Ж", "Же\u0306", "\u2000", "a\u0340", "q\u0303",
+		// Invalid UTF-8, which the normaliser would leave alone, and
+		// stop normalising at.
+		"\xf3\u0374", "\xf3", "a\xffe\u0301", "\xc3", "\x80abc", "\xe0\xbb \x85",
 	} {
-		want := norm.NFC.String(s)
+		want := norm.NFC.String(string([]rune(s))) // invalid bytes read as U+FFFD, as text is
 		if got := nfc(s); got != want {
 			t.Errorf("nfc(%+q) = %+q, want %+q", s, got, want)
 		}
+	}
+}
+
+// A phrase with invalid UTF-8 means what it did when it matches: text and
+// phrases read invalid bytes the same way, as U+FFFD, before NFC. FuzzWords
+// found one where they didn't, as an invalid byte stopped the normaliser
+// from turning U+0374 into U+02B9.
+func TestNFCInvalidUTF8(t *testing.T) {
+	phrase := "\xf3\u0374"
+	l := NewWordList("w").Add("Sign", phrase)
+	m := MustCompile(`grammar W { token TOP { @w } }`, l).Parse(phrase)
+	if got := m.At("made").Str(); got != "Sign" {
+		t.Errorf("made = %q, want Sign", got)
 	}
 }
