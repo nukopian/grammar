@@ -146,6 +146,41 @@ grammar PayUK is Money is Period {
 	// 500
 }
 
+// A proto is a family of rules that grows: each variant, named
+// period:sym<…>, is one way to write a period, and an extension adds its
+// own without changing the grammar it extends. A call to <period> tries
+// them all, the extension's and its parents', and keeps the longest. Here
+// PayUK adds weekly and daily rates to Pay's, and replaces Pay's hourly
+// one, which now also takes "ph".
+func ExampleGrammar_Proto() {
+	g := grammar.MustCompile(`
+grammar Pay {
+    token TOP    { '£' $<amount>=[ \d+ ] \s* <period> }
+    proto token period {*}
+    token period:sym<annum> { :i [ per \s+ annum | 'p.a.' | pa ] }
+    token period:sym<hour>  { :i per \s+ hour }
+}
+grammar PayUK is Pay {
+    token period:sym<week> { :i [ per \s+ week | pw ] }
+    token period:sym<day>  { :i per \s+ day }
+    token period:sym<hour> { :i [ per \s+ hour | ph ] }
+}`)
+	acts := map[string]func(*scalar.SV) any{
+		"period:sym<annum>": func(*scalar.SV) any { return "Year" },
+		"period:sym<week>":  func(*scalar.SV) any { return "Week" },
+		"period:sym<day>":   func(*scalar.SV) any { return "Day" },
+		"period:sym<hour>":  func(*scalar.SV) any { return "Hour" },
+	}
+	for _, text := range []string{"£45000 per annum", "£450 pw", "£18 ph", "£150 per day"} {
+		fmt.Println(g.Parse(text, grammar.Actions(acts)).At("period.made"))
+	}
+	// Output:
+	// Year
+	// Week
+	// Hour
+	// Day
+}
+
 // A role is a library of rules to share between grammars. Grammars take a
 // role's rules as their own with does. A role's rules can call rules it
 // doesn't have, here <amount>, for each grammar that uses it to provide.

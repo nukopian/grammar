@@ -16,12 +16,14 @@
 package grammar
 
 import (
+	"cmp"
 	"fmt"
 	"maps"
 	"reflect"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"unicode"
 
@@ -41,6 +43,7 @@ type Grammar struct {
 	fromRole map[string]string // rule name → the role it was composed from
 	checked  atomic.Uint64     // the generation at which Check last passed
 	starts   atomic.Pointer[startsEntry]
+	protos   sync.Map // proto name → *protoEntry
 }
 
 // generation counts changes to any grammar's rules. A grammar's Check
@@ -54,6 +57,35 @@ type rule struct {
 	ratchet bool
 	sc      *scope
 	words   *WordList // the list the body is, if it's nothing else
+
+	// A proto, proto token period {*}, has variants: rules named
+	// period:sym<…>, base period and sym what's between the brackets. A
+	// proto's rule as lookup returns it lists the variants the grammar can
+	// see, and its body is an alternation of them, for Check and the like.
+	proto    bool
+	variants []*rule
+	base     string
+	sym      string
+	seq      uint64 // the order rules were declared in, for ties between variants
+}
+
+// ruleSeq numbers rules as they're declared.
+var ruleSeq atomic.Uint64
+
+// splitSym splits a variant's name, period:sym<hour> or op:sym«->», into
+// its proto's name and its sym.
+func splitSym(name string) (base, sym string, ok bool) {
+	i := strings.Index(name, ":sym")
+	if i <= 0 {
+		return "", "", false
+	}
+	rest := name[i+len(":sym"):]
+	for _, q := range [][2]string{{"<", ">"}, {"«", "»"}} {
+		if strings.HasPrefix(rest, q[0]) && strings.HasSuffix(rest, q[1]) && len(rest) > len(q[0])+len(q[1]) {
+			return name[:i], rest[len(q[0]) : len(rest)-len(q[1])], true
+		}
+	}
+	return "", "", false
 }
 
 // New returns an empty grammar called name. Raku's built-in rules, such as
@@ -182,12 +214,46 @@ func (g *Grammar) Name() string { return g.name }
 // Token adds a rule that doesn't backtrack, as Raku's token does.
 func (g *Grammar) Token(name string, body Node) *Grammar { return g.add(name, body, true) }
 
+// Proto declares name a proto, as proto token name {*} does: a family of
+// rules, the variants, each named name:sym<…> and added with Token or
+// Regex, which extensions and roles can add to without changing the
+// grammar that declares it. A call to <name> matches each variant the
+// grammar being parsed with can see, its own, its parents' and its
+// roles', and keeps the longest, the first declared on a tie; as in Raku,
+// it commits to that one, even in a regex. The match is the variant's,
+// captured under name, and the action that runs is the variant's: a
+// method named after both, such as PeriodSymHour for period:sym<hour>, or
+// in a map, "period:sym<hour>". An extension's variant of the same sym
+// replaces its parent's. Sym is <sym>.
+func (g *Grammar) Proto(name string) *Grammar {
+	if old, ok := g.rules[name]; ok && !old.proto && g.fromRole[name] == "" {
+		panic(fmt.Sprintf("grammar %s: %s is a rule already, so it can't be a proto", g.name, name))
+	}
+	g.rules[name] = &rule{name: name, proto: true, ratchet: true, body: alt(nil), sc: newScope(alt(nil)), seq: ruleSeq.Add(1)}
+	delete(g.fromRole, name)
+	generation.Add(1)
+	return g
+}
+
 // Regex adds a rule that backtracks, as Raku's regex does.
 func (g *Grammar) Regex(name string, body Node) *Grammar { return g.add(name, body, false) }
 
 func (g *Grammar) add(name string, body Node, ratchet bool) *Grammar {
-	body, _ = distinct(body, map[*group]bool{})
-	g.rules[name] = &rule{name: name, body: body, ratchet: ratchet, sc: newScope(body), words: wordsBody(body)}
+	base, sym, variant := splitSym(name)
+	if old, ok := g.rules[name]; ok && old.proto && g.fromRole[name] == "" {
+		panic(fmt.Sprintf("grammar %s: %s is a proto: its variants are named %s:sym<…>", g.name, name, name))
+	}
+	sym = nfc(sym)
+	body, _ = distinct(body, map[*group]bool{}, sym)
+	if !variant {
+		walk(body, func(n Node) {
+			if _, ok := n.(symText); ok {
+				panic(fmt.Sprintf("grammar %s: rule %s has <sym>, which is only for a rule named name:sym<…>", g.name, name))
+			}
+		})
+	}
+	g.rules[name] = &rule{name: name, body: body, ratchet: ratchet, sc: newScope(body), words: wordsBody(body),
+		base: base, sym: sym, seq: ruleSeq.Add(1)}
 	delete(g.fromRole, name)
 	generation.Add(1)
 	return g
@@ -196,10 +262,47 @@ func (g *Grammar) add(name string, body Node, ratchet bool) *Grammar {
 func (g *Grammar) lookup(name string) *rule {
 	for _, gg := range g.mro {
 		if r, ok := gg.rules[name]; ok {
+			if r.proto {
+				return g.protoRule(name)
+			}
 			return r
 		}
 	}
 	return nil
+}
+
+type protoEntry struct {
+	gen uint64
+	r   *rule
+}
+
+// protoRule returns the proto name as g sees it: with every variant in g,
+// its parents and its roles, an extension's replacing its parent's of the
+// same sym, in the order they were declared. It's kept until a grammar
+// changes.
+func (g *Grammar) protoRule(name string) *rule {
+	gen := generation.Load()
+	if e, ok := g.protos.Load(name); ok && e.(*protoEntry).gen == gen {
+		return e.(*protoEntry).r
+	}
+	var vs []*rule
+	seen := map[string]bool{}
+	for _, gg := range g.mro {
+		for _, r := range gg.rules {
+			if r.base == name && !seen[r.name] {
+				seen[r.name] = true
+				vs = append(vs, r)
+			}
+		}
+	}
+	slices.SortFunc(vs, func(a, b *rule) int { return cmp.Compare(a.seq, b.seq) })
+	calls := make(alt, len(vs))
+	for i, v := range vs {
+		calls[i] = Silent(v.name)
+	}
+	r := &rule{name: name, proto: true, variants: vs, ratchet: true, body: calls, sc: newScope(calls)}
+	g.protos.Store(name, &protoEntry{gen, r})
+	return r
 }
 
 // Check reports the first call to a rule that doesn't exist, and the first

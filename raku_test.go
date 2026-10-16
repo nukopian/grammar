@@ -253,6 +253,33 @@ var rakuCases = []struct {
 	{Src: `grammar Colon6 { regex TOP { [ a | ab ] : b } }`, Inputs: []string{"abb", "ab"}},
 	{Src: `grammar Colon7 { regex TOP { (a+): $<rest>=[ a* ]: a } }`, Inputs: []string{"aaa"}},
 	{Src: `grammar Colon8 { regex TOP { a :i B } }`, Inputs: []string{"ab", "aB"}},
+	// proto and :sym<…>: a call to the proto tries every variant the
+	// grammar can see, extensions' and roles' included, and keeps the
+	// longest, committing to it, even in a regex. Its match is the
+	// variant's, and <sym> matches the variant's name.
+	{Src: `grammar Proto1 {
+	    token TOP { <period> }
+	    proto token period {*}
+	    token period:sym<annum> { :i 'per annum' }
+	    token period:sym<hour>  { :i 'per ' <sym> }
+	    token period:sym<per>   { :i per }
+	}`, Inputs: []string{"per annum", "Per Hour", "per", "per week"}},
+	{Src: `grammar Proto2 {
+	    token TOP { <period> }
+	    proto token period {*}
+	    token period:sym<annum> { :i 'per annum' }
+	    token period:sym<hour>  { :i 'per hour' }
+	}
+	grammar Proto2UK is Proto2 { token period:sym<pw> { :i pw }; token period:sym<hour> { :i ph } }`,
+		Inputs: []string{"pw", "ph", "per hour", "per annum"}},
+	{Src: `grammar Proto3 { token TOP { <period> }; proto token period {*}; token period:sym<annum> { 'per annum' } }
+	role Proto3Weekly { token period:sym<week> { 'per week' } }
+	grammar Proto3W is Proto3 does Proto3Weekly { }`, Inputs: []string{"per week", "per annum"}},
+	{Src: `grammar Proto4 { token TOP { <x> }; proto token x {*}; token x:sym<b> { ab }; token x:sym<a> { a. } }`, Inputs: []string{"ab", "ac"}},
+	{Src: `grammar Proto4b { token TOP { <x> }; proto token x {*}; token x:sym<a> { a $<second>=[ . ] }; token x:sym<b> { $<first>=[ a ] b } }`, Inputs: []string{"ab", "ac"}},
+	{Src: `grammar Proto6 { regex TOP { <x> b }; proto regex x {*}; regex x:sym<long> { ab }; regex x:sym<short> { a } }`, Inputs: []string{"ab", "abb"}},
+	{Src: `grammar Proto7 { token TOP { <op>+ }; proto token op {*}; token op:sym<+> { <sym> }; token op:sym«->» { <sym> } }`, Inputs: []string{"+->", "-+", "+-"}},
+	{Src: `grammar Proto8 { token TOP { <unit>+ % ', ' }; proto token unit {*}; token unit:sym<year> { <sym> s? }; token unit:sym<week> { <sym> } }`, Inputs: []string{"years, week, year", "weeks"}},
 	{Src: `grammar Order7 { token TOP { <a> ' '? <b>+ (x) <c=a> $<n>=[ \d+ ] <.a>? '-' <d=.b> }; token a { a }; token b { b } }`,
 		Inputs: []string{"a bbxa12a-b", "abxa1-b"}},
 }

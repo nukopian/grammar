@@ -293,6 +293,24 @@ func (p *parser) rules(g *Grammar) {
 			break
 		}
 		var ratchet, sig bool
+		if p.keyword("proto") {
+			p.ws()
+			if !p.keyword("token") && !p.keyword("regex") && !p.keyword("rule") {
+				p.fail("expected token, regex or rule after proto")
+			}
+			pname := p.ident()
+			if _, dup := g.rules[pname]; dup {
+				p.fail("%s is declared twice", pname)
+			}
+			p.ws()
+			if !p.eat("{") || !func() bool { p.ws(); return p.eat("*") }() || !func() bool { p.ws(); return p.eat("}") }() {
+				p.fail("a proto's body is {*}: its variants are rules named %s:sym<…>", pname)
+			}
+			p.protect(pname, func() { g.Proto(pname) })
+			p.ws()
+			p.eat(";")
+			continue
+		}
 		switch {
 		case p.keyword("token"):
 			ratchet = true
@@ -302,7 +320,7 @@ func (p *parser) rules(g *Grammar) {
 		default:
 			p.fail("expected token, regex or rule")
 		}
-		rname := p.ident()
+		rname := p.ident() + p.symSuffix()
 		if _, dup := g.rules[rname]; dup {
 			p.fail("%s is declared twice", rname)
 		}
@@ -322,6 +340,12 @@ func (p *parser) rules(g *Grammar) {
 // add adds a rule to g, turning a mistake that add panics on, such as a
 // capture with a reserved name, into a syntax error.
 func (p *parser) add(g *Grammar, name string, body Node, ratchet bool) {
+	p.protect(name, func() { g.add(name, body, ratchet) })
+}
+
+// protect runs f, which adds rule name to a grammar, failing as the
+// grammar panics.
+func (p *parser) protect(name string, f func()) {
 	defer func() {
 		if r := recover(); r != nil {
 			if msg, ok := r.(string); ok {
@@ -330,7 +354,31 @@ func (p *parser) add(g *Grammar, name string, body Node, ratchet bool) {
 			panic(r)
 		}
 	}()
-	g.add(name, body, ratchet)
+	f()
+}
+
+// symSuffix reads a variant's :sym<…> or :sym«…» after its proto's name,
+// if there is one, and returns it.
+func (p *parser) symSuffix() string {
+	if !p.peek(":sym<") && !p.peek(":sym«") {
+		return ""
+	}
+	start := p.i
+	p.i += len(":sym")
+	closer := ">"
+	if p.eat("«") {
+		closer = "»"
+	} else {
+		p.eat("<")
+	}
+	for !p.eof() && !p.peek(closer) {
+		p.i++
+	}
+	if p.eof() || p.i == start+len(":sym")+1 {
+		p.fail("a :sym needs a name between its brackets, as in :sym<hour>")
+	}
+	p.expect(closer)
+	return string(p.src[start:p.i])
 }
 
 // regex is a whole regex, or the inside of a group: alternatives, each a
@@ -805,6 +853,15 @@ func (p *parser) assertion() Node {
 	}
 	silent := p.eat(".")
 	name := p.ident()
+	if name == "sym" && !silent && p.peek(">") {
+		p.expect(">")
+		return Sym()
+	}
+	if variant := name + p.symSuffix(); variant != name {
+		// Raku reads this as a call to the proto, the :sym<…> ignored,
+		// which is never what it looks like.
+		p.fail("<%s> calls the proto, not the variant, in Raku: write <%s>, or call the variant's rules by names of their own", variant, name)
+	}
 	p.ws()
 	var n Node
 	switch {

@@ -158,6 +158,8 @@ all work on it. [The match](#the-match) has the details, and the Reference's
 | `rule name { … }` | `g.Token`, with `Silent("ws")` where the spaces go | A token in which spaces in the rule match spaces in the text. See [Spaces in rules](#spaces-in-rules). |
 | `grammar B is A { … }` | `a.Extend("B")` | B has A's rules; B's own rules replace A's of the same name, even where A's rules call them. |
 | `grammar C is A is B { … }` | `a.Extend("C", b)` | C has A's rules and B's, looked up in C3 order; see [Several parents](#several-parents). |
+| `proto token p {*}` | `g.Proto("p")` | A family of rules, its variants, that extensions and roles can add to. See [Protos](#protos). |
+| `token p:sym<x> { … }` | `g.Token("p:sym<x>", node)` | A variant of the proto `p`. `<sym>` (`Sym()`) inside it matches `x`. |
 | `role R { … }` | `grammar.NewRole("R")` | A library of rules for grammars to share. See [Roles](#roles). |
 | `grammar B does R { … }` | `b.Does(r)` | B gets R's rules as its own. |
 
@@ -481,6 +483,48 @@ A role's rules become the grammar's own when it's composed:
 In Go, `grammar.NewRole("Pay")` makes a role, with `Token` and `Regex` as
 for a grammar, and `g.Does(role)` composes it, before or after `g`'s own
 rules.
+
+### Protos
+
+A proto is a family of rules that grows. Each variant is one way of
+writing the same kind of thing, a pay period, say, and an extension or a
+role adds its own without changing the grammar it extends:
+
+```raku
+grammar Pay {
+    token TOP    { '£' $<amount>=[ \d+ ] \s* <period> }
+    proto token period {*}
+    token period:sym<annum> { :i [ per \s+ annum | 'p.a.' | pa ] }
+    token period:sym<hour>  { :i per \s+ hour }
+}
+grammar PayUK is Pay {
+    token period:sym<week> { :i [ per \s+ week | pw ] }
+    token period:sym<hour> { :i [ per \s+ hour | ph ] }   # replaces Pay's
+}
+```
+
+Without protos, `period` would be one alternation, and every new way of
+writing a period would mean editing it, in the grammar that owns it. With
+them, `Pay` stays as it is, and each extension says only what it adds.
+
+A call to `<period>` matches every variant the grammar being parsed with
+can see, its own, its parents' and its roles', and keeps the one that
+matches most text; of equal ones, the first declared. As in Raku, the call
+then commits to it: if what follows fails, no other variant is tried, even
+in a `regex`. An extension's variant with the same sym replaces its
+parent's. The match is the variant's, captured as `period`, and the action
+that runs is the variant's: a method named after both, `PeriodSymHour` for
+`period:sym<hour>`, or the key `"period:sym<hour>"` in a map of actions,
+which also works for syms that aren't words, such as `op:sym<+>`. The
+proto's own action, `Period`, doesn't run.
+
+Inside a variant, `<sym>` matches the text between the brackets exactly,
+even under `:i`, as in Raku, and captures it as `sym`: in
+`token unit:sym<year> { <sym> s? }`, `unit.sym.~` is "year". A sym can be
+any text, written `:sym<…>` or `:sym«…»`.
+
+In Go, `g.Proto("period")` declares the proto, variants are added with
+`Token` or `Regex` by their full names, and `grammar.Sym()` is `<sym>`.
 
 ### Several parents
 
@@ -886,7 +930,6 @@ Before changing anything, it helps to know how the package is put together:
 |---|---|---|---|---|
 | **Code assertions**: `<?{ … }>`, `<!{ … }>` | Checks only code can make, in the middle of a parse: min ≤ max, a plausible year, a word that's in a list but isn't a stopword. Without them, wrong parses get through and need cleaning up afterwards. | Raku code can't run here, so: a builder node holding `func(m *scalar.SV) bool`, and a syntax such as `<?{name}>` naming a function passed to `Compile`. The function needs the captures so far, so build a provisional match of the current scope from the `capList`. | partly | 2–3 |
 | **Code blocks**: `{ make … }` | Making values in the grammar itself. | Actions do this. Not worth adding unless grammars are written by people who won't write Go. | by design | — |
-| **`proto token` and `:sym<…>`** | Families of alternatives that grow, where an extension adds a variant without editing its parent: `token period:sym<fortnightly> { … }` in a `PayUK` grammar. | A `proto` rule matches as an `Alt` over every rule named `name:sym<…>` found along the inheritance chain and in roles, collected when it's called; `<sym>` inside one matches its own `sym` text. Correct only with true longest-token matching (below), though `Alt`'s approximation will do for most. | yes | 3 |
 | **True longest-token matching** for `\|` | When `Alt`'s approximation (below) gives a different answer from Raku, which the Raku tests will show; and to speed up large alternations and protos. | Work out each branch's declarative prefix (the part before anything that could backtrack or run code), build an automaton (NFA, then DFA) from the prefixes, and try branches in order of how much of the text their prefix matches. This is what Rakudo does in NQP. | yes | 5 |
 | **Rule parameters and dynamic variables**: `token amount($cur)`, `$*CURRENCY` | Parsing that depends on context, such as a currency that changes how amounts read. | Arguments in the syntax and on `call`, and a stack of dynamic variables in `state`, visible to called rules. Inheritance and roles usually do the job more simply. | yes | 3 |
 | **`<@list>`**: each entry matched as a regex | Lists of patterns built from data. | Compile each entry with the syntax parser's regex code into an `Alt`. `Compile` rejects `<@list>` now, so that synonym data isn't treated as patterns by mistake; keep `@list` for literal phrases. | yes | 2 |
@@ -899,9 +942,10 @@ Before changing anything, it helps to know how the package is put together:
 | Difference | When it matters | What it would take | Fixable | Effort |
 |---|---|---|---|---|
 | **A grammar that calls a rule it doesn't have is an error,** even if an extension would supply it. Raku allows it, and fails only if the rule is called. | Only for grammars meant to be completed by extensions: write those as roles, which may call rules they don't have. | — | by design | — |
+| **`<p:sym<x>>` is an error.** Raku reads it as a call to the proto `<p>`, ignoring the `:sym<x>`, which is never what it looks like. | Only when calling one variant directly: give its rules a name of their own instead. | — | by design | — |
 | **An unknown Unicode property is an error.** Raku's `<:Bogus>` matches nothing, silently. | Never for a property that exists. A misspelt one fails when the grammar compiles, rather than making a rule that can never match. | — | by design | — |
 | **`Caps` puts captures at the same place in name order.** Raku's `.caps` leaves them in hash order, which changes from run to run. | Never for captures at different places. An alias and its rule's name, or two empty captures at one spot, come in a fixed order here and a varying one in Raku. | — | by design | — |
-| **`\|` picks the branch whose first match is longest.** Raku picks by the longest declarative prefix, roughly the part of each branch before anything that could backtrack. | Rarely: they agree on ordinary alternations of words and phrases. They can differ when branches share a start and something after it decides. | True longest-token matching (above). | yes | 5 |
+| **`\|`, and a call to a proto, pick the branch whose first match is longest,** and of equal ones, the first. Raku picks by the longest declarative prefix, roughly the part of each branch before anything that could backtrack. | Rarely: they agree on ordinary alternations of words and phrases. They can differ when branches share a start and something after it decides. | True longest-token matching (above). | yes | 5 |
 | **Actions run after the whole match succeeds,** innermost first. Raku runs each as its rule matches, including for matches it later backtracks out of. | Only for actions with side effects, such as counting or logging. | Run actions in `call`'s `finish`, keeping their values on the `mnode`. Running after is easier to reason about, so keep it unless something needs the other. | by design | 2 |
 | **Text is read as UTF-8, a rune at a time.** A byte that isn't valid UTF-8 becomes U+FFFD (`�`), as Go's `[]rune(text)` does, so a match's `~` holds `�` where the text held the bad byte. Raku can't hold such text at all: it fails to decode it. | Scraped text with bad bytes in it, when the exact bytes matter. | Clean or decode the text first, or match byte strings as `scalar` does (each byte a character from 0 to 255). | by design | 2 |
 | **Positions count runes, not graphemes,** in NFC. Text is read in NFC, so an accented letter that has a composed form is one character, as in Raku. One that doesn't, such as q with a combining tilde (q̃), is two here, and one grapheme in Raku, so `.` can match half of it. | Rare in job postings: languages whose letters have no composed form, and emoji sequences. | Segment the input with `rivo/uniseg` and match on graphemes. | yes | 3 |
@@ -1228,6 +1272,43 @@ fmt.Println(payUK.Parse("£500 per day").At("money.num.~"))
 ```
 hour false
 500
+```
+
+#### `Grammar.Proto`
+
+Proto declares name a proto, as proto token name {*} does: a family of rules, the variants, each named name:sym<…> and added with Token or Regex, which extensions and roles can add to without changing the grammar that declares it.
+
+A proto is a family of rules that grows: each variant, named period:sym\<…>, is one way to write a period, and an extension adds its own without changing the grammar it extends. A call to \<period> tries them all, the extension's and its parents', and keeps the longest. Here PayUK adds weekly and daily rates to Pay's, and replaces Pay's hourly one, which now also takes "ph".
+
+```go
+g := grammar.MustCompile(`
+grammar Pay {
+    token TOP    { '£' $<amount>=[ \d+ ] \s* <period> }
+    proto token period {*}
+    token period:sym<annum> { :i [ per \s+ annum | 'p.a.' | pa ] }
+    token period:sym<hour>  { :i per \s+ hour }
+}
+grammar PayUK is Pay {
+    token period:sym<week> { :i [ per \s+ week | pw ] }
+    token period:sym<day>  { :i per \s+ day }
+    token period:sym<hour> { :i [ per \s+ hour | ph ] }
+}`)
+acts := map[string]func(*scalar.SV) any{
+	"period:sym<annum>": func(*scalar.SV) any { return "Year" },
+	"period:sym<week>":  func(*scalar.SV) any { return "Week" },
+	"period:sym<day>":   func(*scalar.SV) any { return "Day" },
+	"period:sym<hour>":  func(*scalar.SV) any { return "Hour" },
+}
+for _, text := range []string{"£45000 per annum", "£450 pw", "£18 ph", "£150 per day"} {
+	fmt.Println(g.Parse(text, grammar.Actions(acts)).At("period.made"))
+}
+```
+
+```
+Year
+Week
+Hour
+Day
 ```
 
 #### `NewRole`
@@ -1946,6 +2027,29 @@ fmt.Println(g.FindAll("SQL, sql, AWS and SQLITE").Map(func(m *scalar.SV) any { r
 
 ```
 SQL AWS
+```
+
+#### `Sym`
+
+Sym is <sym>: in a rule named name:sym<…>, it matches the text between the angle brackets, and captures it as sym, as Raku's does.
+
+Proto and Sym are proto token and \<sym> built in Go: variants are rules named name:sym\<…>, and Sym matches that name, captured as sym.
+
+```go
+g := grammar.New("Units").
+	Token("TOP", grammar.Plus(grammar.Call("unit")).Sep(grammar.Lit(", "))).
+	Proto("unit").
+	Token("unit:sym<year>", grammar.Seq(grammar.Sym(), grammar.Opt(grammar.Lit("s")))).
+	Token("unit:sym<week>", grammar.Seq(grammar.Sym(), grammar.Opt(grammar.Lit("s"))))
+// Raku: token TOP { <unit>+ % ', ' }; proto token unit {*}
+//       token unit:sym<year> { <sym> s? }; token unit:sym<week> { <sym> s? }
+
+m := g.Parse("years, week")
+fmt.Println(m.At("unit.0.sym.~"), m.At("unit.1.sym.~"))
+```
+
+```
+year week
 ```
 
 #### `Opt`

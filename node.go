@@ -180,6 +180,8 @@ func describe(n Node, ci bool) string {
 		return anchorNames[n]
 	case *call:
 		return "<" + n.name + ">"
+	case symText:
+		return "<sym>"
 	case *look:
 		if inner, ok := n.inner.(seq); ok && len(inner) == 0 {
 			return "" // <?> or <!>: nothing the text could have had
@@ -879,6 +881,9 @@ func (n *call) match(st *state, pos int, c *capList, e env, k cont) bool {
 	if r == nil {
 		panic("grammar: no rule " + n.name + " in " + st.g.name)
 	}
+	if r.proto {
+		return n.matchProto(st, pos, c, e, k, r)
+	}
 	finish := func(p int, inner *capList) bool {
 		m := &mnode{rule: r.name, from: pos, to: p, caps: inner, sc: r.sc, words: r.words}
 		cc := c
@@ -918,6 +923,57 @@ func (n *call) match(st *state, pos int, c *capList, e env, k cont) bool {
 	return ok
 }
 
+// matchProto matches a call to a proto: each variant the grammar can see
+// is matched once, and the longest wins, the first declared on a tie. As
+// in Raku, the call commits to it: if what follows fails, no other variant
+// is tried, even in a regex. Its match is the variant's, under the name
+// the call captures with, so its action is the variant's.
+func (n *call) matchProto(st *state, pos int, c *capList, e env, k cont, r *rule) bool {
+	t := st.tr
+	f := frame{r.name, pos}
+	if t != nil {
+		t.enter(f)
+	}
+	var best *rule
+	var bestCaps *capList
+	end := -1
+	for _, v := range r.variants {
+		p, inner, ok := once(v.body, st, pos, nil, env{ratchet: v.ratchet, sc: v.sc})
+		if ok && p > end {
+			best, bestCaps, end = v, inner, p
+		}
+	}
+	if t != nil {
+		t.leave(f)
+	}
+	if best == nil {
+		return false
+	}
+	m := &mnode{rule: best.name, from: pos, to: end, caps: bestCaps, sc: best.sc, words: best.words}
+	cc := c
+	if n.capture {
+		cc = &capList{n.name, m, cc}
+	}
+	if n.alias != "" {
+		cc = &capList{n.alias, m, cc}
+	}
+	return k(end, cc)
+}
+
+// symText is <sym> in a variant's body, until the variant is added, when it
+// becomes the variant's sym; see distinct.
+type symText struct{}
+
+func (symText) match(st *state, pos int, c *capList, e env, k cont) bool {
+	panic("grammar: <sym> is only for a rule named name:sym<…>")
+}
+
+// Sym is <sym>: in a rule named name:sym<…>, it matches the text between
+// the angle brackets, and captures it as sym, as Raku's does. So
+// token period:sym<hour> { 'per ' <sym> } matches "per hour". As in Raku,
+// it matches the text exactly, even under :i.
+func Sym() Node { return Named("sym", symText{}) }
+
 // group is ( ... ), or $<name>=( ... ): a capture with a scope of its own.
 type group struct {
 	inner Node
@@ -927,7 +983,7 @@ type group struct {
 
 // Capture is ( n ): a positional capture, numbered from 0 in its scope.
 func Capture(n Node) Node {
-	n, _ = distinct(n, map[*group]bool{})
+	n, _ = distinct(n, map[*group]bool{}, "")
 	return &group{inner: n, sc: newScope(n)}
 }
 
@@ -1092,13 +1148,20 @@ func children(n Node) []Node {
 // node, so one Capture node used twice, as a Go variable can be, would
 // otherwise be numbered once and capture once. Nodes are never changed: a
 // node with a copied group inside is copied too.
-func distinct(n Node, seen map[*group]bool) (Node, bool) {
+//
+// Given a variant's sym, it also replaces each <sym> with that text.
+func distinct(n Node, seen map[*group]bool, sym string) (Node, bool) {
+	if _, ok := n.(symText); ok && sym != "" {
+		// Exactly, as in Raku: :i doesn't reach <sym>.
+		exact := false
+		return &mode{inner: Lit(sym), ci: &exact}, true
+	}
 	kids := children(n)
 	changed := false
 	copied := make([]Node, len(kids))
 	for i, kid := range kids {
 		var c bool
-		copied[i], c = distinct(kid, seen)
+		copied[i], c = distinct(kid, seen, sym)
 		changed = changed || c
 	}
 	if g, ok := n.(*group); ok {
@@ -1150,6 +1213,14 @@ func distinct(n Node, seen map[*group]bool) (Node, bool) {
 // methodName is the Go method an action for rule is: amount is Amount, and
 // pay-range and pay_range are PayRange.
 func methodName(rule string) string {
+	if base, sym, ok := splitSym(rule); ok {
+		// A variant's: period:sym<hour> is PeriodSymHour. A sym that isn't
+		// a word, such as +, has no method; use a map.
+		if !isWordName(sym) {
+			return ""
+		}
+		return methodName(base) + "Sym" + methodName(sym)
+	}
 	var b strings.Builder
 	for part := range strings.FieldsFuncSeq(rule, func(r rune) bool { return r == '-' || r == '_' }) {
 		rs := []rune(part)
@@ -1157,4 +1228,15 @@ func methodName(rule string) string {
 		b.WriteString(string(rs))
 	}
 	return b.String()
+}
+
+// isWordName reports whether s is a name, as in a rule's: a letter or _,
+// then letters, digits, _ and -.
+func isWordName(s string) bool {
+	for i, r := range s {
+		if !(unicode.IsLetter(r) || r == '_' || i > 0 && (unicode.IsDigit(r) || r == '-')) {
+			return false
+		}
+	}
+	return s != ""
 }

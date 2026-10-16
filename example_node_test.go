@@ -121,6 +121,23 @@ func ExampleConj() {
 	// SQL AWS
 }
 
+// Proto and Sym are proto token and <sym> built in Go: variants are
+// rules named name:sym<…>, and Sym matches that name, captured as sym.
+func ExampleSym() {
+	g := grammar.New("Units").
+		Token("TOP", grammar.Plus(grammar.Call("unit")).Sep(grammar.Lit(", "))).
+		Proto("unit").
+		Token("unit:sym<year>", grammar.Seq(grammar.Sym(), grammar.Opt(grammar.Lit("s")))).
+		Token("unit:sym<week>", grammar.Seq(grammar.Sym(), grammar.Opt(grammar.Lit("s"))))
+	// Raku: token TOP { <unit>+ % ', ' }; proto token unit {*}
+	//       token unit:sym<year> { <sym> s? }; token unit:sym<week> { <sym> s? }
+
+	m := g.Parse("years, week")
+	fmt.Println(m.At("unit.0.sym.~"), m.At("unit.1.sym.~"))
+	// Output:
+	// year week
+}
+
 // Opt is ?: zero or one.
 func ExampleOpt() {
 	g := grammar.New("G").Token("TOP", grammar.Seq(grammar.Lit("£"), grammar.Plus(grammar.Digit), grammar.Opt(grammar.Lit("k"))))
