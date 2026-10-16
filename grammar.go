@@ -44,6 +44,7 @@ type Grammar struct {
 	checked  atomic.Uint64     // the generation at which Check last passed
 	starts   atomic.Pointer[startsEntry]
 	protos   sync.Map // proto name → *protoEntry
+	afters   sync.Map // lookKey → *lookInfo, for lookbehinds; see lookbehind.go
 }
 
 // generation counts changes to any grammar's rules. A grammar's Check

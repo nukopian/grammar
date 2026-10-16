@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/nukopian/job-meta/internal/scalar"
 )
 
 // The fuzz tests run their seeds with go test, and search for failures
@@ -48,6 +50,7 @@ var fuzzMatchSeeds = [][2]string{
 	{`( \d+ ) $<k>=[ k ]? <!before \w>`, "45k "},
 	{`^^ <a> $$ \n?`, "x\nx"},
 	{`[ <?after x> y ]* <<x>>`, "xyx"},
+	{`<c> <?after <[a..c]> ** 2> \s* <?after <c> \s?> a`, "abc a"},
 	{`:s a b`, "a  b"},
 	{`<c> ** 2..3 %% '-'`, "ab-c-"},
 	// The later additions: conjunctions, goal matching, backreferences,
@@ -131,6 +134,12 @@ func FuzzMatch(f *testing.F) {
 		_, without := findBoth(g, text) // restores skipStarts, even on a panic
 		if d := all.Diff(without[1].AV()); d != "" {
 			t.Fatalf("skipping start positions changed FindAll: %s", d)
+		}
+		// Narrowing lookbehinds' starts changes nothing either.
+		var unbounded *scalar.AV
+		withoutBounds(func() { unbounded = g.FindAll(text) })
+		if d := all.Diff(unbounded); d != "" {
+			t.Fatalf("narrowing lookbehinds changed FindAll: %s", d)
 		}
 	})
 }

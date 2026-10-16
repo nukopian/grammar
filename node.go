@@ -3,6 +3,7 @@ package grammar
 import (
 	"fmt"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode"
@@ -53,6 +54,10 @@ type state struct {
 	// depth is how deeply the matcher has recursed, against maxDepth (0:
 	// no limit); see deeper.
 	depth, maxDepth int
+
+	// afterStarts are, for each lookbehind, the positions in the text its
+	// pattern can start at, listed once; see lookbehind.go.
+	afterStarts map[*lookInfo][]int
 }
 
 // deeper counts one more level of the matcher's recursion: every node that
@@ -1093,9 +1098,31 @@ func (n *look) match(st *state, pos int, c *capList, e env, k cont) bool {
 		st.tr.quiet++ // what's inside a lookaround failing is no news
 	}
 	if n.behind {
-		for from := pos; from >= 0 && !ok; from-- {
+		// Try the starts the pattern could end here from, latest first; see
+		// lookbehind.go.
+		lo, hi := 0, pos
+		var info *lookInfo
+		if boundLookbehind {
+			info = st.g.lookbehind(n, e.ci)
+			hi = pos - info.lo
+			if info.hi >= 0 {
+				lo = max(0, pos-info.hi)
+			}
+		}
+		try := func(from int) bool {
 			st.tick()
-			ok = n.inner.match(st, from, c, e, func(p int, _ *capList) bool { return p == pos })
+			return n.inner.match(st, from, c, e, func(p int, _ *capList) bool { return p == pos })
+		}
+		if info != nil && !info.empty && !info.s.any {
+			// Only where the pattern can start, latest first.
+			starts := st.lookbehindStarts(info)
+			for i := sort.SearchInts(starts, hi+1) - 1; i >= 0 && starts[i] >= lo && !ok; i-- {
+				ok = try(starts[i])
+			}
+		} else {
+			for from := hi; from >= lo && !ok; from-- {
+				ok = try(from)
+			}
 		}
 	} else {
 		_, _, ok = once(n.inner, st, pos, c, e)

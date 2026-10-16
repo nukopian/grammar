@@ -245,3 +245,29 @@ func BenchmarkParse(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkLookbehind searches a posting-sized text with lookbehinds: a
+// bounded one, which needs try only one start, and the sections grammar's
+// unbounded one, a sentence's end then spaces, whose first character
+// narrows where it can start. It reports the matcher's steps too.
+func BenchmarkLookbehind(b *testing.B) {
+	text := strings.Repeat("We offer a competitive package and flexible working. What you'll do Lead the team. ", 50) +
+		"Salary: £45,000 per annum."
+	for name, src := range map[string]string{
+		"bounded":   `grammar B { token TOP { <?after '£'> \d+ } }`,
+		"unbounded": `grammar U { regex TOP { <?after <[.!?:]> \s+> What } }`,
+	} {
+		g := MustCompile(src)
+		b.Run(name, func(b *testing.B) {
+			var steps int
+			for b.Loop() {
+				st := g.newState([]rune(text))
+				for from := 0; from <= len(st.in); from++ {
+					g.runState(st, from, false, options{rule: "TOP"})
+				}
+				steps = st.steps
+			}
+			b.ReportMetric(float64(steps), "steps/op")
+		})
+	}
+}
