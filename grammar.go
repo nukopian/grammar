@@ -28,13 +28,14 @@ import (
 	"github.com/nukopian/job-meta/internal/scalar"
 )
 
-// Grammar is a set of named rules, and the grammar it extends, if any.
+// Grammar is a set of named rules, and the grammars it extends, if any.
 // Rules are looked up by name when they're called, starting from the
 // grammar being parsed with, so a rule in an extension overrides the rule of
-// the same name wherever its parent calls it.
+// the same name wherever a parent calls it.
 type Grammar struct {
 	name     string
-	parent   *Grammar
+	parents  []*Grammar
+	mro      []*Grammar // where to look for a rule, in order: g, then its parents, by C3
 	rules    map[string]*rule
 	role     bool
 	fromRole map[string]string // rule name → the role it was composed from
@@ -58,13 +59,82 @@ type rule struct {
 // New returns an empty grammar called name. Raku's built-in rules, such as
 // <ws>, <alpha> and <digit>, are already there.
 func New(name string) *Grammar {
-	return &Grammar{name: name, parent: builtins, rules: map[string]*rule{}, fromRole: map[string]string{}}
+	return newGrammar(name, builtins)
 }
 
 // Extend returns an empty grammar called name that inherits g's rules, as
-// grammar name is g { ... } does.
-func (g *Grammar) Extend(name string) *Grammar {
-	return &Grammar{name: name, parent: g, rules: map[string]*rule{}, fromRole: map[string]string{}}
+// grammar name is g { ... } does. With more grammars, it inherits theirs
+// too, as grammar name is g is a is b { ... } does.
+//
+// A rule is looked up in the new grammar, then its parents, in the order
+// Raku looks up a class's methods, C3: each parent before the grammars it
+// extends, and parents in the order given. So in a diamond, where L and R
+// both extend Base, a grammar that is L is R looks in L, R, then Base, and
+// R's version of a rule beats Base's, though L comes first. A grammar's
+// own rules, and those of its roles, beat every parent's.
+//
+// As in Raku, giving a parent twice, giving a role, or giving parents in
+// an order that contradicts their own, as is Base is L where L is Base,
+// panics.
+func (g *Grammar) Extend(name string, more ...*Grammar) *Grammar {
+	return newGrammar(name, append([]*Grammar{g}, more...)...)
+}
+
+// newGrammar returns an empty grammar called name extending parents, and
+// works out the order its rules are looked up in.
+func newGrammar(name string, parents ...*Grammar) *Grammar {
+	g := &Grammar{name: name, parents: parents, rules: map[string]*rule{}, fromRole: map[string]string{}}
+	for i, p := range parents {
+		if p.role {
+			panic(fmt.Sprintf("grammar %s: %s is a role: use does", name, p.name))
+		}
+		if slices.Contains(parents[:i], p) {
+			panic(fmt.Sprintf("grammar %s already has parent %s", name, p.name))
+		}
+	}
+	mro, err := linearise(g)
+	if err != nil {
+		panic(fmt.Sprintf("grammar %s: %v", name, err))
+	}
+	g.mro = mro
+	return g
+}
+
+// linearise returns g and its ancestors in C3 order, as Raku orders a
+// class's: g, then the merge of its parents' orders and the list of its
+// parents. The merge takes the first grammar at the head of a list that
+// isn't in the tail of any, until all are taken; if none can be taken,
+// the parents' orders contradict each other.
+func linearise(g *Grammar) ([]*Grammar, error) {
+	var lists [][]*Grammar
+	for _, p := range g.parents {
+		lists = append(lists, slices.Clone(p.mro))
+	}
+	lists = append(lists, slices.Clone(g.parents))
+	out := []*Grammar{g}
+	for {
+		lists = slices.DeleteFunc(lists, func(l []*Grammar) bool { return len(l) == 0 })
+		if len(lists) == 0 {
+			return out, nil
+		}
+		var next *Grammar
+		for _, l := range lists {
+			inTail := slices.ContainsFunc(lists, func(o []*Grammar) bool { return slices.Contains(o[1:], l[0]) })
+			if !inTail {
+				next = l[0]
+				break
+			}
+		}
+		if next == nil {
+			return nil, fmt.Errorf("can't order its parents: their own orders contradict each other (C3)")
+		}
+		out = append(out, next)
+		for i, l := range lists {
+			if l[0] == next {
+				lists[i] = l[1:]
+			}
+		}
+	}
 }
 
 // NewRole returns an empty role called name: a library of rules to compose
@@ -124,8 +194,8 @@ func (g *Grammar) add(name string, body Node, ratchet bool) *Grammar {
 }
 
 func (g *Grammar) lookup(name string) *rule {
-	for ; g != nil; g = g.parent {
-		if r, ok := g.rules[name]; ok {
+	for _, gg := range g.mro {
+		if r, ok := gg.rules[name]; ok {
 			return r
 		}
 	}
@@ -159,7 +229,7 @@ func (g *Grammar) Check() error {
 // sorted.
 func (g *Grammar) ruleNames() []string {
 	var names []string
-	for gg := g; gg != nil; gg = gg.parent {
+	for _, gg := range g.mro {
 		for name := range gg.rules {
 			names = append(names, name)
 		}
@@ -810,6 +880,7 @@ var builtins = newBuiltins()
 
 func newBuiltins() *Grammar {
 	b := &Grammar{name: "Grammar", rules: map[string]*rule{}}
+	b.mro = []*Grammar{b}
 	tokens := map[string]Node{
 		"ws":    Seq(aNotWithinWord, Star(Space)), // token ws { <!ww> \s* }
 		"alpha": class{in: isAlpha, desc: "<alpha>"},

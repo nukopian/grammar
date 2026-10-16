@@ -184,7 +184,7 @@ func TestCompileErrors(t *testing.T) {
 		{`grammar G is H { token TOP { a } }`, `no grammar or role H: declare it earlier`},
 		{`grammar G { token TOP { @nope } }`, `no word list @nope: pass it to Compile`},
 		{`grammar G { token TOP { <@nope> } }`, `use @name, which matches them as text`},
-		{`grammar G { token TOP { a } } grammar G2 is G is G { token TOP { b } }`, `can only extend one grammar`},
+		{`grammar G { token TOP { a } } grammar G2 is G is G { token TOP { b } }`, `already has parent G`},
 		{`role R { token x { a } } grammar G is R { token TOP { b } }`, `R is a role: use does`},
 		{`grammar R { token x { a } } grammar G does R { token TOP { b } }`, `R is a grammar, not a role`},
 		{`role R1 { token x { a } } role R2 { token x { b } } grammar G does R1 does R2 { token TOP { <x> } }`,

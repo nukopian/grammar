@@ -219,6 +219,23 @@ var rakuCases = []struct {
 	{Src: `grammar Conj8 { token TOP { (\w) (\w) & (..) } }`, Inputs: []string{"ab"}},
 	{Src: `grammar Conj9 { token TOP { & a & . && \w } }`, Inputs: []string{"a", "b"}},
 	{Src: `grammar Conj10 { regex TOP { [ <:Lu> \S* ]+ % ' ' & [ \w+ ]+ % ' ' } }`, Inputs: []string{"Senior Engineer", "Senior engineer", "Senior C++"}},
+	// Multiple inheritance: rules are looked up in C3 order, as Raku's
+	// classes are, so in a diamond the right-hand parent's override beats
+	// the shared base, though the left-hand parent comes first.
+	{Src: `grammar MiA1 { token x { a }; token y { a } }
+	grammar MiB1 { token x { b }; token z { b } }
+	grammar MiC1 is MiA1 is MiB1 { token TOP { <x> <y> <z> } }`, Inputs: []string{"aab", "bab"}},
+	{Src: `grammar MiA2 { token x { a }; token y { a } }
+	grammar MiB2 { token x { b }; token z { b } }
+	grammar MiD2 is MiB2 is MiA2 { token TOP { <x> <y> <z> } }`, Inputs: []string{"bab", "aab"}},
+	{Src: `grammar MiBase3 { token w { base }; token v { base }; token TOP { <w> <v> } }
+	grammar MiL3 is MiBase3 { token v { l } }
+	grammar MiR3 is MiBase3 { token w { r } }
+	grammar MiBottom3 is MiL3 is MiR3 { }`, Inputs: []string{"rl", "basel", "basebase", "rbase"}},
+	{Src: `grammar MiP4 { token TOP { <a> <b> }; token a { x }; token b { p } }
+	role MiRole4 { token b { r } }
+	grammar MiQ4 { token b { q } }
+	grammar MiS4 is MiP4 is MiQ4 does MiRole4 { token a { y } }`, Inputs: []string{"yr", "yq", "xr", "yp"}},
 	{Src: `grammar Order7 { token TOP { <a> ' '? <b>+ (x) <c=a> $<n>=[ \d+ ] <.a>? '-' <d=.b> }; token a { a }; token b { b } }`,
 		Inputs: []string{"a bbxa12a-b", "abxa1-b"}},
 }

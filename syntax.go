@@ -217,20 +217,18 @@ func (p *parser) declaration() *Grammar {
 		p.fail("expected grammar or role")
 	}
 	name := p.ident()
-	g := New(name)
-	g.role = role
-	var roles []*Grammar
+	var parents, roles []*Grammar
 	for {
 		switch {
 		case !role && p.keyword("is"):
-			if g.parent != builtins {
-				p.fail("grammar %s can only extend one grammar", name)
-			}
 			parent := p.named()
 			if parent.role {
 				p.fail("%s is a role: use does", parent.name)
 			}
-			g.parent = parent
+			if slices.Contains(parents, parent) {
+				p.fail("grammar %s already has parent %s", name, parent.name)
+			}
+			parents = append(parents, parent)
 			continue
 		case p.keyword("does"):
 			r := p.named()
@@ -242,6 +240,8 @@ func (p *parser) declaration() *Grammar {
 		}
 		break
 	}
+	g := p.newGrammar(name, parents)
+	g.role = role
 	p.rules(g)
 	defer func() {
 		if r := recover(); r != nil {
@@ -253,6 +253,24 @@ func (p *parser) declaration() *Grammar {
 	}()
 	g.Does(roles...)
 	return g
+}
+
+// newGrammar makes the grammar a declaration declares, extending parents,
+// or Raku's built-in rules if there are none, failing as Extend panics.
+func (p *parser) newGrammar(name string, parents []*Grammar) (g *Grammar) {
+	if len(parents) == 0 {
+		return New(name)
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			msg, ok := r.(string)
+			if !ok {
+				panic(r)
+			}
+			p.fail("%s", msg)
+		}
+	}()
+	return parents[0].Extend(name, parents[1:]...)
 }
 
 // named reads the name of a grammar or role, declared earlier or passed to

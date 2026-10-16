@@ -157,6 +157,7 @@ all work on it. [The match](#the-match) has the details, and the Reference's
 | `regex name { … }` | `g.Regex(name, node)` | A rule that backtracks, like a Perl regex. |
 | `rule name { … }` | `g.Token`, with `Silent("ws")` where the spaces go | A token in which spaces in the rule match spaces in the text. See [Spaces in rules](#spaces-in-rules). |
 | `grammar B is A { … }` | `a.Extend("B")` | B has A's rules; B's own rules replace A's of the same name, even where A's rules call them. |
+| `grammar C is A is B { … }` | `a.Extend("C", b)` | C has A's rules and B's, looked up in C3 order; see [Several parents](#several-parents). |
 | `role R { … }` | `grammar.NewRole("R")` | A library of rules for grammars to share. See [Roles](#roles). |
 | `grammar B does R { … }` | `b.Does(r)` | B gets R's rules as its own. |
 
@@ -480,6 +481,31 @@ A role's rules become the grammar's own when it's composed:
 In Go, `grammar.NewRole("Pay")` makes a role, with `Token` and `Regex` as
 for a grammar, and `g.Does(role)` composes it, before or after `g`'s own
 rules.
+
+### Several parents
+
+A grammar can extend more than one, as `grammar PayUK is Money is Period
+{ … }` does, or `money.Extend("PayUK", period)` in Go. A rule is looked up
+in the grammar itself, with its roles, then in its parents, in the order
+Raku looks up a class's methods, called C3: parents in the order written,
+and each one before the grammars it extends. In a diamond, where `L` and
+`R` both extend `Base`, a grammar that `is L is R` looks in `L`, `R`, then
+`Base`, so `R`'s version of a rule beats `Base`'s, even though `L` comes
+first and inherits `Base`'s. As in Raku, a rule in a parent that calls
+another calls the extension's version, if it has one.
+
+Parents written in an order that contradicts their own, such as `is Base
+is L` where `L is Base`, are an error, as are a parent named twice and a
+role named with `is`.
+
+Roles or parents? Where two roles have a rule of the same name, the
+grammar must choose, which is an error until it does; where two parents
+do, the earlier parent wins, silently. So roles suit libraries of rules
+brought together, and parents suit extending grammars that work on their
+own. A parent must work on its own here: each grammar a source declares is
+checked as it's compiled, so a parent can't call a rule that only its
+extensions define. Raku allows that, and fails only if the rule is
+called; here, a set of rules that needs others to complete it is a role.
 
 ## The match
 
@@ -832,12 +858,12 @@ Before changing anything, it helps to know how the package is put together:
 | **Interpolation**: `$var`, `<$regex>`, `<{ … }>` | Patterns chosen at run time. | Word lists cover literal phrases, and `Re` covers regex strings. A named-pattern binding, passed to `Compile` as lists are, would cover the rest. | partly | 2 |
 | **Failure reports from `Find` and `FindAll`** | Finding out why pay wasn't found in a posting, rather than why one string didn't parse. | Track failures across every start position and report the furthest. The noise is the hard part: most positions fail at once, for no interesting reason. | partly | 2 |
 | **Backtracking control**: `:`, `::`, `:::`, `<commit>`, `<cut>` | Taming slow, heavily backtracking `regex` rules. | Possessive quantifiers (`+:`) exist. The rest need the matcher to unwind to a marked point, which continuation-passing makes awkward: probably panics and recovers at the right level. Tokens and memoisation (below) usually make it unnecessary. | partly | 3 |
-| **Multiple inheritance**: `grammar C is A is B` | Rarely: roles do this better. | Make `parent` a list, and look up along each in order. | yes | 1 |
 
 ### Differences from Raku
 
 | Difference | When it matters | What it would take | Fixable | Effort |
 |---|---|---|---|---|
+| **A grammar that calls a rule it doesn't have is an error,** even if an extension would supply it. Raku allows it, and fails only if the rule is called. | Only for grammars meant to be completed by extensions: write those as roles, which may call rules they don't have. | — | by design | — |
 | **An unknown Unicode property is an error.** Raku's `<:Bogus>` matches nothing, silently. | Never for a property that exists. A misspelt one fails when the grammar compiles, rather than making a rule that can never match. | — | by design | — |
 | **`Caps` puts captures at the same place in name order.** Raku's `.caps` leaves them in hash order, which changes from run to run. | Never for captures at different places. An alias and its rule's name, or two empty captures at one spot, come in a fixed order here and a varying one in Raku. | — | by design | — |
 | **`\|` picks the branch whose first match is longest.** Raku picks by the longest declarative prefix, roughly the part of each branch before anything that could backtrack. | Rarely: they agree on ordinary alternations of words and phrases. They can differ when branches share a start and something after it decides. | True longest-token matching (above). | yes | 5 |
@@ -1137,6 +1163,36 @@ fmt.Println(us2.Subparse("$60k - $70k per year").At("max.~"))
 ```
 $70k
 $70k
+```
+
+#### `Grammar.Extend_several`
+
+Extend with more grammars inherits from them all, as is A is B does. Rules are looked up in the new grammar, then its parents in the order given: here Money's and Period's rules work together, and PayUK overrides Period's \<unit>, which Period's own \<period> then calls.
+
+```go
+g := grammar.MustCompile(`
+grammar Money  { token money  { '£' <num> }; token num { \d+ } }
+grammar Period { token period { ' per ' <unit> }; token unit { year } }
+grammar PayUK is Money is Period {
+    token TOP  { <money> <period> }
+    token unit { hour | day }
+}`)
+fmt.Println(g.Parse("£18 per hour").At("period.unit.~"), g.Parse("£18 per year").Defined())
+
+// The same, in Go.
+money := grammar.New("Money").Token("money", grammar.Seq(grammar.Lit("£"), grammar.Call("num"))).
+	Token("num", grammar.Plus(grammar.Digit))
+period := grammar.New("Period").Token("period", grammar.Seq(grammar.Lit(" per "), grammar.Call("unit"))).
+	Token("unit", grammar.Lit("year"))
+payUK := money.Extend("PayUK", period).
+	Token("TOP", grammar.Seq(grammar.Call("money"), grammar.Call("period"))).
+	Token("unit", grammar.Alt(grammar.Lit("hour"), grammar.Lit("day")))
+fmt.Println(payUK.Parse("£500 per day").At("money.num.~"))
+```
+
+```
+hour false
+500
 ```
 
 #### `NewRole`

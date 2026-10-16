@@ -118,6 +118,34 @@ func ExampleGrammar_Extend() {
 	// $70k
 }
 
+// Extend with more grammars inherits from them all, as is A is B does.
+// Rules are looked up in the new grammar, then its parents in the order
+// given: here Money's and Period's rules work together, and PayUK
+// overrides Period's <unit>, which Period's own <period> then calls.
+func ExampleGrammar_Extend_several() {
+	g := grammar.MustCompile(`
+grammar Money  { token money  { '£' <num> }; token num { \d+ } }
+grammar Period { token period { ' per ' <unit> }; token unit { year } }
+grammar PayUK is Money is Period {
+    token TOP  { <money> <period> }
+    token unit { hour | day }
+}`)
+	fmt.Println(g.Parse("£18 per hour").At("period.unit.~"), g.Parse("£18 per year").Defined())
+
+	// The same, in Go.
+	money := grammar.New("Money").Token("money", grammar.Seq(grammar.Lit("£"), grammar.Call("num"))).
+		Token("num", grammar.Plus(grammar.Digit))
+	period := grammar.New("Period").Token("period", grammar.Seq(grammar.Lit(" per "), grammar.Call("unit"))).
+		Token("unit", grammar.Lit("year"))
+	payUK := money.Extend("PayUK", period).
+		Token("TOP", grammar.Seq(grammar.Call("money"), grammar.Call("period"))).
+		Token("unit", grammar.Alt(grammar.Lit("hour"), grammar.Lit("day")))
+	fmt.Println(payUK.Parse("£500 per day").At("money.num.~"))
+	// Output:
+	// hour false
+	// 500
+}
+
 // A role is a library of rules to share between grammars. Grammars take a
 // role's rules as their own with does. A role's rules can call rules it
 // doesn't have, here <amount>, for each grammar that uses it to provide.
