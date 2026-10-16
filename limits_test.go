@@ -55,7 +55,7 @@ func TestStepLimitStopsBacktracking(t *testing.T) {
 			if e.Grammar != "Blowup" || e.Limit != 100_000 {
 				t.Errorf("%s: %+v", name, e)
 			}
-			if want := "grammar Blowup: gave up after 100000 steps (see StepLimit)"; e.Error() != want {
+			if want := "grammar Blowup: match too long: gave up after 100000 steps (see StepLimit)"; e.Error() != want {
 				t.Errorf("%s: %q, want %q", name, e.Error(), want)
 			}
 		}

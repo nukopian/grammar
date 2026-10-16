@@ -203,7 +203,7 @@ grammar Seniority {
 // LooseSpacing makes any run of spaces, hyphens, dashes and underscores
 // match any other, as job titles are written every which way. There must
 // still be some spacing: "frontend" is a different phrase from "front-end",
-// so add both if both are used.
+// unless the list has JoinedSpacing too.
 func ExampleLooseSpacing() {
 	l := grammar.NewWordList("titles", grammar.LooseSpacing()).Add("front-end developer")
 	g := grammar.MustCompile(`grammar T { token TOP { @titles } }`, l)

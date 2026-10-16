@@ -240,13 +240,13 @@ func ExampleParseError_Error() {
 // the program. ParseErr returns it. Here the limit is low, to show it.
 func ExampleDepthLimitError_Error() {
 	g := grammar.MustCompile(`grammar Long { token TOP { <[a..z]>* } }`)
+	defer func(old int) { grammar.DepthLimit = old }(grammar.DepthLimit)
 	grammar.DepthLimit = 1_000
-	defer func() { grammar.DepthLimit = 250_000 }()
 
 	_, err := g.ParseErr(strings.Repeat("a", 600))
 	fmt.Println(err)
 	// Output:
-	// grammar Long: match too deep: gave up past 1000 levels (see DepthLimit)
+	// grammar Long: match too deep: gave up after 1000 levels (see DepthLimit)
 }
 
 // Caps gives a match's captures in the order they come in the text, as
@@ -298,13 +298,13 @@ func ExampleChunks() {
 // default limit stops it in about a second; this one is lower.
 func ExampleStepLimit() {
 	g := grammar.MustCompile(`grammar Blowup { regex TOP { [ a+ ]+ $ } }`)
+	defer func(old int) { grammar.StepLimit = old }(grammar.StepLimit)
 	grammar.StepLimit = 100_000
-	defer func() { grammar.StepLimit = 10_000_000 }()
 
 	_, err := g.ParseErr(strings.Repeat("a", 30) + "b")
 	fmt.Println(err)
 	// Output:
-	// grammar Blowup: gave up after 100000 steps (see StepLimit)
+	// grammar Blowup: match too long: gave up after 100000 steps (see StepLimit)
 }
 
 // Parse, Find and the rest panic with a *StepLimitError, as scalar's regexes
@@ -312,8 +312,8 @@ func ExampleStepLimit() {
 // can recover it, and go on to the next text.
 func ExampleStepLimitError_Error() {
 	g := grammar.MustCompile(`grammar Blowup { regex TOP { [ a+ ]+ $ } }`)
+	defer func(old int) { grammar.StepLimit = old }(grammar.StepLimit)
 	grammar.StepLimit = 100_000
-	defer func() { grammar.StepLimit = 10_000_000 }()
 
 	find := func(text string) (m *scalar.SV, err error) {
 		defer func() {
@@ -333,7 +333,7 @@ func ExampleStepLimitError_Error() {
 	}
 	// Output:
 	// "aaa" <nil>
-	// "" grammar Blowup: gave up after 100000 steps (see StepLimit)
+	// "" grammar Blowup: match too long: gave up after 100000 steps (see StepLimit)
 }
 
 // Split gives the text between matches with the matches in place, as Raku's

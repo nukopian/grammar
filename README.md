@@ -185,7 +185,7 @@ escaped.
 | `\-`, `\[` | `Lit("-")` | that punctuation character |
 | `<[a..z 0..9 _]>` | `Class(func(rune) bool)` | one character from the set |
 | `<-[aeiou]>`, `<[a..z] - [aeiou]>`, `<+alpha +[-]>` | `Class(…)` | a negated or combined set |
-| `<:Lu>`, `<:Letter>`, `<:Latin>`, `<:Script<Cyrillic>>`, `<:!Lu>` | `Class(func(r rune) bool { return unicode.IsUpper(r) })` | a character with a Unicode property, or without it; see below |
+| `<:Lu>`, `<:Letter>`, `<:Latin>`, `<:Script<Cyrillic>>`, `<:!Lu>` | `Class(func(r rune) bool { return unicode.Is(unicode.Lu, r) })` | a character with a Unicode property, or without it; see below |
 | `x y` | `Seq(x, y)` | x then y |
 | `x \| y` | `Alt(x, y)` | whichever of x or y matches more text |
 | `x \|\| y` | `First(x, y)` | x if it matches, otherwise y |
@@ -1552,15 +1552,15 @@ Matching recurses as it goes, a level or so for each item matched, and past Dept
 
 ```go
 g := grammar.MustCompile(`grammar Long { token TOP { <[a..z]>* } }`)
+defer func(old int) { grammar.DepthLimit = old }(grammar.DepthLimit)
 grammar.DepthLimit = 1_000
-defer func() { grammar.DepthLimit = 250_000 }()
 
 _, err := g.ParseErr(strings.Repeat("a", 600))
 fmt.Println(err)
 ```
 
 ```
-grammar Long: match too deep: gave up past 1000 levels (see DepthLimit)
+grammar Long: match too deep: gave up after 1000 levels (see DepthLimit)
 ```
 
 #### `Caps`
@@ -1621,15 +1621,15 @@ StepLimit stops a match that backtracks badly. Nested repeats in a regex rule, a
 
 ```go
 g := grammar.MustCompile(`grammar Blowup { regex TOP { [ a+ ]+ $ } }`)
+defer func(old int) { grammar.StepLimit = old }(grammar.StepLimit)
 grammar.StepLimit = 100_000
-defer func() { grammar.StepLimit = 10_000_000 }()
 
 _, err := g.ParseErr(strings.Repeat("a", 30) + "b")
 fmt.Println(err)
 ```
 
 ```
-grammar Blowup: gave up after 100000 steps (see StepLimit)
+grammar Blowup: match too long: gave up after 100000 steps (see StepLimit)
 ```
 
 #### `StepLimitError.Error`
@@ -1638,8 +1638,8 @@ Parse, Find and the rest panic with a \*StepLimitError, as scalar's regexes pani
 
 ```go
 g := grammar.MustCompile(`grammar Blowup { regex TOP { [ a+ ]+ $ } }`)
+defer func(old int) { grammar.StepLimit = old }(grammar.StepLimit)
 grammar.StepLimit = 100_000
-defer func() { grammar.StepLimit = 10_000_000 }()
 
 find := func(text string) (m *scalar.SV, err error) {
 	defer func() {
@@ -1661,7 +1661,7 @@ for _, text := range []string{"aaa", strings.Repeat("a", 30) + "b"} {
 
 ```
 "aaa" <nil>
-"" grammar Blowup: gave up after 100000 steps (see StepLimit)
+"" grammar Blowup: match too long: gave up after 100000 steps (see StepLimit)
 ```
 
 #### `Grammar.Split`
@@ -2497,7 +2497,7 @@ true
 
 LooseSpacing matches any run of spaces, hyphens, dashes and underscores in the text with any such run in a phrase, so "front-end" in the list matches "front end" and "front – end" in the text.
 
-LooseSpacing makes any run of spaces, hyphens, dashes and underscores match any other, as job titles are written every which way. There must still be some spacing: "frontend" is a different phrase from "front-end", so add both if both are used.
+LooseSpacing makes any run of spaces, hyphens, dashes and underscores match any other, as job titles are written every which way. There must still be some spacing: "frontend" is a different phrase from "front-end", unless the list has JoinedSpacing too.
 
 ```go
 l := grammar.NewWordList("titles", grammar.LooseSpacing()).Add("front-end developer")

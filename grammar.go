@@ -314,7 +314,7 @@ type DepthLimitError struct {
 }
 
 func (e *DepthLimitError) Error() string {
-	return fmt.Sprintf("grammar %s: match too deep: gave up past %d levels (see DepthLimit)", e.Grammar, e.Limit)
+	return fmt.Sprintf("grammar %s: match too deep: gave up after %d levels (see DepthLimit)", e.Grammar, e.Limit)
 }
 
 // StepLimitError says a match ran past StepLimit.
@@ -324,7 +324,7 @@ type StepLimitError struct {
 }
 
 func (e *StepLimitError) Error() string {
-	return fmt.Sprintf("grammar %s: gave up after %d steps (see StepLimit)", e.Grammar, e.Limit)
+	return fmt.Sprintf("grammar %s: match too long: gave up after %d steps (see StepLimit)", e.Grammar, e.Limit)
 }
 
 // Option changes how Parse, Subparse, Find and FindAll match.
@@ -454,7 +454,8 @@ func (g *Grammar) prepare(opts []Option) options {
 	return o
 }
 
-// newState starts a match over in, with the step limit in force now.
+// newState starts a match over in, with the step and depth limits in force
+// now.
 func (g *Grammar) newState(in []rune) *state {
 	return &state{in: in, g: g, limit: StepLimit, maxDepth: DepthLimit}
 }

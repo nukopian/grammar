@@ -180,3 +180,21 @@ func TestGoalBuilder(t *testing.T) {
 		t.Errorf("%v\nwant %s", err, want)
 	}
 }
+
+// A ~ missing its closer or its inner part says so, wherever the sequence
+// ends: at a ], a ), a |, the end of the rule, or the > of a lookaround.
+func TestGoalSyntaxErrors(t *testing.T) {
+	for _, src := range []string{
+		`grammar G { token TOP { '(' ~ ')' } }`,
+		`grammar G { token TOP { [ '(' ~ ')' ] } }`,
+		`grammar G { token TOP { '(' ~ ')' | x } }`,
+		`grammar G { token TOP { <?before '(' ~ ')' > . } }`,
+		`grammar G { token TOP { <?before '(' ~ > . } }`,
+		`grammar G { token TOP { '(' ~ } }`,
+	} {
+		_, err := Compile(src)
+		if err == nil || !strings.Contains(err.Error(), "~ needs") {
+			t.Errorf("%s: %v, want a ~ error", src, err)
+		}
+	}
+}

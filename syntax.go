@@ -372,8 +372,7 @@ func (p *parser) sequence() Node {
 	var items []Node
 	p.ws()
 	for {
-		if p.eof() || p.peek("|") || p.peek("]") || p.peek(")") || p.peek("}") ||
-			p.assert > 0 && p.peek(">") {
+		if p.atSequenceEnd() {
 			break
 		}
 		if p.peek(":") {
@@ -409,11 +408,11 @@ func (p *parser) sequence() Node {
 			// Goal matching: open ~ close inner is open inner close, each
 			// with the space that followed it in the source.
 			p.ws()
-			if p.eof() || p.peek("|") || p.peek("]") || p.peek(")") || p.peek("}") {
+			if p.atSequenceEnd() {
 				p.fail("~ needs a closer and something to go between, as in '(' ~ ')' <inner>")
 			}
 			close := p.spacedTerm()
-			if p.eof() || p.peek("|") || p.peek("]") || p.peek(")") || p.peek("}") || p.peek("~") {
+			if p.atSequenceEnd() || p.peek("~") {
 				p.fail("~ needs something to go between the brackets, as in '(' ~ ')' <inner>")
 			}
 			term = Goal(term, close, p.spacedTerm())
@@ -423,8 +422,13 @@ func (p *parser) sequence() Node {
 	return Seq(items...)
 }
 
-// adverbs reads :i, :r, :s and the like: a mode for the caller to fill in,
-// and :s or :!s, if given, which the parser applies itself.
+// atSequenceEnd reports whether the sequence being read ends here: at the
+// end of the source, a branch's |, a group's closing ] or ), the end of
+// the rule, or the > that ends a lookaround.
+func (p *parser) atSequenceEnd() bool {
+	return p.eof() || p.peek("|") || p.peek("]") || p.peek(")") || p.peek("}") || p.assert > 0 && p.peek(">")
+}
+
 // spacedTerm reads a quantified term and, in a rule, the space after it.
 func (p *parser) spacedTerm() Node {
 	sig := p.sig // as it is where the whitespace after the term is
@@ -435,6 +439,8 @@ func (p *parser) spacedTerm() Node {
 	return term
 }
 
+// adverbs reads :i, :r, :s and the like: a mode for the caller to fill in,
+// and :s or :!s, if given, which the parser applies itself.
 func (p *parser) adverbs() (*mode, *bool) {
 	m := &mode{}
 	var sig *bool
@@ -834,7 +840,7 @@ func (p *parser) property() func(rune) bool {
 			p.fail("there's no Unicode script %s, as in <:Script<%s>>: see Go's unicode.Scripts", script, script)
 		}
 	} else if f, ok = unicodeProperty(name); !ok {
-		p.fail("there's no Unicode property %s, as in <:%s>: categories (Lu, Letter), scripts (Latin) and binary properties (White_Space, Alpha) are", name, name)
+		p.fail("there's no Unicode property %s, as in <:%s>: use a category (Lu, Letter), a script (Latin) or a binary property (White_Space, Alpha)", name, name)
 	}
 	if neg {
 		return not(f)

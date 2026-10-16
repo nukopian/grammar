@@ -54,8 +54,9 @@ type state struct {
 	depth, maxDepth int
 }
 
-// deeper counts one more level of the matcher's recursion: an atom stepped
-// over, a repeat taking an item, or a rule call. Matching recurses as it
+// deeper counts one more level of the matcher's recursion: every node that
+// matches another inside it counts one, as do an atom stepped over, a
+// repeat taking an item, and a rule call. Matching recurses as it
 // goes, a level or so for each item it has matched, so a long match goes
 // deep, and Go's stack, though it grows, has a limit, past which the
 // program dies with no chance to recover. Past maxDepth, deeper panics
@@ -127,9 +128,6 @@ func (st *state) fail(pos int, n Node, e env) {
 	if _, isClass := n.(class); isClass && len(t.opt) > 0 && t.opt[len(t.opt)-1] == pos {
 		return // a class repeat such as \s* stopping, as it was free to
 	}
-	if pos > t.far {
-		t.far, t.exp = pos, t.exp[:0]
-	}
 	desc := ""
 	if len(t.calls) > 1 {
 		for _, f := range t.calls[1:] {
@@ -142,12 +140,12 @@ func (st *state) fail(pos int, n Node, e env) {
 	if desc == "" {
 		desc = describe(n, e.ci)
 	}
-	if desc != "" && !slices.Contains(t.exp, desc) {
-		t.exp = append(t.exp, desc)
-	}
+	st.failAs(pos, desc)
 }
 
-// failAs records a failure at pos as fail does, described as desc.
+// failAs records a failure at pos, described as desc: what the text should
+// have had there. An empty desc marks how far the parse got, but adds no
+// expectation, as for <!>.
 func (st *state) failAs(pos int, desc string) {
 	t := st.tr
 	if t == nil || t.quiet > 0 || pos < t.far {
@@ -156,7 +154,7 @@ func (st *state) failAs(pos int, desc string) {
 	if pos > t.far {
 		t.far, t.exp = pos, t.exp[:0]
 	}
-	if !slices.Contains(t.exp, desc) {
+	if desc != "" && !slices.Contains(t.exp, desc) {
 		t.exp = append(t.exp, desc)
 	}
 }
@@ -336,14 +334,15 @@ func (n class) match(st *state, pos int, c *capList, e env, k cont) bool {
 		return false
 	}
 	r := st.in[pos]
-	var ok bool
-	switch {
-	case e.ci && n.inCI != nil:
-		ok = n.inCI(r)
-	default:
-		ok = n.in(r)
+	if e.ci && n.inCI != nil {
+		if !n.inCI(r) {
+			st.fail(pos, n, e)
+			return false
+		}
+		return k(pos+1, c)
 	}
-	if !ok && e.ci && n.inCI == nil {
+	ok := n.in(r)
+	if !ok && e.ci {
 		for f := unicode.SimpleFold(r); f != r && !ok; f = unicode.SimpleFold(f) {
 			ok = n.in(f)
 		}
