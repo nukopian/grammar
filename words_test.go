@@ -162,3 +162,17 @@ func TestDoesConflicts(t *testing.T) {
 		t.Error("own x didn't resolve the conflict")
 	}
 }
+
+// Digits are word characters, so a phrase run into a figure isn't a whole
+// word, as WholeWords' doc says; <!before \w> checks only the end.
+func TestWholeWordsAfterDigits(t *testing.T) {
+	units := NewWordList("units", WholeWords()).Add("pa")
+	whole := MustCompile(`grammar W { token TOP { \d+ @units } }`, units)
+	end := MustCompile(`grammar E { token TOP { \d+ @units <!before \w> } }`, NewWordList("units").Add("pa"))
+	if whole.Parse("45000pa").Defined() {
+		t.Error("WholeWords took pa run into 45000")
+	}
+	if !end.Parse("45000pa").Defined() || end.Parse("45000pay").Defined() {
+		t.Error("<!before \\w> doesn't check only the end")
+	}
+}

@@ -362,7 +362,7 @@ builds a list for each set of rules, keyed by name, ready to pass to
 | `LooseSpacing()` | any run of spaces, hyphens, dashes and underscores matches any other, so "front-end" matches "front end". There must still be some spacing: "frontend" is a different phrase, unless the list has `JoinedSpacing()` too. |
 | `JoinedSpacing()` | the text may leave out the spacing in a phrase, so "on site" matches "onsite" and "front-end" matches "frontend". Write the spaced form; see below. |
 | `Plurals()` | each phrase matches its plural too, with the same canonical value: "Care Assistant" matches "Care Assistants". Regular English plurals of the last word only; see below. |
-| `WholeWords()` | match a phrase only where it isn't part of a longer word: "lead" doesn't match "leadership". It's `<< @list >>` without writing the boundaries, except that a phrase starting or ending with punctuation, such as "c++", can end where the punctuation does. The longest phrase that fits still wins. |
+| `WholeWords()` | match a phrase only where it isn't part of a longer word: "lead" doesn't match "leadership". It's `<< @list >>` without writing the boundaries, except that a phrase starting or ending with punctuation, such as "c++", can end where the punctuation does. The longest phrase that fits still wins. Digits are word characters, as in Raku, so "pa" in "£45000pa" isn't a whole word; to check only the end, as for a unit after a figure, leave this off and write `@units <!before \w>`. |
 
 **Joined spellings.** Postings write the same term spaced, hyphenated and
 run together: "on site", "on-site" and "onsite"; "full stack", "full-stack"

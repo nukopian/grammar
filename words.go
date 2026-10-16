@@ -106,6 +106,11 @@ func Plurals() ListOption { return func(l *WordList) { l.plural = true } }
 // "leadership". It's << @list >> without having to write the boundaries,
 // except that a phrase beginning or ending with punctuation, such as "c++",
 // can end where punctuation does. The longest phrase that fits still wins.
+//
+// Digits are word characters, as in Raku, so "pa" in "£45000pa" isn't a
+// whole word: the 0 before it makes it part of one. Where a phrase may
+// follow a figure directly, as a unit of pay does, leave this off and
+// check only the end, with <!before \w> after the list.
 func WholeWords() ListOption { return func(l *WordList) { l.whole = true } }
 
 // NewWordList returns an empty list called name, which is how Raku syntax
