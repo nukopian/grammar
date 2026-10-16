@@ -12,9 +12,39 @@ pieces back together, and even then "SWE", "Software Developer" and
 
 ## Why this exists
 
-The alternative is sending every posting to a language model, which works
-well but costs more with every posting. This package does the structured
-parts locally, with three ideas that work together:
+I'd never written a grammar, or used Rakudo, though I knew of both. I came
+to them through a practical need. Language models extract structured data
+from job postings very well, but at a cost for every posting, and much of
+what they extract (pay, titles, working arrangements) follows rules. I
+remembered that grammars were one of Raku's biggest selling points, and
+wondered whether rules could do that part locally.
+
+For the reasons behind [`scalar`](../README.md#why-scalar-exists), I
+wanted that in Go without the usual cost. Go's parser generators, such as
+Participle, are faster, about twice as fast on a pay string. But each
+grammar there is Go code, with types and struct tags, and often a lexer to
+design first. That's a lot of schlepping just to find out whether rules
+can do a job at all. `grammar` borrows from where the ideas are best
+worked out:
+
+- Raku's grammars, roles and protos, checked against Rakudo itself.
+- Synonym rules in the format Elasticsearch and Solr use, so word lists
+  can come from a synonym store.
+
+Rules read like the text they match, the phrases are data anyone can edit,
+and changing a rule means changing a line. It's for getting from "could
+rules do this?" to a measured answer quickly: its pay grammar went from
+first sketch to agreeing with a language model on every posting tried, in
+a day. It's also for keeping the rules readable once they work. At about
+13 µs a parse, it gets through the 134,000 postings it was built for in
+seconds. Where production volumes need more, a rule set that has settled
+can be ported.
+
+It's also where everything came together for me: a new language, a new
+kind of tool, and a new way of working, building it with Claude.
+
+This package does the structured parts locally, with three ideas that
+work together:
 
 - **Grammars** say where each kind of thing goes: a seniority, then a title,
   then optionally a team, then a working arrangement in brackets. They're
