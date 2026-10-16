@@ -899,7 +899,7 @@ whatever the grammar or text:
 | Test | Checks |
 |---|---|
 | `FuzzCompile` | `Compile` never panics, however mangled the source |
-| `FuzzMatch` | for grammars built around a fuzzed rule: no panics; `Parse` and `ParseErr` agree; a parse matches all of the text; `Find` finds what `FindAll` finds first; skipping start positions changes nothing |
+| `FuzzMatch` | for grammars built around a fuzzed rule, with a proto and a pattern list to call: no panics; `Parse` and `ParseErr` agree; a parse matches all of the text; `Find` finds what `FindAll` finds first; skipping start positions changes nothing |
 | `FuzzWords` | synonym rules never panic, and every phrase in a list matches itself; with `JoinedSpacing`, run together too, and with `Plurals`, its plural |
 
 `go test` runs them on their seeds and on the inputs that once failed, kept

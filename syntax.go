@@ -306,8 +306,7 @@ func (p *parser) rules(g *Grammar) {
 			if _, dup := g.rules[pname]; dup {
 				p.fail("%s is declared twice", pname)
 			}
-			p.ws()
-			if !p.eat("{") || !func() bool { p.ws(); return p.eat("*") }() || !func() bool { p.ws(); return p.eat("}") }() {
+			if !p.protoBody() {
 				p.fail("a proto's body is {*}: its variants are rules named %s:sym<…>", pname)
 			}
 			p.protect(pname, func() { g.Proto(pname) })
@@ -359,6 +358,17 @@ func (p *parser) protect(name string, f func()) {
 		}
 	}()
 	f()
+}
+
+// protoBody reads a proto's body, { * }, and reports whether it was one.
+func (p *parser) protoBody() bool {
+	for _, part := range []string{"{", "*", "}"} {
+		p.ws()
+		if !p.eat(part) {
+			return false
+		}
+	}
+	return true
 }
 
 // symSuffix reads a variant's :sym<…> or :sym«…» after its proto's name,
@@ -569,8 +579,13 @@ func (p *parser) quantified() (Node, bool) {
 	if p.eat("$<") {
 		name := p.ident()
 		p.expect(">")
+		// $<name> = …, with or without spaces, is a capture; on its own, a
+		// backreference, whose spaces are left for quantifier to read, as
+		// they matter in a rule.
+		after := p.i
+		p.ws()
 		if !p.eat("=") {
-			// $<name> on its own: a backreference.
+			p.i = after
 			return p.quantifier(Backref(name))
 		}
 		capName = name

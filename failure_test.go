@@ -106,6 +106,7 @@ func TestParseErrSameMatches(t *testing.T) {
 	for _, c := range rakuCases {
 		g, err := Compile(c.Src, caseUses(c.Lists, c.Patterns)...)
 		if err != nil {
+			t.Errorf("%v\n%s", err, c.Src)
 			continue
 		}
 		for _, in := range c.Inputs {

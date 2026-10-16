@@ -35,17 +35,52 @@ func fuzzList() *WordList {
 // and ParseErr agree; a parse matches all of the text; Find finds what
 // FindAll finds first; skipping start positions changes nothing; and Values
 // takes any match.
+// fuzzPatterns is a pattern list for FuzzMatch's grammars, <@pats>.
+var fuzzPatterns = MustPatternList("pats", `x+`, `<c> y`, `'z z'`, `(a) $0?`)
+
+// fuzzMatchSeeds are FuzzMatch's starting rule bodies and texts, one or
+// more for each kind of syntax; TestFuzzMatchSeedsCompile keeps them
+// compiling, as FuzzMatch passes over a body that doesn't.
+var fuzzMatchSeeds = [][2]string{
+	{`<a>+ % ',' <c>?`, "x,x,abc"},
+	{`[ a | ab | abc ] .*? <b>`, "abc y z"},
+	{`:i @w+ % <.ws>`, "AB a-b X"},
+	{`( \d+ ) $<k>=[ k ]? <!before \w>`, "45k "},
+	{`^^ <a> $$ \n?`, "x\nx"},
+	{`[ <?after x> y ]* <<x>>`, "xyx"},
+	{`:s a b`, "a  b"},
+	{`<c> ** 2..3 %% '-'`, "ab-c-"},
+	// The later additions: conjunctions, goal matching, backreferences,
+	// : after an atom, Unicode properties, the proto <p> and the
+	// pattern list <@pats> in the grammar below.
+	{`<c> & <[a..c]>+`, "abc"},
+	{`<a> && \w || y`, "x"},
+	{`'(' ~ ')' <c>`, "(ab)"},
+	{`$<q>=<[xy]> <c>? $<q>`, "xabx"},
+	{`$<x> = [ a ] $<x>`, "aa"},
+	{`(\w) $0+`, "aaa"},
+	{`[ a | ab ]: b`, "abb"},
+	{`<:L>+ <:!L>? <:Lu + [_]>*`, "Zoë1A_"},
+	{`<p>+ % ','`, "x,xyab,x"},
+	{`:i <@pats>+ % ' '`, "XX z z abY"},
+}
+
+// fuzzGrammar is FuzzMatch's grammar around a fuzzed rule body.
+func fuzzGrammar(body string) (*Grammar, error) {
+	return Compile("grammar F { token TOP { "+body+" }; token a { x }; rule b { y z }; token c { <[a..c]>+ }; "+
+		"proto token p {*}; token p:sym<x> { <sym> }; token p:sym<xy> { xy <c>? } }", fuzzList(), fuzzPatterns)
+}
+
+func TestFuzzMatchSeedsCompile(t *testing.T) {
+	for _, seed := range fuzzMatchSeeds {
+		if _, err := fuzzGrammar(seed[0]); err != nil {
+			t.Errorf("%s: %v", seed[0], err)
+		}
+	}
+}
+
 func FuzzMatch(f *testing.F) {
-	for _, seed := range [][2]string{
-		{`<a>+ % ',' <c>?`, "x,x,abc"},
-		{`[ a | ab | abc ] .*? <b>`, "abc y z"},
-		{`:i @w+ % <.ws>`, "AB a-b X"},
-		{`( \d+ ) $<k>=[ k ]? <!before \w>`, "45k "},
-		{`^^ <a> $$ \n?`, "x\nx"},
-		{`[ <?after x> y ]* <<x>>`, "xyx"},
-		{`:s a b`, "a  b"},
-		{`<c> ** 2..3 %% '-'`, "ab-c-"},
-	} {
+	for _, seed := range fuzzMatchSeeds {
 		f.Add(seed[0], seed[1])
 	}
 	f.Fuzz(func(t *testing.T, body, text string) {
@@ -54,7 +89,7 @@ func FuzzMatch(f *testing.F) {
 		if len(body) > 200 || utf8.RuneCountInString(text) > 40 || strings.Contains(body, "regex") || strings.Contains(body, ":!r") {
 			t.Skip()
 		}
-		g, err := Compile("grammar F { token TOP { "+body+" }; token a { x }; rule b { y z }; token c { <[a..c]>+ } }", fuzzList())
+		g, err := fuzzGrammar(body)
 		if err != nil {
 			return
 		}

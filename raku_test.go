@@ -306,6 +306,10 @@ var rakuCases = []struct {
 	{Src: `grammar Back9 { token TOP { $<q>=[a] $<r>=$<q> } }`, Inputs: []string{"aa"}},
 	{Src: `grammar Back10 { regex TOP { $<x>=[a+] $<x> } }`, Inputs: []string{"aaaa", "aaa"}},
 	{Src: `grammar Back11 { token TOP { $<q>=[\w] $<q>+ } }`, Inputs: []string{"aaa", "ab"}},
+	// Spaces before a capture's = are allowed; in a rule, the space after a
+	// backreference is significant, as after any atom.
+	{Src: `grammar Back12 { token TOP { $<x> = [ a ] b $<y>= c } }`, Inputs: []string{"abc"}},
+	{Src: `grammar Back13 { rule TOP { $<q>=[a] $<q> b } }`, Inputs: []string{"a a b", "a ab", "aa b"}},
 	{Src: `grammar Order7 { token TOP { <a> ' '? <b>+ (x) <c=a> $<n>=[ \d+ ] <.a>? '-' <d=.b> }; token a { a }; token b { b } }`,
 		Inputs: []string{"a bbxa12a-b", "abxa1-b"}},
 }
