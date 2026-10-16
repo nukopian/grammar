@@ -740,6 +740,11 @@ error. A program reading texts it can't trust can recover it and go on to
 the next text (see the `StepLimitError` example). Steps are counted rather
 than timed, so a text that runs out runs out every time, on any machine.
 
+A word list with `JoinedSpacing` counts too: its search for a joined
+spelling counts a step for each place it tries, as a phrase with a long
+run of spacing (a few thousand tabs, which the fuzzer found) can take
+seconds otherwise.
+
 The job-posting grammars in this repository take at most a few hundred
 thousand steps a call; counting costs nothing measurable
 (`BenchmarkFindAll`). Set `StepLimit` at startup, before matching; zero

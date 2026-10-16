@@ -72,6 +72,10 @@ func LooseSpacing() ListOption { return func(l *WordList) { l.loose = true } }
 // "fullstack web developer" and "fullstackwebdeveloper". With LooseSpacing
 // as well, the text can have any spacing between the words, or none.
 //
+// A phrase with a long run of spacing, without LooseSpacing, can be
+// matched or skipped a character at a time, which can take a while; the
+// search counts against StepLimit, as backtracking does.
+//
 // Run together, two words can make a different word: "pen is" would match
 // "penis". A phrase in the list as written wins over a joined reading of
 // another, so add the joined word too where it means something else.
@@ -330,7 +334,7 @@ func (l *WordList) Canonical(phrase string) []string {
 	}
 	in := []rune(key)
 	for _, fold := range []bool{false, true} {
-		if end, t := l.longest(in, 0, fold); end == len(in) {
+		if end, t := l.longest(in, 0, fold, nil); end == len(in) {
 			return slices.Clone(l.valuesIn(fold)[t.key])
 		}
 	}
@@ -399,7 +403,7 @@ func (n words) match(st *state, pos int, c *capList, e env, k cont) bool {
 	if l.joined {
 		end := -1
 		if !(l.whole && midWord(in, pos)) {
-			end, _ = l.longest(in, pos, fold)
+			end, _ = l.longest(in, pos, fold, st)
 		}
 		if end < 0 {
 			st.fail(pos, n, e)
@@ -454,7 +458,12 @@ func (n words) match(st *state, pos int, c *capList, e env, k cont) bool {
 // same ends, so the search remembers where it's been, and does no more work
 // than nodes × positions. It only starts remembering at the first skip:
 // until then there's one way through, as without JoinedSpacing.
-func (l *WordList) longest(in []rune, pos int, fold bool) (int, *trie) {
+//
+// That's still a lot for a phrase with a long run of spacing, which can be
+// matched or skipped a character at a time, so in a match each place the
+// search visits is a step, counted against StepLimit. Canonical passes no
+// state: it reads text that has already matched, which searched as far.
+func (l *WordList) longest(in []rune, pos int, fold bool, st *state) (int, *trie) {
 	root := l.root
 	if fold {
 		root = l.rootFold
@@ -472,6 +481,9 @@ func (l *WordList) longest(in []rune, pos int, fold bool) (int, *trie) {
 				return
 			}
 			seen[place{t, i}] = true
+		}
+		if st != nil {
+			st.tick()
 		}
 		if t.end && i > end && !(l.whole && midWord(in, i)) {
 			end, at = i, t

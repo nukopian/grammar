@@ -165,3 +165,32 @@ func depthLimitPanic(t *testing.T, f func()) (e *DepthLimitError) {
 	f()
 	return nil
 }
+
+// A word list's search for joined spellings counts against StepLimit: a
+// phrase with a long run of spacing, without LooseSpacing, can be matched
+// or skipped a character at a time, which takes time in proportion to the
+// run's length times the text's. FuzzWords found one of a few thousand
+// tabs, which took seconds.
+func TestStepLimitWordList(t *testing.T) {
+	phrase := "a" + strings.Repeat("\t", 3000) + "b"
+	l := NewWordList("w", JoinedSpacing()).Add(phrase)
+	g := MustCompile(`grammar W { token TOP { @w } }`, l)
+	withStepLimit(t, 100_000, func() {
+		if stepLimitPanic(t, func() { g.Parse(phrase) }) == nil {
+			t.Error("Parse didn't stop")
+		}
+		_, err := g.ParseErr(phrase)
+		var e *StepLimitError
+		if !errors.As(err, &e) {
+			t.Errorf("ParseErr = %v, want a *StepLimitError", err)
+		}
+	})
+	// Ordinary phrases are nowhere near it.
+	short := NewWordList("s", JoinedSpacing()).Add("full stack web developer")
+	gs := MustCompile(`grammar S { token TOP { @s } }`, short)
+	withStepLimit(t, 1_000, func() {
+		if !gs.Parse("fullstack web developer").Defined() {
+			t.Error("a joined spelling didn't match within 1,000 steps")
+		}
+	})
+}

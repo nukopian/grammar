@@ -106,6 +106,18 @@ func FuzzWords(f *testing.F) {
 	f.Add("a\\\\, b => c\n# comment\n=>\n, ,", false, true)
 	f.Add("Front-end Developer, Frontend Developer", true, false)
 	f.Fuzz(func(t *testing.T, rules string, fold, loose bool) {
+		// A phrase with a long run of spacing makes JoinedSpacing's search
+		// slow, by design, until StepLimit stops it; a low limit keeps
+		// each input quick, and running past it is a panic by design.
+		defer func(old int) { StepLimit = old }(StepLimit)
+		StepLimit = 200_000
+		defer func() {
+			switch r := recover().(type) {
+			case nil, *StepLimitError, *DepthLimitError:
+			default:
+				panic(r)
+			}
+		}()
 		for _, extra := range [][2]bool{{false, false}, {true, false}, {false, true}, {true, true}} {
 			joined, plural := extra[0], extra[1]
 			var opts []ListOption

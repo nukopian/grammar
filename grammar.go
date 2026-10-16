@@ -355,7 +355,8 @@ func walk(n Node, f func(Node)) {
 // Split, ParseErr or SubparseErr may take, so that a regex rule that
 // backtracks badly can't hang the program on an unexpected text, as
 // scalar.RegexTimeout does for scalar's regexes. A step is a repeat taking
-// an item, an alternation, a rule call, or a lookbehind trying a start. Past
+// an item, an alternation, a rule call, a lookbehind trying a start, or a
+// word list's search for a joined spelling trying a place. Past
 // the limit, the call panics with a *StepLimitError; ParseErr and
 // SubparseErr return it instead. Zero or less means no limit. Set it at
 // startup, before matching.

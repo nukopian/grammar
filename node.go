@@ -72,7 +72,8 @@ func (st *state) deeper() {
 func (st *state) shallower() { st.depth-- }
 
 // tick counts one step of the matcher: a repeat taking an item, an
-// alternation, a rule call, or a lookbehind trying a start. Anything that
+// alternation, a rule call, a lookbehind trying a start, or a word list's
+// search for a joined spelling trying a place. Anything that
 // backtracks badly does these over and over, so counting them bounds the
 // time a match can take. Past the limit, it panics with a *StepLimitError,
 // which ParseErr and SubparseErr return as an error.
