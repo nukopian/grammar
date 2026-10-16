@@ -97,28 +97,45 @@ func FuzzWords(f *testing.F) {
 	f.Add("a\\\\, b => c\n# comment\n=>\n, ,", false, true)
 	f.Add("Front-end Developer, Frontend Developer", true, false)
 	f.Fuzz(func(t *testing.T, rules string, fold, loose bool) {
-		var opts []ListOption
-		if fold {
-			opts = append(opts, FoldCase())
-		}
-		if loose {
-			opts = append(opts, LooseSpacing())
-		}
-		l := NewWordList("w", opts...)
-		l.AddRules(rules) // errors are fine; panics aren't
-		g := MustCompile(`grammar W { token TOP { @w } }`, l)
-		for _, phrase := range l.Phrases() {
-			if len(l.Canonical(phrase)) == 0 {
-				t.Fatalf("phrase %q has no meaning", phrase)
+		for _, joined := range []bool{false, true} {
+			var opts []ListOption
+			if fold {
+				opts = append(opts, FoldCase())
 			}
-			m := g.Parse(phrase)
-			if !m.Defined() {
-				t.Fatalf("phrase %q doesn't match itself", phrase)
+			if loose {
+				opts = append(opts, LooseSpacing())
 			}
-			if len(l.Canonical(m.At("~").Str())) == 0 {
-				t.Fatalf("phrase %q matched as %q, which has no meaning", phrase, m.At("~").Str())
+			if joined {
+				opts = append(opts, JoinedSpacing())
 			}
+			l := NewWordList("w", opts...)
+			l.AddRules(rules) // errors are fine; panics aren't
+			g := MustCompile(`grammar W { token TOP { @w } }`, l)
+			for _, phrase := range l.Phrases() {
+				texts := []string{phrase}
+				if joined && utf8.ValidString(phrase) {
+					// Run together, it still matches, and means something.
+					// (Joining the bytes of invalid UTF-8 could make a
+					// character that was never in the phrase.)
+					texts = append(texts, strings.Join(strings.FieldsFunc(phrase, isListSpace), ""))
+				}
+				for _, text := range texts {
+					if text == "" {
+						continue
+					}
+					if len(l.Canonical(text)) == 0 {
+						t.Fatalf("%q (from phrase %q) has no meaning", text, phrase)
+					}
+					m := g.Parse(text)
+					if !m.Defined() {
+						t.Fatalf("%q (from phrase %q) doesn't match", text, phrase)
+					}
+					if len(l.Canonical(m.At("~").Str())) == 0 {
+						t.Fatalf("%q matched as %q, which has no meaning", text, m.At("~").Str())
+					}
+				}
+			}
+			g.FindAll(rules)
 		}
-		g.FindAll(rules)
 	})
 }

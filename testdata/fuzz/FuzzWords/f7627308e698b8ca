@@ -1,0 +1,4 @@
+go test fuzz v1
+string("\xe0\xbb \x85")
+bool(false)
+bool(true)

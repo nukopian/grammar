@@ -1,6 +1,7 @@
 package grammar
 
 import (
+	"maps"
 	"slices"
 	"unicode"
 )
@@ -116,6 +117,12 @@ func (f *startFinder) add(n Node, ci bool, s *starts) bool {
 		return false
 	case words:
 		l := n.l
+		if l.joined && slices.ContainsFunc(slices.Collect(maps.Keys(l.root.next)), isListSpace) {
+			// A phrase starts with spacing the text may leave out, so it
+			// can start with anything.
+			s.preds = append(s.preds, func(rune) bool { return true })
+			return false
+		}
 		if l.fold || ci {
 			root := l.rootFold
 			s.preds = append(s.preds, func(r rune) bool { return root.next[unicode.ToLower(r)] != nil })

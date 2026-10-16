@@ -218,6 +218,31 @@ func ExampleLooseSpacing() {
 	// false
 }
 
+// JoinedSpacing lets the text leave out a phrase's spacing, as postings
+// write "on site", "on-site" and "onsite" for the same thing. Write the
+// spaced form: there's no telling where a space would go in "onsite". With
+// LooseSpacing too, one phrase covers every spelling, and the canonical
+// value is the same for each.
+func ExampleJoinedSpacing() {
+	places := grammar.NewWordList("places", grammar.FoldCase(), grammar.LooseSpacing(),
+		grammar.JoinedSpacing(), grammar.WholeWords()).
+		Add("On-site", "on site", "office based")
+	g := grammar.MustCompile(`grammar P { token TOP { @places } }`, places)
+
+	for _, text := range []string{"Onsite", "on-site", "On Site", "office-based", "Officebased", "onsiteness"} {
+		fmt.Printf("%-14q %v\n", text, g.Parse(text).At("made").Or("-"))
+	}
+	fmt.Println(places.Canonical("officebased"))
+	// Output:
+	// "Onsite"       On-site
+	// "on-site"      On-site
+	// "On Site"      On-site
+	// "office-based" On-site
+	// "Officebased"  On-site
+	// "onsiteness"   -
+	// [On-site]
+}
+
 // WholeWords matches a phrase only where it isn't part of a longer word,
 // which << @list >> would do, without having to write the boundaries.
 func ExampleWholeWords() {

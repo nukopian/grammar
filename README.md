@@ -309,8 +309,44 @@ builds a list for each set of rules, keyed by name, ready to pass to
 | Option | Effect |
 |---|---|
 | `FoldCase()` | ignore case everywhere the list is used. Without it, the list ignores case only under `:i`, as in Raku. |
-| `LooseSpacing()` | any run of spaces, hyphens, dashes and underscores matches any other, so "front-end" matches "front end". There must still be some spacing: "frontend" is a different phrase. |
+| `LooseSpacing()` | any run of spaces, hyphens, dashes and underscores matches any other, so "front-end" matches "front end". There must still be some spacing: "frontend" is a different phrase, unless the list has `JoinedSpacing()` too. |
+| `JoinedSpacing()` | the text may leave out the spacing in a phrase, so "on site" matches "onsite" and "front-end" matches "frontend". Write the spaced form; see below. |
 | `WholeWords()` | match a phrase only where it isn't part of a longer word: "lead" doesn't match "leadership". It's `<< @list >>` without writing the boundaries, except that a phrase starting or ending with punctuation, such as "c++", can end where the punctuation does. The longest phrase that fits still wins. |
+
+**Joined spellings.** Postings write the same term spaced, hyphenated and
+run together: "on site", "on-site" and "onsite"; "full stack", "full-stack"
+and "fullstack". Without help, a list must spell out every form, and the
+titleeval lists did just that. `LooseSpacing()` covers the spaced and
+hyphenated forms; `JoinedSpacing()` covers the run-together one, so with
+both, one phrase covers them all:
+
+```go
+places := grammar.NewWordList("places", grammar.FoldCase(), grammar.LooseSpacing(), grammar.JoinedSpacing()).
+	Add("On-site", "on site")
+// "on site", "On-Site", "on – site" and "ONSITE" all match, and all mean "On-site"
+```
+
+It works one way only, so write the spaced form in the list: from "on
+site" it's clear that "onsite" is the same thing, but from "onsite" there's
+no telling where a space would go. Each space, hyphen, dash or underscore
+in a phrase may be left out on its own, so "full stack web developer" also
+matches "fullstack web developer". `Canonical` knows the joined forms too:
+`Canonical("onsite")` is `[On-site]`. `Phrases()` still lists only what was
+added.
+
+Two words run together can make a different word: "pen is" would match
+"penis". A phrase in the list as written always wins over a joined reading
+of another, so where a joined form means something else, add it as a
+phrase of its own. `Ambiguous()` doesn't report these, as they aren't
+phrases; it's worth reading a list's two-word phrases with this in mind
+before turning the option on.
+
+Matching a joined spelling searches the list's trie both ways at each
+space, remembering where it's been, so it costs at most the trie's size
+times the text's length. In practice the difference doesn't show:
+`BenchmarkListJoined` and `BenchmarkListExact`, a `Find` over a sentence
+with and without the option, are within each other's noise.
+Without the option, a list matches as before, and as Raku's does.
 
 **Ambiguity.** A phrase added for two canonical values, such as "PM" for
 both product and project manager, matches as the first. `Ambiguous()` lists
@@ -580,7 +616,7 @@ whatever the grammar or text:
 |---|---|
 | `FuzzCompile` | `Compile` never panics, however mangled the source |
 | `FuzzMatch` | for grammars built around a fuzzed rule: no panics; `Parse` and `ParseErr` agree; a parse matches all of the text; `Find` finds what `FindAll` finds first; skipping start positions changes nothing |
-| `FuzzWords` | synonym rules never panic, and every phrase in a list matches itself |
+| `FuzzWords` | synonym rules never panic, and every phrase in a list matches itself; with `JoinedSpacing`, run together too |
 
 `go test` runs them on their seeds and on the inputs that once failed, kept
 in `testdata/fuzz`. To search for new failures:
@@ -664,7 +700,7 @@ Before changing anything, it helps to know how the package is put together:
 | **Positions count runes, not graphemes.** A letter followed by a combining accent is two characters here, and one in Raku, so `.` can match half of it. | Text in decomposed form (NFD), which is unusual in job postings: most text arrives composed (NFC). | Normalise input to NFC with `golang.org/x/text/unicode/norm`, already a dependency, which fixes almost all of it (effort 1). For full grapheme semantics, segment the input with `rivo/uniseg` and match on graphemes (effort 3). | yes | 1 / 3 |
 | **`<alias=name>` captures under both names,** as Raku does. | When you expect only the alias. | Nothing to fix: use `<alias=.name>`. | by design | — |
 | **`Re` takes Perl-style regex syntax.** | Only that it isn't Raku syntax. It's for patterns you already have. | — | by design | — |
-| **Word lists add to Raku's `@list`:** canonical values, `FoldCase` and `LooseSpacing`. | Never for Raku-compatible lists: without the options, a list matches as Raku's does. | — | by design | — |
+| **Word lists add to Raku's `@list`:** canonical values, `FoldCase`, `LooseSpacing`, `JoinedSpacing` and `WholeWords`. | Never for Raku-compatible lists: without the options, a list matches as Raku's does. | — | by design | — |
 
 ### Engineering
 
@@ -677,7 +713,7 @@ Before changing anything, it helps to know how the package is put together:
 | **`<?after …>` tries every earlier position.** It matches its pattern ending at the current position by trying each start before it, so it costs time in proportion to how far into the text it is, and heavy use in `FindAll` grows with the square of the text's length. | Long texts with many lookbehinds. | Where the pattern's length is fixed or bounded (a literal, a class, a bounded repeat), try only those start positions. | yes | 2 |
 | **Nested alternations in a `regex` double their work at each level.** `\|` matches each branch to measure it, then matches the winner again for real. In a `token` the second match is skipped, as the first is final. | Deeply nested alternations inside `regex` rules, which are rare. | Part of true longest-token matching (above), which decides from prefixes without matching branches in full. | yes | 5 |
 | **`extendable` is worked out at every step.** | Only for speed. | Cache it per node, at construction or in a map. | yes | 1 |
-| **Word lists: no optional spacing** ("frontend" vs "front end"), **plurals, stemming or fuzzy matching**. | Synonym data that doesn't list every spelling. | Optional spacing and plurals can be normalised in `Add` and in matching (effort 1–2 each). Fuzzy matching belongs elsewhere: compare embeddings for near misses, and send the rest to the LLM (effort 3+). | yes | 1–3 |
+| **Word lists: no plurals, stemming or fuzzy matching.** (`JoinedSpacing` covers "frontend" against "front end".) | Synonym data that doesn't list every spelling. | Regular plurals can be added in `Add` (effort 1). Fuzzy matching belongs elsewhere: compare embeddings for near misses, and send the rest to the LLM (effort 3+). | yes | 1–3 |
 | **Word lists can't change while in use.** | Refreshing synonyms in a long-running service. | Build a new list and grammar, and swap them in with an `atomic.Pointer`. Needs no change here. | yes | 1 |
 | **The Raku-syntax parser is hand-written,** not built with the package's own builder as first planned. | Only if the syntax grows much larger. | Rewrite it as a grammar of Raku regex syntax, with actions building nodes. | yes | 3 |
 
@@ -2238,6 +2274,34 @@ true
 true
 true
 false
+```
+
+#### `JoinedSpacing`
+
+JoinedSpacing lets the text leave out the spacing in a phrase, so "on site" in the list matches "onsite" too, and "front-end" matches "frontend".
+
+JoinedSpacing lets the text leave out a phrase's spacing, as postings write "on site", "on-site" and "onsite" for the same thing. Write the spaced form: there's no telling where a space would go in "onsite". With LooseSpacing too, one phrase covers every spelling, and the canonical value is the same for each.
+
+```go
+places := grammar.NewWordList("places", grammar.FoldCase(), grammar.LooseSpacing(),
+	grammar.JoinedSpacing(), grammar.WholeWords()).
+	Add("On-site", "on site", "office based")
+g := grammar.MustCompile(`grammar P { token TOP { @places } }`, places)
+
+for _, text := range []string{"Onsite", "on-site", "On Site", "office-based", "Officebased", "onsiteness"} {
+	fmt.Printf("%-14q %v\n", text, g.Parse(text).At("made").Or("-"))
+}
+fmt.Println(places.Canonical("officebased"))
+```
+
+```
+"Onsite"       On-site
+"on-site"      On-site
+"On Site"      On-site
+"office-based" On-site
+"Officebased"  On-site
+"onsiteness"   -
+[On-site]
 ```
 
 #### `WholeWords`
