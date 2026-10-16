@@ -3,6 +3,7 @@ package grammar_test
 import (
 	"fmt"
 
+	"github.com/nukopian/job-meta/internal/scalar"
 	"github.com/nukopian/job-meta/internal/scalar/grammar"
 )
 
@@ -204,4 +205,19 @@ grammar Rate {
 	// £500
 	// £500
 	// no match
+}
+
+// Unicode properties pick characters by what Unicode says they are, so a
+// rule works in any language: <:Lu> is any capital, where <[A..Z]> is only
+// the 26. Here, capitalised words in names from three scripts.
+func Example_unicodeProperties() {
+	g := grammar.MustCompile(`grammar Names { token TOP { <:Lu> <:Ll>+ } }`)
+	ascii := grammar.MustCompile(`grammar ASCII { token TOP { <[A..Z]> <[a..z]>+ } }`)
+
+	text := "Zoë Ölander, Жанна Петрова, 李 Wei"
+	fmt.Println(g.FindAll(text).Map(func(m *scalar.SV) any { return m.At("~") }).Join(" | "))
+	fmt.Println(ascii.FindAll(text).Map(func(m *scalar.SV) any { return m.At("~") }).Join(" | "))
+	// Output:
+	// Zoë | Ölander | Жанна | Петрова | Wei
+	// Zo | Wei
 }

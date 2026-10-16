@@ -585,7 +585,7 @@ func (p *parser) atom() Node {
 	case p.eat(`\`):
 		start := p.i - 1
 		in := p.escape()
-		return class{in, string(p.src[start:p.i])}
+		return class{in: in, desc: string(p.src[start:p.i])}
 	case p.eat("^^"):
 		return LineStart
 	case p.eat("^"):
@@ -694,11 +694,11 @@ func (p *parser) escape() func(rune) bool {
 // assertion reads what follows a <.
 func (p *parser) assertion() Node {
 	switch {
-	case p.peek("[") || p.peek("-") || p.peek("+"):
+	case p.peek("[") || p.peek("-") || p.peek("+") || p.peek(":"):
 		start := p.i - 1 // the <
-		f := p.classExpr()
+		f, fci := p.classExpr()
 		p.expect(">")
-		return class{f, string(p.src[start:p.i])}
+		return class{in: f, desc: string(p.src[start:p.i]), inCI: fci}
 	case p.peek("?before") || p.peek("!before") || p.peek("?after") || p.peek("!after"):
 		neg := p.eat("!")
 		p.eat("?")
@@ -750,8 +750,11 @@ func (p *parser) assertion() Node {
 // classes, joined with + and -, as in <[a..z] - [aeiou]>, <-[\n]> or
 // <+alpha +[-]>. As in Raku, a class that starts with a name starts with a
 // sign, so that <alpha> stays a call.
-func (p *parser) classExpr() func(rune) bool {
-	var f func(rune) bool
+//
+// It returns the class, and the class under :i, which folds the case of
+// its [ ... ] sets but not of its properties or named classes, as Raku
+// does.
+func (p *parser) classExpr() (f, fci func(rune) bool) {
 	for {
 		p.ws()
 		sign := '+'
@@ -761,14 +764,19 @@ func (p *parser) classExpr() func(rune) bool {
 			sign = '-'
 		default:
 			if f != nil {
-				return f
+				return f, fci
 			}
 		}
 		p.ws()
-		var g func(rune) bool
-		if p.eat("[") {
+		var g, gci func(rune) bool
+		switch {
+		case p.eat("["):
 			g = p.set()
-		} else {
+			gci = folded(g)
+		case p.eat(":"):
+			g = p.property()
+			gci = g
+		default:
 			name := p.ident()
 			named := map[string]func(rune) bool{
 				"alpha": isAlpha, "digit": isDigit, "space": isSpace, "upper": unicode.IsUpper,
@@ -777,20 +785,61 @@ func (p *parser) classExpr() func(rune) bool {
 			if g = named[name]; g == nil {
 				p.fail("<%s> can't be used in a character class", name)
 			}
+			gci = g
 		}
-		switch {
-		case f == nil && sign == '-':
-			f = not(g)
-		case f == nil:
-			f = g
-		case sign == '-':
-			f0 := f
-			f = func(r rune) bool { return f0(r) && !g(r) }
-		default:
-			f0 := f
-			f = func(r rune) bool { return f0(r) || g(r) }
-		}
+		f, fci = combine(f, g, sign), combine(fci, gci, sign)
 	}
+}
+
+// combine adds g to the class f, or takes it away, by sign; f is nil at
+// the start of a class.
+func combine(f, g func(rune) bool, sign rune) func(rune) bool {
+	switch {
+	case f == nil && sign == '-':
+		return not(g)
+	case f == nil:
+		return g
+	case sign == '-':
+		return func(r rune) bool { return f(r) && !g(r) }
+	}
+	return func(r rune) bool { return f(r) || g(r) }
+}
+
+// folded is f ignoring case: a character is in it if any case of it is in f.
+func folded(f func(rune) bool) func(rune) bool {
+	return func(r rune) bool {
+		if f(r) {
+			return true
+		}
+		for c := unicode.SimpleFold(r); c != r; c = unicode.SimpleFold(c) {
+			if f(c) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+// property reads a Unicode property after its colon: Lu, !Lu (not Lu),
+// Letter, Latin, or Script<Latin>.
+func (p *parser) property() func(rune) bool {
+	neg := p.eat("!")
+	name := p.ident()
+	var f func(rune) bool
+	var ok bool
+	if looseName(name) == "script" && p.eat("<") {
+		script := p.ident()
+		p.expect(">")
+		if f, ok = unicodeScript(script); !ok {
+			p.fail("there's no Unicode script %s, as in <:Script<%s>>: see Go's unicode.Scripts", script, script)
+		}
+	} else if f, ok = unicodeProperty(name); !ok {
+		p.fail("there's no Unicode property %s, as in <:%s>: categories (Lu, Letter), scripts (Latin) and binary properties (White_Space, Alpha) are", name, name)
+	}
+	if neg {
+		return not(f)
+	}
+	return f
 }
 
 // set reads the inside of [ ... ]: characters, ranges such as a..z, and

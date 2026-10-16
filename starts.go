@@ -113,7 +113,11 @@ func (f *startFinder) add(n Node, ci bool, s *starts) bool {
 		s.addRune(n.rs[0], ci)
 		return false
 	case class:
-		s.addPred(n.in, ci)
+		if ci && n.inCI != nil {
+			s.preds = append(s.preds, n.inCI)
+		} else {
+			s.addPred(n.in, ci)
+		}
 		return false
 	case words:
 		l := n.l

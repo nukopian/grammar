@@ -292,10 +292,16 @@ func runeEq(a, b rune, ci bool) bool {
 type class struct {
 	in   func(rune) bool
 	desc string // for failure reports, as the grammar writes it: \d, <[a..z]>
+
+	// inCI is in under :i, for a class written in Raku syntax, which folds
+	// the case of its sets but not of its properties or named classes, as
+	// Raku does: :i <[a..z] - :Ll> is <[A..Z]>. Without it, under :i a
+	// character matches if any case of it is in.
+	inCI func(rune) bool
 }
 
 // Class matches one character for which in returns true.
-func Class(in func(rune) bool) Node { return class{in, "a character of a class"} }
+func Class(in func(rune) bool) Node { return class{in: in, desc: "a character of a class"} }
 
 func (n class) match(st *state, pos int, c *capList, e env, k cont) bool {
 	if pos >= len(st.in) {
@@ -303,8 +309,14 @@ func (n class) match(st *state, pos int, c *capList, e env, k cont) bool {
 		return false
 	}
 	r := st.in[pos]
-	ok := n.in(r)
-	if !ok && e.ci {
+	var ok bool
+	switch {
+	case e.ci && n.inCI != nil:
+		ok = n.inCI(r)
+	default:
+		ok = n.in(r)
+	}
+	if !ok && e.ci && n.inCI == nil {
 		for f := unicode.SimpleFold(r); f != r && !ok; f = unicode.SimpleFold(f) {
 			ok = n.in(f)
 		}
@@ -328,10 +340,10 @@ func not(f func(rune) bool) func(rune) bool { return func(r rune) bool { return 
 
 // The character classes of Raku's backslash sequences.
 var (
-	AnyChar Node = class{func(rune) bool { return true }, "any character"} // .
-	Digit   Node = class{isDigit, `\d`}                                    // \d
-	Word    Node = class{isWord, `\w`}                                     // \w
-	Space   Node = class{isSpace, `\s`}                                    // \s
+	AnyChar Node = class{in: func(rune) bool { return true }, desc: "any character"} // .
+	Digit   Node = class{in: isDigit, desc: `\d`}                                    // \d
+	Word    Node = class{in: isWord, desc: `\w`}                                     // \w
+	Space   Node = class{in: isSpace, desc: `\s`}                                    // \s
 )
 
 // Regexes from regexp2, as terminals.

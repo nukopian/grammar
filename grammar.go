@@ -776,13 +776,13 @@ func newBuiltins() *Grammar {
 	b := &Grammar{name: "Grammar", rules: map[string]*rule{}}
 	tokens := map[string]Node{
 		"ws":    Seq(aNotWithinWord, Star(Space)), // token ws { <!ww> \s* }
-		"alpha": class{isAlpha, "<alpha>"},
+		"alpha": class{in: isAlpha, desc: "<alpha>"},
 		"digit": Digit,
-		"alnum": class{func(r rune) bool { return isAlpha(r) || isDigit(r) }, "<alnum>"},
-		"upper": class{unicode.IsUpper, "<upper>"},
-		"lower": class{unicode.IsLower, "<lower>"},
+		"alnum": class{in: func(r rune) bool { return isAlpha(r) || isDigit(r) }, desc: "<alnum>"},
+		"upper": class{in: unicode.IsUpper, desc: "<upper>"},
+		"lower": class{in: unicode.IsLower, desc: "<lower>"},
 		"space": Space,
-		"punct": class{unicode.IsPunct, "<punct>"},
+		"punct": class{in: unicode.IsPunct, desc: "<punct>"},
 	}
 	for name, body := range tokens {
 		b.Token(name, body)

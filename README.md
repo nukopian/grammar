@@ -185,6 +185,7 @@ escaped.
 | `\-`, `\[` | `Lit("-")` | that punctuation character |
 | `<[a..z 0..9 _]>` | `Class(func(rune) bool)` | one character from the set |
 | `<-[aeiou]>`, `<[a..z] - [aeiou]>`, `<+alpha +[-]>` | `Class(…)` | a negated or combined set |
+| `<:Lu>`, `<:Letter>`, `<:Latin>`, `<:Script<Cyrillic>>`, `<:!Lu>` | `Class(func(r rune) bool { return unicode.IsUpper(r) })` | a character with a Unicode property, or without it; see below |
 | `x y` | `Seq(x, y)` | x then y |
 | `x \| y` | `Alt(x, y)` | whichever of x or y matches more text |
 | `x \|\| y` | `First(x, y)` | x if it matches, otherwise y |
@@ -257,6 +258,31 @@ In Go there's no sigspace: put `grammar.Silent("ws")` where the spaces go.
 Raku's built-in rules are there too: `<ws>` (optional whitespace, but not
 inside a word), `<alpha>` (a letter or `_`), `<digit>`, `<alnum>`,
 `<upper>`, `<lower>`, `<space>` and `<punct>`.
+
+**Unicode properties** pick characters by what Unicode says they are, so a
+rule works in any language: `<:Lu>` is any capital letter, `É` and `Ж` as
+well as `A`, where `<[A..Z]>` is only the 26. A property is:
+
+- a general category, by its short or long name: `<:L>` or `<:Letter>`,
+  `<:Lu>` or `<:Uppercase_Letter>`, `<:Nd>` (a decimal digit, in any
+  script), `<:Pd>` (any dash: hyphen, en dash, em dash), `<:Zs>`, `<:Sc>`
+  (a currency symbol);
+- a script: `<:Latin>`, `<:Cyrillic>`, `<:Han>`, or `<:Script<Latin>>`;
+- a binary property: `<:White_Space>`, `<:Dash>`, `<:Alpha>`
+  (`Alphabetic`), `<:Upper>`, `<:Lower>`, and the others in Go's
+  `unicode.Properties`.
+
+Names ignore case, spaces, hyphens and underscores, as Unicode's do, so
+`<:lu>` and `<:uppercase-letter>` are `<:Lu>`. `<:!Lu>` (or `<-:Lu>`) is
+anything but. Properties combine with sets and named classes, as in
+`<:L + [_]>` or `<[a..z] - :Lu>`. They come from Go's `unicode` tables, so
+they're the Unicode version Go has.
+
+Under `:i`, a set ignores case and a property doesn't, as in Raku:
+`:i <[A..Z]>` matches "a", but `:i <:Lu>` doesn't, as "a" isn't a capital
+whatever the case of the rule. The same goes for the named classes:
+`:i <+upper>` takes only capitals. A property that doesn't exist is an
+error when the grammar compiles.
 
 ## Word lists
 
@@ -761,7 +787,6 @@ Before changing anything, it helps to know how the package is put together:
 | **`<@list>`**: each entry matched as a regex | Lists of patterns built from data. | Compile each entry with the syntax parser's regex code into an `Alt`. `Compile` rejects `<@list>` now, so that synonym data isn't treated as patterns by mistake; keep `@list` for literal phrases. | yes | 2 |
 | **Interpolation**: `$var`, `<$regex>`, `<{ … }>` | Patterns chosen at run time. | Word lists cover literal phrases, and `Re` covers regex strings. A named-pattern binding, passed to `Compile` as lists are, would cover the rest. | partly | 2 |
 | **Failure reports from `Find` and `FindAll`** | Finding out why pay wasn't found in a posting, rather than why one string didn't parse. | Track failures across every start position and report the furthest. The noise is the hard part: most positions fail at once, for no interesting reason. | partly | 2 |
-| **Unicode properties**: `<:Lu>`, `<:Letter>`, `<:Script<Latin>>` | Text in other languages and scripts. | In `classExpr`, map property names to Go's `unicode` tables. | yes | 1 |
 | **Conjunctions**: `&`, `&&` | "Something that matches both", such as a word that's in a list and isn't a stopword. | A node that matches its first part, then checks the others match exactly the same text. | yes | 2 |
 | **Backtracking control**: `:`, `::`, `:::`, `<commit>`, `<cut>` | Taming slow, heavily backtracking `regex` rules. | Possessive quantifiers (`+:`) exist. The rest need the matcher to unwind to a marked point, which continuation-passing makes awkward: probably panics and recovers at the right level. Tokens and memoisation (below) usually make it unnecessary. | partly | 3 |
 | **Multiple inheritance**: `grammar C is A is B` | Rarely: roles do this better. | Make `parent` a list, and look up along each in order. | yes | 1 |
@@ -770,6 +795,7 @@ Before changing anything, it helps to know how the package is put together:
 
 | Difference | When it matters | What it would take | Fixable | Effort |
 |---|---|---|---|---|
+| **An unknown Unicode property is an error.** Raku's `<:Bogus>` matches nothing, silently. | Never for a property that exists. A misspelt one fails when the grammar compiles, rather than making a rule that can never match. | — | by design | — |
 | **`Caps` puts captures at the same place in name order.** Raku's `.caps` leaves them in hash order, which changes from run to run. | Never for captures at different places. An alias and its rule's name, or two empty captures at one spot, come in a fixed order here and a varying one in Raku. | — | by design | — |
 | **`\|` picks the branch whose first match is longest.** Raku picks by the longest declarative prefix, roughly the part of each branch before anything that could backtrack. | Rarely: they agree on ordinary alternations of words and phrases. They can differ when branches share a start and something after it decides. | True longest-token matching (above). | yes | 5 |
 | **Actions run after the whole match succeeds,** innermost first. Raku runs each as its rule matches, including for matches it later backtracks out of. | Only for actions with side effects, such as counting or logging. | Run actions in `call`'s `finish`, keeping their values on the `mnode`. Running after is easier to reason about, so keep it unless something needs the other. | by design | 2 |
@@ -1185,6 +1211,24 @@ for _, text := range []string{"up to £500 per day", "up  to £500   per day", "
 £500
 £500
 no match
+```
+
+#### Unicode properties
+
+Unicode properties pick characters by what Unicode says they are, so a rule works in any language: \<:Lu> is any capital, where \<\[A..Z]> is only the 26. Here, capitalised words in names from three scripts.
+
+```go
+g := grammar.MustCompile(`grammar Names { token TOP { <:Lu> <:Ll>+ } }`)
+ascii := grammar.MustCompile(`grammar ASCII { token TOP { <[A..Z]> <[a..z]>+ } }`)
+
+text := "Zoë Ölander, Жанна Петрова, 李 Wei"
+fmt.Println(g.FindAll(text).Map(func(m *scalar.SV) any { return m.At("~") }).Join(" | "))
+fmt.Println(ascii.FindAll(text).Map(func(m *scalar.SV) any { return m.At("~") }).Join(" | "))
+```
+
+```
+Zoë | Ölander | Жанна | Петрова | Wei
+Zo | Wei
 ```
 
 ### Reference: Parsing and matches
@@ -1722,7 +1766,7 @@ Goal is Raku's goal matching, '(' ~ ')' x: x between brackets, written with the 
 quals := grammar.Seq(grammar.Plus(grammar.Class(unicode.IsLetter)),
 	grammar.Star(grammar.Seq(grammar.Lit(", "), grammar.Plus(grammar.Class(unicode.IsLetter)))))
 g := grammar.New("Quals").Token("TOP", grammar.Goal(grammar.Lit("("), grammar.Lit(")"), quals))
-// Raku: token TOP { '(' ~ ')' [ <alpha>+ ]+ % ', ' }
+// Raku: token TOP { '(' ~ ')' [ <:L>+ ]+ % ', ' }
 
 fmt.Println(g.Parse("(Remote, FTC)").At("~"))
 _, err := g.ParseErr("(Remote, FTC")

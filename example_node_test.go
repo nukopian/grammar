@@ -97,7 +97,7 @@ func ExampleGoal() {
 	quals := grammar.Seq(grammar.Plus(grammar.Class(unicode.IsLetter)),
 		grammar.Star(grammar.Seq(grammar.Lit(", "), grammar.Plus(grammar.Class(unicode.IsLetter)))))
 	g := grammar.New("Quals").Token("TOP", grammar.Goal(grammar.Lit("("), grammar.Lit(")"), quals))
-	// Raku: token TOP { '(' ~ ')' [ <alpha>+ ]+ % ', ' }
+	// Raku: token TOP { '(' ~ ')' [ <:L>+ ]+ % ', ' }
 
 	fmt.Println(g.Parse("(Remote, FTC)").At("~"))
 	_, err := g.ParseErr("(Remote, FTC")

@@ -195,6 +195,17 @@ var rakuCases = []struct {
 	{Src: `grammar Goal6 { token TOP { ( '(' ) ~ ( ')' ) ( \w+ ) } }`, Inputs: []string{"(ab)"}},
 	{Src: `grammar Goal7 { token TOP { '(' ~ ')' [ <w>+ % ',' ] }; token w { \w+ } }`, Inputs: []string{"(a,b)", "(a,b"}},
 	{Src: `grammar Goal8 { regex TOP { '(' ~ ')' .* } }`, Inputs: []string{"(a)b)", "(ab"}},
+	// Unicode properties: general categories by short or long name, scripts,
+	// binary properties, negated and combined with sets. Under :i a set
+	// folds case, and a property or a named class doesn't.
+	{Src: `grammar Uni1 { token TOP { <:Lu> <:Letter>+ <:Nd>* } }`, Inputs: []string{"Ab1", "Ж中٣", "ab1", "A"}},
+	{Src: `grammar Uni2 { token TOP { [ <:Script<Latin>> | <:Cyrillic> ]+ } }`, Inputs: []string{"aЖé", "a中", "Ⅷ"}},
+	{Src: `grammar Uni3 { token TOP { <:!Lu>+ <-:L>* } }`, Inputs: []string{"ab12", "Ab", "a-_"}},
+	{Src: `grammar Uni4 { token TOP { <:L + [_]>+ <[a..z] - :Lu>? } }`, Inputs: []string{"a_Ж", "_x", "aB"}},
+	{Src: `grammar Uni5 { token TOP { <:Alpha>+ <:White_Space> <:Dash> <:Uppercase_Letter> <:lu> } }`, Inputs: []string{"aⅧ –AB", "a -Ab"}},
+	{Src: `grammar Uni6 { token TOP { :i <:Lu> <[A..Z]> <-[A..Z]> <:Lu + [x]> <[a..z] - :Ll> } }`,
+		Inputs: []string{"Aa1XA", "aa1XA", "AA1XA", "Aa1xA", "Aa1Xa"}},
+	{Src: `grammar Uni7 { token TOP { :i <+upper> <-upper> } }`, Inputs: []string{"Aa", "aa", "AA"}},
 	{Src: `grammar Order7 { token TOP { <a> ' '? <b>+ (x) <c=a> $<n>=[ \d+ ] <.a>? '-' <d=.b> }; token a { a }; token b { b } }`,
 		Inputs: []string{"a bbxa12a-b", "abxa1-b"}},
 }
