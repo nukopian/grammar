@@ -395,15 +395,22 @@ func phrasesOf(side string) []string {
 // the list ignoring case, as :i matches, means what its other case does.
 //
 // With JoinedSpacing, a phrase written without the spacing of one in the
-// list means what that one does: "onsite" means what "on site" does.
+// list means what that one does: "onsite" means what "on site" does. With
+// ExactAcronyms, a word in capitals means what the list's word does unless
+// the list's is an acronym: "BANKING" means what "banking" does, but "it"
+// isn't "IT".
 func (l *WordList) Canonical(phrase string) []string {
 	key := l.normalise(phrase)
 	if v, ok := l.values[key]; ok {
 		return slices.Clone(v)
 	}
-	if v, ok := l.valuesFold[l.foldKey(key)]; ok || !l.joined {
+	if v, ok := l.valuesFold[l.foldKey(key)]; ok || !l.joined && !l.acro {
 		return slices.Clone(v)
 	}
+	// Else walk the trie, as matching does: past spacing the phrase leaves
+	// out (JoinedSpacing), or with its words in capitals that aren't the
+	// list's acronyms ("BANKING" for "banking", with ExactAcronyms), which
+	// foldKey kept in capitals as if they were.
 	in := []rune(key)
 	for _, fold := range []bool{false, true} {
 		if end, t := l.longest(in, 0, fold, nil); end == len(in) {

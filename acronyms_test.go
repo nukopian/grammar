@@ -43,3 +43,30 @@ func TestExactAcronyms(t *testing.T) {
 		t.Error("a list without ExactAcronyms stopped folding acronyms")
 	}
 }
+
+// A word written in capitals that isn't an acronym in the list means what
+// the list's word does: "COMPUTING" matched "computing", and Canonical
+// must say so too, as the match's meaning (found dogfooding ussoc, whose
+// write-ins are all in capitals: "BANKING" matched and meant nothing).
+func TestExactAcronymsCapitalisedText(t *testing.T) {
+	l := NewWordList("q", FoldCase(), WholeWords(), Plurals(), ExactAcronyms()).
+		AddAs("computing/IT", "computing", "IT").Add("NHS trust").Add("banking")
+	g := MustCompile(`grammar Q { token TOP { @q } }`, l)
+	for text, want := range map[string][]string{
+		"COMPUTING":    {"computing/IT"},
+		"BANKING":      {"banking"},
+		"Banking":      {"banking"},
+		"AN NHS TRUST": {"NHS trust"},
+		"IT":           {"computing/IT"},
+		"it":           nil,
+	} {
+		m := g.Find(text)
+		got := l.Canonical(m.At("~").Str())
+		if !m.Defined() {
+			got = nil
+		}
+		if !slices.Equal(got, want) {
+			t.Errorf("%q: matched %q, Canonical %q, want %q", text, m.At("~").Str(), got, want)
+		}
+	}
+}
