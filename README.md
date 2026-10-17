@@ -288,6 +288,7 @@ In Go there's no sigspace: put `grammar.Silent("ws")` where the spaces go.
 | `<?name>`, `<!name>` | `Before(Silent("name"))` | nothing; it only looks ahead |
 | `( … )` | `Capture(x)` | `0`, `1`, … in order, each a match with captures of its own |
 | `$<k>=[ … ]`, `$<k>=\d+` | `Named("k", x)` | `k`, the text only |
+| `$<k>=[ … ]?` | | `k`, always: an empty match when the group didn't match, as in Raku, for the quantifier is inside the capture. For `k` to be there only when it matched, put the capture inside: `[ $<k>=[ … ] ]?` |
 | `$<k>=( … )` | `Named("k", Capture(x))` | `k`, with captures of its own |
 | `$<k>`, `$0` | `Backref("k")`, `Backref("0")` | the text the capture last matched, again, exactly: `$<q>=<['"]> \w+ $<q>` closes a quote with the same mark |
 
