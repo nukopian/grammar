@@ -37,6 +37,11 @@ var rakuCases = []struct {
 	    token x { x }
 	    token y { y }
 	}`, Inputs: []string{"", "xxbc", "xbcy", "bc", "xxy"}},
+	// >> inside a lookaround is a word boundary, not the lookaround's end
+	// (found dogfooding internal/hours, 2026-10-17).
+	{Src: `grammar LookBoundary {
+	    token TOP { <!before [ \s | ',' | << [:i as \s+ a ] >> ]* x> \w+ <?after \w >> > }
+	}`, Sub: true, Inputs: []string{"as a max", "x y", "abc"}},
 	// | takes the longest branch; || the first.
 	{Src: `grammar Longest { token TOP { [ a | ab | abc ] } }`, Inputs: []string{"abc", "ab", "a", "abcd"}},
 	{Src: `grammar FirstOf { token TOP { [ a || ab ] c } }`, Inputs: []string{"abc", "ac"}},

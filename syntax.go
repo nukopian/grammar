@@ -535,9 +535,11 @@ func (p *parser) sequence() Node {
 
 // atSequenceEnd reports whether the sequence being read ends here: at the
 // end of the source, a branch's | or &, a group's closing ] or ), the end
-// of the rule, or the > that ends a lookaround.
+// of the rule, or the > that ends a lookaround, which >>, a word boundary,
+// isn't, as in Raku.
 func (p *parser) atSequenceEnd() bool {
-	return p.eof() || p.peek("|") || p.peek("&") || p.peek("]") || p.peek(")") || p.peek("}") || p.assert > 0 && p.peek(">")
+	return p.eof() || p.peek("|") || p.peek("&") || p.peek("]") || p.peek(")") || p.peek("}") ||
+		p.assert > 0 && p.peek(">") && !p.peek(">>")
 }
 
 // spacedTerm reads a quantified term and, in a rule, the space after it.
