@@ -798,15 +798,18 @@ checks that on every Raku case.
 A lookbehind, `<?after …>`, matches its pattern ending where it is, so it
 tries starts before that, latest first. It narrows them the same way:
 only as far back as its pattern can reach, when that's bounded (`'£'`,
-`\d ** 1..3`, a rule that matches a fixed length), and only where its
+`\d ** 1..3`, a rule that matches a fixed length, a word list without
+`LooseSpacing`, as far as its longest phrase), and only where its
 pattern can start (`<[.!?:]> \s+` only at punctuation). Before, it tried
 every start back to the beginning of the text, so `FindAll` took time in
 proportion to the square of the text's length. On a 4 KB text
 (`BenchmarkLookbehind`), `<?after '£'> \d+` went from 137 ms to under
 1 ms, and the sections grammar's `<?after <[.!?:]> \s+> What` from
 425 ms to 40 ms. Unbounded patterns still try every start they could
-begin at, so they stay slower. `TestLookbehindChangesNothing` and
-`FuzzMatch` check that the narrowing changes no results.
+begin at, so they stay slower: `<!after @hedges \s*>`, unbounded, took
+internal/hours past `StepLimit` on a 37 KB text; with `\s ** 0..3` it
+takes 66 ms. `TestLookbehindChangesNothing` and `FuzzMatch` check that
+the narrowing changes no results.
 
 ## Errors
 

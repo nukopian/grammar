@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // WordList is a list of words and phrases, each with a canonical value: the
@@ -409,6 +410,23 @@ type words struct{ l *WordList }
 // Words matches the longest phrase in l, as @name does. Like Raku's, it's
 // one atom: it never gives back part of what it matched, even in a regex.
 func Words(l *WordList) Node { return words{l} }
+
+// width is the least and most text the list can match, in characters, for
+// a lookbehind to narrow its starts by: up to its longest phrase, plurals
+// included (case folds rune for rune, and JoinedSpacing only shortens), but
+// no limit with LooseSpacing, where any run of spacing matches a space.
+// The least is taken as none, which is always safe.
+func (l *WordList) width() (lo, hi int) {
+	if l.loose {
+		return 0, -1
+	}
+	for _, values := range []map[string][]string{l.values, l.valuesFold} {
+		for k := range values {
+			hi = max(hi, utf8.RuneCountInString(k))
+		}
+	}
+	return 0, hi
+}
 
 func (n words) match(st *state, pos int, c *capList, e env, k cont) bool {
 	in, l := st.in, n.l

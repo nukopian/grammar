@@ -127,8 +127,10 @@ func (g *Grammar) width(n Node, calling map[string]bool) (lo, hi int) {
 		return g.width(r.body, calling)
 	case *group, *named, *mode, commit:
 		return g.width(children(n)[0], calling)
+	case words:
+		return n.l.width()
 	}
-	return 0, -1 // a regex, a word list, a backreference: no telling
+	return 0, -1 // a regex, a backreference: no telling
 }
 
 func sumWidth(a, b int) int {

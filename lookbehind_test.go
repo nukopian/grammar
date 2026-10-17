@@ -34,7 +34,8 @@ func TestLookbehindChangesNothing(t *testing.T) {
 		}
 		cases = append(cases, tc{g, c.Inputs})
 	}
-	texts := []string{"£45k and £55,000 a year. What next: Lead", "ab. ab:  What a  b", "xxyx", "", "Ab aB", "1 2 3"}
+	texts := []string{"£45k and £55,000 a year. What next: Lead", "ab. ab:  What a  b", "xxyx", "", "Ab aB", "1 2 3",
+		"up to 40 hours, Max 48, upTo 3", "backup to 4", "up   to\tx"}
 	for _, src := range []string{
 		`grammar L1 { token TOP { <?after '£'> \d+ } }`,
 		`grammar L2 { regex TOP { <?after <[.!?:]> \s+> What } }`,
@@ -49,8 +50,11 @@ func TestLookbehindChangesNothing(t *testing.T) {
 		`grammar L11 { token TOP { <?after [ \w+ & ab ] > . } }`,
 		`grammar L12 { token TOP { <?after '(' ~ ')' \w > . } }`,
 		`grammar L13 { token TOP { <?after <r> > . }; token r { a <r>? } }`,
+		`grammar L14 { token TOP { <!after @h \s+> \d } }`,
+		`grammar L15 { token TOP { <?after @h \s ** 1..3> \w } }`,
+		`grammar L16 { token TOP { <?after @loose> \s } }`,
 	} {
-		cases = append(cases, tc{MustCompile(src, MustPatternList("p", `a`, `ab`, `\d+`)), texts})
+		cases = append(cases, tc{MustCompile(src, MustPatternList("p", `a`, `ab`, `\d+`), hedgeList(), looseList()), texts})
 	}
 	for _, c := range cases {
 		for _, text := range c.texts {
@@ -64,9 +68,19 @@ func TestLookbehindChangesNothing(t *testing.T) {
 	}
 }
 
+// hedgeList and looseList are word lists for lookbehinds to use: one with
+// a bounded width, one without.
+func hedgeList() *WordList {
+	return NewWordList("h", FoldCase(), WholeWords(), Plurals()).Add("up to").Add("max").Add("ab")
+}
+
+func looseList() *WordList {
+	return NewWordList("loose", FoldCase(), LooseSpacing()).Add("up to").Add("ab")
+}
+
 // The width of what a pattern can match, as lookbehinds use it.
 func TestWidth(t *testing.T) {
-	g := MustCompile(`grammar W { token TOP { x }; token w { ab }; token r { a <r>? } }`)
+	g := MustCompile(`grammar W { token TOP { x }; token w { ab }; token r { a <r>? } }`, hedgeList(), looseList())
 	for src, want := range map[string][2]int{
 		`'£'`:              {1, 1},
 		`\d ** 2..3`:       {2, 3},
@@ -81,8 +95,11 @@ func TestWidth(t *testing.T) {
 		`[ \w+ & ab ]`:     {2, 2},
 		`'(' ~ ')' \w`:     {3, 3},
 		`a?`:               {0, 1},
+		`@h`:               {0, 6}, // its longest phrase is the plural "up tos"
+		`@h \s`:            {1, 7},
+		`@loose`:           {0, -1}, // any run of spacing matches a space
 	} {
-		body := MustCompile(`grammar T is W { token t { `+src+` } }`, g).lookup("t").body
+		body := MustCompile(`grammar T is W { token t { `+src+` } }`, g, hedgeList(), looseList()).lookup("t").body
 		lo, hi := g.width(body, map[string]bool{})
 		if [2]int{lo, hi} != want {
 			t.Errorf("%s: width %d..%d, want %d..%d", src, lo, hi, want[0], want[1])
