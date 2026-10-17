@@ -395,6 +395,7 @@ builds a list for each set of rules, keyed by name, ready to pass to
 | `LooseSpacing()` | any run of spaces, hyphens, dashes and underscores matches any other, so "front-end" matches "front end". There must still be some spacing: "frontend" is a different phrase, unless the list has `JoinedSpacing()` too. |
 | `JoinedSpacing()` | the text may leave out the spacing in a phrase, so "on site" matches "onsite" and "front-end" matches "frontend". Write the spaced form; see below. |
 | `Plurals()` | each phrase matches its plural too, with the same canonical value: "Care Assistant" matches "Care Assistants". Regular English plurals of the last word only; see below. |
+| `ExactAcronyms()` | keep a list's acronyms in capitals where it otherwise ignores case: "IT" doesn't match "it", though "computing" matches "Computing". An acronym is a word of two or more capitals, perhaps with a plural s ("NHS", "PMs"); the rest of a phrase still ignores case ("NHS trust" matches "NHS Trust", not "nhs trust"). |
 | `WholeWords()` | match a phrase only where it isn't part of a longer word: "lead" doesn't match "leadership". It's `<< @list >>` without writing the boundaries, except that a phrase starting or ending with punctuation, such as "c++", can end where the punctuation does. The longest phrase that fits still wins. Digits are word characters, as in Raku, so "pa" in "£45000pa" isn't a whole word; to check only the end, as for a unit after a figure, leave this off and write `@units <!before \w>`. |
 
 **Joined spellings.** Postings write the same term spaced, hyphenated and
@@ -3091,6 +3092,23 @@ fmt.Println(grammar.MustPatternList("periods", `pa`).Name())
 
 ```
 periods
+```
+
+#### `ExactAcronyms`
+
+ExactAcronyms keeps a list's acronyms in capitals where it otherwise ignores case (FoldCase, or :i): "IT" in the list doesn't match "it" in the text, though "computing" matches "Computing".
+
+ExactAcronyms keeps a folded list's acronyms in capitals, so "IT", the field, isn't "it", the word.
+
+```go
+l := grammar.NewWordList("fields", grammar.FoldCase(), grammar.WholeWords(), grammar.ExactAcronyms()).
+	Add("IT").Add("computing")
+g := grammar.MustCompile(`grammar F { token TOP { @fields } }`, l)
+fmt.Println(g.FindAll("Is it IT or Computing?").Map(func(m *scalar.SV) any { return m.At("~") }).Join(", "))
+```
+
+```
+IT, Computing
 ```
 
 <!-- reference:end -->

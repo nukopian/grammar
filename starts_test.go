@@ -26,7 +26,8 @@ func findBoth(g *Grammar, text string) (with, without [2]*scalar.SV) {
 // Skipping positions never changes what Find and FindAll find: checked over
 // every Raku case, each input searched for inside some surrounding text.
 func TestStartsChangeNothing(t *testing.T) {
-	grammars := []*Grammar{pay, payErr, shapes}
+	acronyms := NewWordList("acro", FoldCase(), WholeWords(), Plurals(), ExactAcronyms()).Add("IT").Add("NHS trust").Add("pay")
+	grammars := []*Grammar{pay, payErr, shapes, MustCompile(`grammar Acro { token TOP { @acro } }`, acronyms)}
 	var texts []string
 	for _, c := range rakuCases {
 		g, err := Compile(c.Src, caseUses(c.Lists, c.Patterns)...)
@@ -39,7 +40,8 @@ func TestStartsChangeNothing(t *testing.T) {
 	for _, in := range slicesClone(texts) {
 		texts = append(texts, "xx "+in+" ;"+in, strings.ToUpper(in)+"\n"+in)
 	}
-	texts = append(texts, "Salary: £45k – £55,000 per annum, plus £5k bonus", "", "££", "£", "£ 1")
+	texts = append(texts, "Salary: £45k – £55,000 per annum, plus £5k bonus", "", "££", "£", "£ 1",
+		"IT and it, an NHS Trust, nhs trust, PAY and pay, ITs")
 	for _, g := range grammars {
 		for _, text := range texts {
 			with, without := findBoth(g, text)

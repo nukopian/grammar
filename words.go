@@ -25,6 +25,7 @@ type WordList struct {
 	joined bool
 	whole  bool
 	plural bool
+	acro   bool // ExactAcronyms
 	root   *trie
 	values map[string][]string // a normalised phrase's canonical values, in the order added
 
@@ -114,6 +115,14 @@ func Plurals() ListOption { return func(l *WordList) { l.plural = true } }
 // check only the end, with <!before \w> after the list.
 func WholeWords() ListOption { return func(l *WordList) { l.whole = true } }
 
+// ExactAcronyms keeps a list's acronyms in capitals where it otherwise
+// ignores case (FoldCase, or :i): "IT" in the list doesn't match "it" in
+// the text, though "computing" matches "Computing". An acronym is a word
+// of two or more capitals, perhaps with a plural s ("NHS", "PMs"); the
+// rest of a phrase still ignores case, so "NHS trust" matches "NHS Trust"
+// but not "nhs trust". Without FoldCase or :i, case matters anyway.
+func ExactAcronyms() ListOption { return func(l *WordList) { l.acro = true } }
+
 // NewWordList returns an empty list called name, which is how Raku syntax
 // refers to it: @name.
 func NewWordList(name string, opts ...ListOption) *WordList {
@@ -175,7 +184,56 @@ func (l *WordList) addKey(key, canonical string, made bool) {
 		insert(root, values, key, canonical)
 	}
 	add(l.root, l.values, l.made, key)
-	add(l.rootFold, l.valuesFold, l.madeFold, strings.ToLower(key))
+	add(l.rootFold, l.valuesFold, l.madeFold, l.foldKey(key))
+}
+
+// foldKey is key as the folded trie holds it: lower case, but for
+// ExactAcronyms, its acronyms as they are.
+func (l *WordList) foldKey(key string) string {
+	if !l.acro {
+		return strings.ToLower(key)
+	}
+	var b strings.Builder
+	word := func(w string) {
+		if isAcronym(w) {
+			b.WriteString(w)
+		} else {
+			b.WriteString(strings.ToLower(w))
+		}
+	}
+	start := -1
+	for i, r := range key {
+		switch letterOrDigit := unicode.IsLetter(r) || unicode.IsDigit(r); {
+		case letterOrDigit && start < 0:
+			start = i
+		case !letterOrDigit && start >= 0:
+			word(key[start:i])
+			start = -1
+			b.WriteRune(r)
+		case !letterOrDigit:
+			b.WriteRune(r)
+		}
+	}
+	if start >= 0 {
+		word(key[start:])
+	}
+	return b.String()
+}
+
+// isAcronym reports whether w is a word of two or more capitals, perhaps
+// with a plural s: "IT", "NHS", "PMs".
+func isAcronym(w string) bool {
+	w = strings.TrimSuffix(w, "s")
+	letters := 0
+	for _, r := range w {
+		switch {
+		case unicode.IsLower(r):
+			return false
+		case unicode.IsLetter(r):
+			letters++
+		}
+	}
+	return letters >= 2 && utf8.RuneCountInString(w) >= 2
 }
 
 // pluralOf returns phrase with its last word made plural by the regular
@@ -343,7 +401,7 @@ func (l *WordList) Canonical(phrase string) []string {
 	if v, ok := l.values[key]; ok {
 		return slices.Clone(v)
 	}
-	if v, ok := l.valuesFold[strings.ToLower(key)]; ok || !l.joined {
+	if v, ok := l.valuesFold[l.foldKey(key)]; ok || !l.joined {
 		return slices.Clone(v)
 	}
 	in := []rune(key)
@@ -397,7 +455,7 @@ func isListSpace(r rune) bool {
 func (l *WordList) normalise(phrase string) string {
 	phrase = nfc(phrase)
 	if l.fold {
-		phrase = strings.ToLower(phrase)
+		phrase = l.foldKey(phrase)
 	}
 	if l.loose {
 		phrase = strings.Join(strings.FieldsFunc(phrase, isListSpace), " ")
@@ -431,7 +489,9 @@ func (l *WordList) width() (lo, hi int) {
 func (n words) match(st *state, pos int, c *capList, e env, k cont) bool {
 	in, l := st.in, n.l
 	fold := l.fold || e.ci
-	if l.joined {
+	if l.joined || l.acro && fold {
+		// The search that branches: past spacing the text leaves out, or
+		// to an acronym's capitals as well as to lower case.
 		end := -1
 		if !(l.whole && midWord(in, pos)) {
 			end, _ = l.longest(in, pos, fold, st)
@@ -528,7 +588,13 @@ func (l *WordList) longest(in []rune, pos int, fold bool, st *state) (int, *trie
 				r = ' '
 			}
 			if fold {
-				r = unicode.ToLower(r)
+				lower := unicode.ToLower(r)
+				if l.acro && lower != r {
+					if next := t.next[r]; next != nil {
+						walk(next, i+width) // an acronym's capital, as written
+					}
+				}
+				r = lower
 			}
 			if next := t.next[r]; next != nil {
 				walk(next, i+width)

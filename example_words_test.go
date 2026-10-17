@@ -379,3 +379,14 @@ func ExamplePatternList_Name() {
 	// Output:
 	// periods
 }
+
+// ExactAcronyms keeps a folded list's acronyms in capitals, so "IT", the
+// field, isn't "it", the word.
+func ExampleExactAcronyms() {
+	l := grammar.NewWordList("fields", grammar.FoldCase(), grammar.WholeWords(), grammar.ExactAcronyms()).
+		Add("IT").Add("computing")
+	g := grammar.MustCompile(`grammar F { token TOP { @fields } }`, l)
+	fmt.Println(g.FindAll("Is it IT or Computing?").Map(func(m *scalar.SV) any { return m.At("~") }).Join(", "))
+	// Output:
+	// IT, Computing
+}
