@@ -63,6 +63,18 @@ func ExampleRule() {
 	// false
 }
 
+// Pos starts part-way into the text, as Raku's :pos does, with the text
+// before it still there to look back at, and positions still the whole
+// text's.
+func ExamplePos() {
+	m := Pay.Subparse("Salary: £45k", grammar.Pos(8))
+	fmt.Println(m.At("~"), m.At("from"))
+	fmt.Println(Pay.Subparse("Salary: £45k").Defined()) // from the start, there's no £
+	// Output:
+	// £45k 8
+	// false
+}
+
 // Actions turns matches into values. For each rule that matched, the method
 // named after it is called with its match, and what it returns is stored in
 // the match under "made". Actions run innermost first, so here Amount has

@@ -733,8 +733,16 @@ its ties put in name order.
 | `g.ParseErr(text)`, `g.SubparseErr(text)` | as `Parse` and `Subparse`, with a `*ParseError` saying why when the text doesn't match |
 
 Each returns undef (or an empty array) when nothing matches. Each takes
-options: `grammar.Rule("name")` to start somewhere other than `TOP`, and
-`grammar.Actions(a)`.
+options: `grammar.Rule("name")` to start somewhere other than `TOP`,
+`grammar.Pos(n)` to start n characters in, and `grammar.Actions(a)`.
+
+**Starting part-way in.** `Pos(n)` is Raku's `:pos`: `Parse` and
+`Subparse` match from there (`Parse` still to the end), and `Find`,
+`FindAll` and `Split` search from there. Unlike matching a slice of the
+text, what's before is still there: a lookbehind sees it, and `<<` won't
+match in the middle of a word. The match's positions are the whole
+text's. internal/soc uses it to try a word list at each word of a job
+title.
 
 ### Into Go structs: `To` and `Values`
 
@@ -1624,6 +1632,23 @@ fmt.Println(Pay.Parse("12,500").Defined()) // TOP wants a £
 
 ```
 12,500
+false
+```
+
+#### `Pos`
+
+Pos starts matching n characters into the text (of its NFC form, as grammars match it), as Raku's :pos does: Parse and Subparse match from there, Parse still to the end; Find, FindAll and Split search from there.
+
+Pos starts part-way into the text, as Raku's :pos does, with the text before it still there to look back at, and positions still the whole text's.
+
+```go
+m := Pay.Subparse("Salary: £45k", grammar.Pos(8))
+fmt.Println(m.At("~"), m.At("from"))
+fmt.Println(Pay.Subparse("Salary: £45k").Defined()) // from the start, there's no £
+```
+
+```
+£45k 8
 false
 ```
 

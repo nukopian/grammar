@@ -513,7 +513,16 @@ type Option func(*options)
 type options struct {
 	rule    string
 	actions *actions
+	pos     int // where to start, in runes of the NFC text
 }
+
+// Pos starts matching n characters into the text (of its NFC form, as
+// grammars match it), as Raku's :pos does: Parse and Subparse match from
+// there, Parse still to the end; Find, FindAll and Split search from
+// there. What's before is still there for a lookbehind or a word boundary
+// to look at, and the match's positions are still the whole text's. A Pos
+// past the end matches nothing; one before the start panics.
+func Pos(n int) Option { return func(o *options) { o.pos = n } }
 
 // Rule starts the match at the named rule instead of TOP, as :rule does.
 func Rule(name string) Option { return func(o *options) { o.rule = name } }
@@ -539,14 +548,20 @@ func Actions(a any) Option { return func(o *options) { o.actions = newActions(a)
 // match, or undef if text doesn't match.
 func (g *Grammar) Parse(text string, opts ...Option) *scalar.SV {
 	o, in := g.prepare(opts), []rune(nfc(text))
-	return o.result(in, g.runState(g.newState(in), 0, true, o))
+	if o.pos > len(in) {
+		return &scalar.SV{}
+	}
+	return o.result(in, g.runState(g.newState(in), o.pos, true, o))
 }
 
 // Subparse matches from the start of text, without needing to reach the
 // end, as Raku's .subparse does.
 func (g *Grammar) Subparse(text string, opts ...Option) *scalar.SV {
 	o, in := g.prepare(opts), []rune(nfc(text))
-	return o.result(in, g.runState(g.newState(in), 0, false, o))
+	if o.pos > len(in) {
+		return &scalar.SV{}
+	}
+	return o.result(in, g.runState(g.newState(in), o.pos, false, o))
 }
 
 // Find returns the first match anywhere in text, or undef.
@@ -554,7 +569,7 @@ func (g *Grammar) Find(text string, opts ...Option) *scalar.SV {
 	o, in := g.prepare(opts), []rune(nfc(text))
 	s, empty := g.startsOf(o.rule)
 	st := g.newState(in)
-	for from := 0; from <= len(in); from++ {
+	for from := o.pos; from <= len(in); from++ {
 		if !canStart(s, empty, in, from) {
 			continue
 		}
@@ -571,7 +586,7 @@ func (g *Grammar) FindAll(text string, opts ...Option) *scalar.AV {
 	all := scalar.Array()
 	s, empty := g.startsOf(o.rule)
 	st := g.newState(in)
-	for from := 0; from <= len(in); {
+	for from := o.pos; from <= len(in); {
 		if !canStart(s, empty, in, from) {
 			from++
 			continue
@@ -597,8 +612,8 @@ func (g *Grammar) Split(text string, opts ...Option) *scalar.AV {
 	s, empty := g.startsOf(o.rule)
 	pieces := scalar.Array()
 	st := g.newState(in)
-	from := 0
-	for at := 0; at <= len(in); {
+	from := min(o.pos, len(in))
+	for at := from; at <= len(in); {
 		if !canStart(s, empty, in, at) {
 			at++
 			continue
@@ -621,6 +636,9 @@ func (g *Grammar) prepare(opts []Option) options {
 	o := options{rule: "TOP"}
 	for _, opt := range opts {
 		opt(&o)
+	}
+	if o.pos < 0 {
+		panic(fmt.Sprintf("grammar %s: Pos(%d) is before the start of the text", g.name, o.pos))
 	}
 	if gen := generation.Load(); g.checked.Load() != gen {
 		if err := g.Check(); err != nil {
@@ -682,7 +700,10 @@ func (g *Grammar) parseErr(text string, whole bool, opts []Option) (match *scala
 			panic(e)
 		}
 	}()
-	if m := g.runState(st, 0, whole, o); m != nil {
+	if o.pos > len(in) {
+		return &scalar.SV{}, newParseError(g.name, in, len(in), nil)
+	}
+	if m := g.runState(st, o.pos, whole, o); m != nil {
 		return o.result(in, m), nil
 	}
 	return &scalar.SV{}, newParseError(g.name, in, st.tr.far, st.tr.exp)
