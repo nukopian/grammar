@@ -370,7 +370,10 @@ straight into a struct. A quantified list (`@levels?`) has a canonical value
 when what it matched is one of its phrases.
 
 **Loading synonyms.** `Add(canonical, synonyms...)` adds phrases one group
-at a time. `AddRule` and `AddRules` take rules in the format Elasticsearch
+at a time, the canonical value among them. `AddAs(value, phrases...)` adds
+phrases meaning value without adding value itself, for a value that's a
+code rather than words: `AddAs("2134", "Software engineer")` matches
+"Software engineer" but not "2134". `AddRule` and `AddRules` take rules in the format Elasticsearch
 and Solr use, as Elasticsearch's synonyms API returns them:
 
 ```
@@ -2656,6 +2659,26 @@ fmt.Println(units.Canonical("annum"), units.Canonical("Year"), units.Canonical("
 
 ```
 [Year] [Year] [Week]
+```
+
+#### `WordList.AddAs`
+
+AddAs adds each of phrases to the list, all meaning value, without adding value itself as a phrase.
+
+AddAs gives phrases a value that isn't itself a phrase, such as a code.
+
+```go
+occupations := grammar.NewWordList("occupations", grammar.FoldCase()).
+	AddAs("2134", "Software engineer", "Software developer").
+	AddAs("8211", "HGV driver")
+
+fmt.Println(occupations.Canonical("software developer"), occupations.Canonical("HGV driver"))
+fmt.Println(occupations.Canonical("2134"), occupations.Phrases())
+```
+
+```
+[2134] [8211]
+[] [hgv driver software developer software engineer]
 ```
 
 #### `WordList.AddRule`

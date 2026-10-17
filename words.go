@@ -135,14 +135,22 @@ func (l *WordList) Len() int { return len(l.values) - len(l.made) }
 // canonical. A phrase added for two canonical values means both; see
 // Ambiguous. Empty phrases are skipped.
 func (l *WordList) Add(canonical string, synonyms ...string) *WordList {
-	for _, phrase := range append([]string{canonical}, synonyms...) {
+	return l.AddAs(canonical, append([]string{canonical}, synonyms...)...)
+}
+
+// AddAs adds each of phrases to the list, all meaning value, without adding
+// value itself as a phrase. Use it when the value is a code or an ID rather
+// than words, such as an occupation code: AddAs("2134", "Software engineer")
+// matches "Software engineer" but not "2134". Empty phrases are skipped.
+func (l *WordList) AddAs(value string, phrases ...string) *WordList {
+	for _, phrase := range phrases {
 		key := l.normalise(phrase)
 		if key == "" {
 			continue
 		}
-		l.addKey(key, canonical, false)
+		l.addKey(key, value, false)
 		if plural := pluralOf(key); l.plural && plural != "" {
-			l.addKey(plural, canonical, true)
+			l.addKey(plural, value, true)
 		}
 	}
 	return l

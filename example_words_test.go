@@ -73,6 +73,19 @@ func ExampleWordList_Add() {
 	// [Year] [Year] [Week]
 }
 
+// AddAs gives phrases a value that isn't itself a phrase, such as a code.
+func ExampleWordList_AddAs() {
+	occupations := grammar.NewWordList("occupations", grammar.FoldCase()).
+		AddAs("2134", "Software engineer", "Software developer").
+		AddAs("8211", "HGV driver")
+
+	fmt.Println(occupations.Canonical("software developer"), occupations.Canonical("HGV driver"))
+	fmt.Println(occupations.Canonical("2134"), occupations.Phrases())
+	// Output:
+	// [2134] [8211]
+	// [] [hgv driver software developer software engineer]
+}
+
 // AddRule takes one synonym rule in the format Elasticsearch and Solr use.
 // A list of phrases means its first; phrases => phrases means the right
 // side; a backslash escapes a comma or =>.
