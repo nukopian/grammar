@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nukopian/job-meta/internal/scalar"
+	"github.com/nukopian/scalar"
 )
 
 var pay = MustCompile(`

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nukopian/job-meta/internal/scalar"
+	"github.com/nukopian/scalar"
 )
 
 // Proto and variants built in Go, with Sym for <sym>.

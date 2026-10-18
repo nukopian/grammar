@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nukopian/job-meta/internal/scalar"
+	"github.com/nukopian/scalar"
 )
 
 // capsTree is a match's captures in order, as Caps gives them, each with

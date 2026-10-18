@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/nukopian/job-meta/internal/scalar"
+	"github.com/nukopian/scalar"
 )
 
 // Caps iterates over m's captures in the order they come in the text, as

@@ -19,7 +19,7 @@ what they extract (pay, titles, working arrangements) follows rules. I
 remembered that grammars were one of Raku's biggest selling points, and
 wondered whether rules could do that part locally.
 
-For the reasons behind [`scalar`](../README.md#why-scalar-exists), I
+For the reasons behind [`scalar`](https://github.com/nukopian/scalar#why-scalar-exists), I
 wanted that in Go without the usual cost. Go's parser generators, such as
 Participle, are faster, about twice as fast on a pay string. But each
 grammar there is Go code, with types and struct tags, and often a lexer to
@@ -965,7 +965,7 @@ whatever the grammar or text:
 in `testdata/fuzz`. To search for new failures:
 
 ```sh
-go test ./internal/scalar/grammar -run '^$' -fuzz '^FuzzMatch$' -fuzztime 2m
+go test ./internal/grammar -run '^$' -fuzz '^FuzzMatch$' -fuzztime 2m
 ```
 
 `FuzzMatch` keeps texts short and leaves out `regex` rules and `:!r`,
@@ -1065,7 +1065,7 @@ Copyright 2026 Iain Campbell. `grammar` is free software; you can
 redistribute it and/or modify it under the terms of the Artistic License
 2.0, as Rakudo is (`Artistic-2.0`); see [LICENSE](LICENSE). It uses the
 `scalar` package, which is under the same terms as Perl itself; see
-[its licence](../README.md#licence).
+[its licence](https://github.com/nukopian/scalar#licence).
 
 ## Acknowledgements
 
@@ -1092,7 +1092,7 @@ examples are a guide to grammars as well as to the API: read them in order.
 
 Generated from the examples in `example_*_test.go`, which `go test` runs, so every
 example here works and prints what it says. Edit the examples, not this section, then run
-`go test ./internal/scalar/grammar -run TestReference -update`.
+`go test ./internal/grammar -run TestReference -update`.
 
 - [A worked example](#reference-a-worked-example)
 - [Writing grammars](#reference-writing-grammars)

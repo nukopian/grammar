@@ -3,7 +3,7 @@ package grammar
 import (
 	"testing"
 
-	"github.com/nukopian/job-meta/internal/scalar"
+	"github.com/nukopian/scalar"
 )
 
 // Backref built in Go is $<name>.

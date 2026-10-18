@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nukopian/job-meta/internal/scalar"
+	"github.com/nukopian/scalar"
 )
 
 // compileErr compiles src, reporting a panic as an error too, so a test can

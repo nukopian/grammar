@@ -3,8 +3,8 @@ package grammar_test
 import (
 	"fmt"
 
-	"github.com/nukopian/job-meta/internal/scalar"
-	"github.com/nukopian/job-meta/internal/scalar/grammar"
+	"github.com/nukopian/job-meta/internal/grammar"
+	"github.com/nukopian/scalar"
 )
 
 // Pay is the grammar many of the examples share: a pay figure or range,

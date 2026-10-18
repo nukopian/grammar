@@ -3,8 +3,8 @@ package grammar_test
 import (
 	"fmt"
 
-	"github.com/nukopian/job-meta/internal/scalar"
-	"github.com/nukopian/job-meta/internal/scalar/grammar"
+	"github.com/nukopian/job-meta/internal/grammar"
+	"github.com/nukopian/scalar"
 )
 
 // A grammar is a set of named rules. Parsing starts at TOP, and a rule

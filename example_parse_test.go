@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/nukopian/job-meta/internal/scalar"
-	"github.com/nukopian/job-meta/internal/scalar/grammar"
+	"github.com/nukopian/job-meta/internal/grammar"
+	"github.com/nukopian/scalar"
 )
 
 // Parse matches the whole text, or nothing: a match that would leave text

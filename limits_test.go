@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nukopian/job-meta/internal/scalar"
+	"github.com/nukopian/scalar"
 )
 
 // withStepLimit runs f with StepLimit set to n.

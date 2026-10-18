@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"unicode"
 
-	"github.com/nukopian/job-meta/internal/scalar"
-	"github.com/nukopian/job-meta/internal/scalar/grammar"
+	"github.com/nukopian/job-meta/internal/grammar"
+	"github.com/nukopian/scalar"
 )
 
 // Each example here builds a rule in Go and gives the same rule in Raku

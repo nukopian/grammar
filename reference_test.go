@@ -21,5 +21,5 @@ func TestEveryFeatureHasExample(t *testing.T) { docref.CheckExamples(t, referenc
 
 // README.md's Reference section is what the examples generate. To update it:
 //
-//	go test ./internal/scalar/grammar -run TestReference -update
+//	go test ./internal/grammar -run TestReference -update
 func TestReference(t *testing.T) { docref.CheckReadme(t, referenceGroups) }

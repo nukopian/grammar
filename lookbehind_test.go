@@ -3,7 +3,7 @@ package grammar
 import (
 	"testing"
 
-	"github.com/nukopian/job-meta/internal/scalar"
+	"github.com/nukopian/scalar"
 )
 
 // withoutBounds runs f with lookbehinds trying every start, as before.

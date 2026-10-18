@@ -3,9 +3,9 @@ package grammar_test
 import (
 	"fmt"
 
-	"github.com/nukopian/job-meta/internal/scalar"
+	"github.com/nukopian/scalar"
 
-	"github.com/nukopian/job-meta/internal/scalar/grammar"
+	"github.com/nukopian/job-meta/internal/grammar"
 )
 
 // A word list holds words and phrases, each with a canonical value, so that

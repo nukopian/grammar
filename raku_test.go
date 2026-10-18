@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nukopian/job-meta/internal/scalar"
+	"github.com/nukopian/scalar"
 )
 
 // rakuCases are grammars in Raku syntax, each with inputs to parse. Each

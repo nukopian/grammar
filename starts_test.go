@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nukopian/job-meta/internal/scalar"
+	"github.com/nukopian/scalar"
 )
 
 // findBoth runs Find and FindAll with and without skipping positions where

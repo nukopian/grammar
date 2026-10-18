@@ -10,7 +10,7 @@ import (
 
 	"github.com/dlclark/regexp2"
 
-	"github.com/nukopian/job-meta/internal/scalar"
+	"github.com/nukopian/scalar"
 )
 
 // The matcher works in continuation-passing style: each node matches at pos

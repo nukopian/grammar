@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nukopian/job-meta/internal/scalar"
+	"github.com/nukopian/scalar"
 )
 
 // A bad entry is an error when the list is made, naming it, where Raku

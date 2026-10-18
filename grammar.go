@@ -27,7 +27,7 @@ import (
 	"sync/atomic"
 	"unicode"
 
-	"github.com/nukopian/job-meta/internal/scalar"
+	"github.com/nukopian/scalar"
 )
 
 // Grammar is a set of named rules, and the grammars it extends, if any.

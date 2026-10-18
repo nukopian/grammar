@@ -4,7 +4,7 @@ import (
 	"errors"
 	"slices"
 
-	"github.com/nukopian/job-meta/internal/scalar"
+	"github.com/nukopian/scalar"
 )
 
 // ErrNoMatch is the error To returns when it's given no match, as Parse,
