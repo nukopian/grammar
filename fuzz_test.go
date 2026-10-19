@@ -141,6 +141,16 @@ func FuzzMatch(f *testing.F) {
 		if d := all.Diff(unbounded); d != "" {
 			t.Fatalf("narrowing lookbehinds changed FindAll: %s", d)
 		}
+		// So do the matcher's fast paths.
+		var slow *scalar.AV
+		var slowParse *scalar.SV
+		withoutFastPaths(func() { slow, slowParse = g.FindAll(text), g.Subparse(text) })
+		if d := all.Diff(slow); d != "" {
+			t.Fatalf("the fast paths changed FindAll: %s", d)
+		}
+		if d := g.Subparse(text).Diff(slowParse); d != "" {
+			t.Fatalf("the fast paths changed Subparse: %s", d)
+		}
 	})
 }
 

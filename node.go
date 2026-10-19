@@ -264,7 +264,9 @@ func once(n Node, st *state, pos int, c *capList, e env) (int, *capList, bool) {
 func step(n Node, st *state, pos int, c *capList, e env, k cont) bool {
 	st.deeper()
 	var ok bool
-	if !e.ratchet || extendable(n) || fastPaths && oneWay(n) {
+	if q, isQuant := n.(*Quant); isQuant && fastPaths && e.ratchet && st.tr == nil && q.loopable() {
+		ok = q.loop(st, pos, c, e, k)
+	} else if !e.ratchet || extendable(n) || fastPaths && oneWay(n) {
 		ok = n.match(st, pos, c, e, k)
 	} else {
 		var p int
@@ -295,6 +297,62 @@ func oneWay(n Node) bool {
 	return false
 }
 
+// loopable reports whether q can be matched by loop: a greedy repeat of a
+// class or a literal, with no separator, which under ratchet takes as many
+// items as it can and never gives one back.
+func (q *Quant) loopable() bool {
+	if q.sep != nil || q.frugal {
+		return false
+	}
+	switch item := q.item.(type) {
+	case class:
+		return true
+	case lit:
+		return len(item.rs) > 0 // an empty literal could repeat forever
+	}
+	return false
+}
+
+// loop is what iter does for a loopable q under ratchet, when failures
+// aren't being tracked, without its closures or recursion: take items
+// while they match, up to the maximum, then go on if there are enough.
+// It ticks as iter does, once for each item and once more, so StepLimit is
+// reached at the same step, and it reaches the depths iter's recursion
+// would, so DepthLimit is too. st.depth is step's own level on entry.
+func (q *Quant) loop(st *state, pos int, c *capList, e env, k cont) bool {
+	base := st.depth
+	reach := func(d int) {
+		st.depth = base + d
+		if st.maxDepth > 0 && st.depth > st.maxDepth {
+			panic(&DepthLimitError{Grammar: st.g.name, Limit: st.maxDepth})
+		}
+	}
+	count := 0
+	for {
+		st.tick()
+		reach(1 + 2*count) // iter, for this item
+		if q.max >= 0 && count >= q.max {
+			break
+		}
+		reach(2 + 2*count) // step, matching the item
+		var p int
+		var ok bool
+		switch item := q.item.(type) {
+		case class:
+			p, ok = item.at(st, pos, e)
+		case lit:
+			p, ok = item.at(st, pos, e)
+		}
+		if !ok {
+			break
+		}
+		pos = p
+		count++
+	}
+	st.depth = base
+	return count >= q.min && k(pos, c)
+}
+
 // extendable reports whether n holds a frugal quantifier that can still
 // take more under ratchet. As in Raku, one can through [ ... ], $<name>=[
 // ... ] and :i, but not through a capture ( ... ), a call, an alternation or
@@ -323,17 +381,26 @@ type lit struct{ rs []rune }
 func Lit(s string) Node { return lit{[]rune(nfc(s))} }
 
 func (n lit) match(st *state, pos int, c *capList, e env, k cont) bool {
+	if p, ok := n.at(st, pos, e); ok {
+		return k(p, c)
+	}
+	return false
+}
+
+// at matches n at pos, without a continuation: where it ends, or false,
+// having recorded the failure, as match does.
+func (n lit) at(st *state, pos int, e env) (int, bool) {
 	if pos+len(n.rs) > len(st.in) {
 		st.fail(pos, n, e)
-		return false
+		return 0, false
 	}
 	for i, r := range n.rs {
 		if !runeEq(st.in[pos+i], r, e.ci) {
 			st.fail(pos, n, e)
-			return false
+			return 0, false
 		}
 	}
-	return k(pos+len(n.rs), c)
+	return pos + len(n.rs), true
 }
 
 func runeEq(a, b rune, ci bool) bool {
@@ -366,17 +433,25 @@ type class struct {
 func Class(in func(rune) bool) Node { return class{in: in, desc: "a character of a class"} }
 
 func (n class) match(st *state, pos int, c *capList, e env, k cont) bool {
+	if p, ok := n.at(st, pos, e); ok {
+		return k(p, c)
+	}
+	return false
+}
+
+// at matches n at pos, without a continuation, as lit.at does.
+func (n class) at(st *state, pos int, e env) (int, bool) {
 	if pos >= len(st.in) {
 		st.fail(pos, n, e)
-		return false
+		return 0, false
 	}
 	r := st.in[pos]
 	if e.ci && n.inCI != nil {
 		if !n.inCI(r) {
 			st.fail(pos, n, e)
-			return false
+			return 0, false
 		}
-		return k(pos+1, c)
+		return pos + 1, true
 	}
 	ok := n.in(r)
 	if !ok && e.ci {
@@ -386,9 +461,9 @@ func (n class) match(st *state, pos int, c *capList, e env, k cont) bool {
 	}
 	if !ok {
 		st.fail(pos, n, e)
-		return false
+		return 0, false
 	}
-	return k(pos+1, c)
+	return pos + 1, true
 }
 
 func isDigit(r rune) bool { return unicode.IsDigit(r) }
