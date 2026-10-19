@@ -1,2 +1,6 @@
 # PDFs of the documents, built on demand by scripts/readme-pdf.sh
 *.pdf
+
+# Local workspace joining grammar and ../scalar
+go.work
+go.work.sum

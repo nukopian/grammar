@@ -59,6 +59,12 @@ make it honest for everyone else.
 - grammar supports Go 1.25 and later, as `go.mod` says, as scalar does.
   Don't use newer standard-library features unless raising the minimum is
   a deliberate decision.
+- grammar requires a tagged version of scalar. A git-ignored `go.work`
+  joins `../scalar`, so local changes to it show up at once, as in
+  job-meta. Check with `GOWORK=off` before committing a scalar bump or
+  tagging grammar, so the tests run against the scalar `go.mod` asks for,
+  not your local one; that's also how to test on Go 1.25, as `go.work`
+  names the Go that made it.
 - Run `gofmt -l .`, `go vet ./...` and `go test ./...` before every
   commit.
 
