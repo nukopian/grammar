@@ -1063,14 +1063,27 @@ Before changing anything, it helps to know how the package is put together:
 
 `grammar` is for getting rules working quickly on messy text. Once a
 grammar has settled, it could hand on to other tools, as `scalar` hands
-loose data on to typed Go with `To`. Both of these walk a grammar's rules,
-the same nodes the Raku-syntax parser builds, and write them out in
-another notation, so the second can build on the first.
+loose data on to typed Go with `To`.
+
+The first row works for any grammar. The other three are steps towards
+[Participle](https://github.com/alecthomas/participle), each building on
+the one before. Participle can't do everything a Raku grammar can, so
+rather than translate any grammar and mark what was lost, they define the
+part that carries over first, as a phrasebook, then a Raku-like dialect
+that accepts only that part, then a generator for it. The subset is
+then decided before you write a rule, not discovered afterwards. Raku
+already divides a grammar the way Participle needs: a `token`, which
+never skips whitespace in the text, becomes part of Participle's lexer,
+and a `rule`, where whitespace in the pattern matches whitespace in the
+text, becomes one of its grammar rules, which skip whitespace between
+tokens.
 
 | Gap | When you'd need it | What it would take | Fixable | Effort |
 |---|---|---|---|---|
 | **No picture of a grammar.** There's no way to print a grammar as EBNF, the standard notation, or to draw it as a railroad diagram. | Documenting, reviewing or learning a grammar: a diagram of the pay grammar beside its rules shows at a glance what the rules take a while to read. | Walk the rules and print EBNF, with a note wherever a Raku feature has no EBNF form: backreferences, lookbehind, word lists, a token's ratchet. Draw the diagrams from the EBNF with an existing tool rather than writing one; check which before relying on it (Participle's repository may have one). | yes | 1–2 |
-| **No hand-off to [Participle](https://github.com/alecthomas/participle).** | A grammar that has settled, where a typed syntax tree, structure checked when the code compiles, and Participle's error messages and ecosystem are worth more than Raku compatibility: prototype in `grammar`, then graduate. | Generate Go source from a grammar: structs with Participle's tags, and a lexer, as a starting point you own and edit, not one kept in step with the grammar. Only a subset translates: sequences, alternation, repetition and named captures do; backreferences, lookbehind, frugal quantifiers, and the whitespace rules that tokens and rules apply to characters don't, as Participle works on tokens. Those must be written out as marked gaps, a comment in the code and a list in a report, never dropped silently. Word lists become lexer tokens or literal alternatives, and their canonical values a generated lookup map, as Participle captures only the text. Prove it as the Raku tests prove `grammar`: run the grammar and the generated parser on the same inputs, and compare. A disagreement is a bug in the generator or a gap it should have marked. | partly | 3–4 |
+| **No phrasebook from Raku to Participle.** | Raku programmers curious about Participle, and anyone choosing between the two. It's also the specification for the dialect (next row). | A page like `scalar`'s Perl phrasebook: each construct in Raku grammar syntax, the same thing as Participle structs and tags, and what Participle can't do. That covers backreferences, lookbehind and frugal quantifiers, as Participle works on tokens rather than characters, and word lists' canonical values, as it captures only the text. Every row runs as a test, the Raku form through `grammar` and the Participle form through Participle, on the same inputs, so the page can't drift from either. | yes | 2 |
+| **No Participle dialect.** There's no way to write a Participle grammar in a Raku-like syntax. | Describing a Participle grammar the Raku way: readable rules, with Participle's typed output at the end. | A restricted mode of the Raku-syntax parser that accepts exactly what the phrasebook covers. Anything else fails when the grammar compiles, saying why, such as "backreferences need the text, and Participle works on tokens". A `token` becomes a lexer rule, so in the dialect it must be a regular pattern, with no calls to rules and no captures; a `rule` becomes a grammar rule, with whitespace skipped between tokens. The same grammar still runs in `grammar` itself, which the generator (next row) relies on. | yes | 2–3 |
+| **No generator for Participle.** | Graduating a dialect grammar: when a typed syntax tree, structure checked when the code compiles, and Participle's error messages and ecosystem are worth more than Raku compatibility. | Generate Go source with `go generate`, as Participle's grammars are struct tags and must exist when the code compiles: structs with their tags, and a lexer from the tokens. Word lists become lexer tokens or literal alternatives, and their canonical values a generated lookup map. It's a starting point you own and edit, not one kept in step with the grammar. As the dialect has already refused what can't translate, the output is complete, with nothing to mark as missing. Prove it as the Raku tests prove `grammar`: run the grammar and the generated parser on the same inputs, and compare. | yes | 3 |
 
 ## Licence
 
