@@ -46,7 +46,9 @@ make it honest for everyone else.
 ## Tests
 
 - `TestMatchesRaku` and `TestCapsMatchRaku` run the same cases through
-  Rakudo and compare: the match trees, and the captures in order. They skip without `raku` on the
+  Rakudo and compare: the match trees, and the captures in order.
+  `TestMappingMatchesRaku` runs the phrasebook's tasks in Raku, grammar
+  and plain Go. CI fails if any of them skipped or Raku wasn't compared. They skip without `raku` on the
   PATH; say so when you're relying on one that skipped. Any change to how
   matching behaves starts with a case there, and Raku saying what's right.
 - Fuzz targets: `FuzzCompile`, `FuzzMatch` and `FuzzWords`. Run the
@@ -88,8 +90,10 @@ A feature isn't done until its documentation is.
   what's in it and when not to use it), `docs/HOWTO.md` (a quick start,
   recipes, and a regex beside a grammar), `docs/REFERENCE.md` (each
   feature in depth, what you might assume, testing against Raku, and the
-  gaps) and `docs/EXAMPLES.md` (one generated example per function), as
-  scalar's are laid out. The how-to's code is compiled and run, with its
+  gaps), `docs/EXAMPLES.md` (one generated example per function) and
+  `docs/RAKU.md` (a Raku → grammar → plain Go phrasebook, whose every row
+  `TestMappingMatchesRaku` runs in all three and compares), as scalar's
+  are laid out. The how-to's code is compiled and run, with its
   output compared, whenever it changes.
 - Every exported function and method has an example in the right
   `example_*_test.go` file, which `TestEveryFeatureHasExample` enforces.

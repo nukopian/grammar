@@ -6,7 +6,8 @@ grammar, side by side. For how each feature behaves, see the
 [reference](REFERENCE.md), starting with
 [what you might assume](REFERENCE.md#what-you-might-assume) if you know
 regexes; for one example of every function and method, see the
-[examples](EXAMPLES.md).
+[examples](EXAMPLES.md). Coming from Raku? The [phrasebook](RAKU.md) shows
+tasks in Raku, with grammar and in plain Go.
 
 - [Quick start](#quick-start)
 - [Recipes](#recipes)

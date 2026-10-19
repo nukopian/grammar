@@ -76,14 +76,17 @@ jobs:
         if: matrix.go == 'stable'
         run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
 
-      # Fail unless both Raku differential tests ran and passed, so a
-      # missing or broken Rakudo can't quietly turn the comparison off.
+      # Fail unless the Raku differential tests and the phrasebook ran and
+      # passed, with Raku compared, so a missing or broken Rakudo can't
+      # quietly turn the comparison off.
       - name: Raku tests ran
         run: |
           go test -v -run 'Raku' . | tee "$RUNNER_TEMP/raku.txt"
           if grep -E -- '--- SKIP' "$RUNNER_TEMP/raku.txt"; then exit 1; fi
           grep -q -- '--- PASS: TestMatchesRaku' "$RUNNER_TEMP/raku.txt"
           grep -q -- '--- PASS: TestCapsMatchRaku' "$RUNNER_TEMP/raku.txt"
+          grep -q -- '--- PASS: TestMappingMatchesRaku' "$RUNNER_TEMP/raku.txt"
+          if grep -- 'Raku not compared' "$RUNNER_TEMP/raku.txt"; then exit 1; fi
 
   # The other systems, without Rakudo: the Raku differential tests skip
   # without it, and -short keeps the run quick.

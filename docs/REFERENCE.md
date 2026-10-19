@@ -2,8 +2,9 @@
 
 What each part of [grammar](../README.md) does, feature by feature: how it
 behaves, where it follows Raku and where it doesn't, how it's tested, and
-what it doesn't do yet. For one example of every function and method, see
-the [examples](EXAMPLES.md).
+what it doesn't do yet. For tasks, see the [how-to guide](HOWTO.md); for
+one example of every function and method, see the [examples](EXAMPLES.md);
+coming from Raku, see the [phrasebook](RAKU.md).
 
 - [What you might assume](#what-you-might-assume)
 - [Writing a grammar](#writing-a-grammar)

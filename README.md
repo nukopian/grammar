@@ -157,6 +157,8 @@ a working example of every function and method, see the
   grammar looks like a regex, but doesn't always behave like one.
 - [Examples](docs/EXAMPLES.md): one working example for every function
   and method, with the output it prints.
+- [From Raku to Go](docs/RAKU.md): a phrasebook of tasks in Raku, with
+  `grammar` and in plain Go, all three checked against each other.
 - [The process](https://github.com/nukopian/scalar/blob/main/docs/PROCESS.md): how `grammar` and
   [`scalar`](https://github.com/nukopian/scalar) were made, as a
   partnership with Claude in which judgement stayed with Iain.

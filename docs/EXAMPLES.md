@@ -2,7 +2,8 @@
 
 Every function and method in [grammar](../README.md), each with a working
 example and the output it prints. For how the features fit together, see
-the [reference](REFERENCE.md).
+the [reference](REFERENCE.md); for tasks, see the [how-to guide](HOWTO.md);
+coming from Raku, see the [phrasebook](RAKU.md).
 
 One example for every function and method, with the output it prints. The
 examples are a guide to grammars as well as to the API: read them in order.
