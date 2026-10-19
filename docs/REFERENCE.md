@@ -5,6 +5,7 @@ behaves, where it follows Raku and where it doesn't, how it's tested, and
 what it doesn't do yet. For one example of every function and method, see
 the [examples](EXAMPLES.md).
 
+- [What you might assume](#what-you-might-assume)
 - [Writing a grammar](#writing-a-grammar)
 - [Word lists](#word-lists)
 - [Pattern lists](#pattern-lists)
@@ -14,6 +15,24 @@ the [examples](EXAMPLES.md).
 - [Errors](#errors)
 - [Testing against Raku](#testing-against-raku)
 - [Gaps and possible additions](#gaps-and-possible-additions)
+
+## What you might assume
+
+Most people come to grammars knowing regular expressions, and a grammar
+looks like one. It behaves like Raku's, which differs from a regex in ways
+that catch nearly everyone once. Each row below behaves the same in
+`grammar` and in Rakudo:
+
+| You might expect | What happens | For what you expected |
+|---|---|---|
+| `token TOP { \d+ 5 }` matches "125", as a regex would | A `token` never backtracks: `\d+` takes "125", gives none of it back, and there's nothing left for `5`, so it doesn't match. That's what keeps tokens fast and predictable | Write a `regex`, which backtracks: `regex TOP { \d+ 5 }` matches "125". Or say exactly what you mean, as `\d ** 2 5` does |
+| `a \| ab` tries `a` first, as in a regex | `\|` takes the alternative that matches the most text, so `a \| ab` matches "ab" | `\|\|` tries the alternatives in order and takes the first that matches. In a token it keeps it, so `token { a \|\| ab }` matches only the "a" of "ab" |
+| A space in a pattern matches a space | In a `token` or a `regex`, spaces in the pattern mean nothing, so `token { a b }` matches "ab", not "a b". Rakudo warns about it | Use a `rule`, in which each space in the pattern matches any whitespace in the text (see [Spaces in rules](#spaces-in-rules)), or match it: `\s`, `' '` or `'a b'` |
+| `Parse` finds the pattern in the text | `Parse` must match the whole text, as Raku's `.parse` does, and `Subparse` from its start: a `'£' \d+` grammar doesn't `Parse` "£45 pa" | `Find` and `FindAll` search the text, as a regex search does: `Find` finds "£45" in "Salary £45 pa" |
+| A capture is one match | A capture that can match more than once, `<x>*`, `<x>+` or `<x>` written twice, is always an array, even of one match, or none. `<x>?` is one match, or missing | Read an array capture with `At("x").AV()`, or `To`, which fills a slice field from it |
+| `'e'` matches the e of "é" typed as e plus an accent | Text is read in NFC, so e followed by a combining accent becomes the one character é, which `'e'` doesn't match. `from` and `to` count characters of the text as read, not bytes | Write the accented letter: a grammar's literals are read in NFC too. See [Accented letters](#accented-letters-text-is-read-in-nfc) |
+| `.` stops at the end of a line | `.` matches any character, a newline included | `\N` matches any character but a newline |
+| A literal ignores case, as the word lists do | `'Ab'` matches only "Ab". Word lists ignore case only with `FoldCase` | `:i` ignores case for the rest of the rule or group: `token { :i 'Ab' }` matches "ab" |
 
 ## Writing a grammar
 

@@ -186,7 +186,9 @@ reference, has the details, and the examples'
 
 - [Reference](docs/REFERENCE.md): each feature in depth: writing grammars,
   word lists, roles, matches, parsing, errors, testing against Raku, and
-  what's not done yet.
+  what's not done yet. If you know regexes, start with
+  [What you might assume](docs/REFERENCE.md#what-you-might-assume): a
+  grammar looks like a regex, but doesn't always behave like one.
 - [Examples](docs/EXAMPLES.md): one working example for every function
   and method, with the output it prints.
 - [The process](https://github.com/nukopian/scalar/blob/main/docs/PROCESS.md): how `grammar` and
