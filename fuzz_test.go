@@ -11,9 +11,9 @@ import (
 // The fuzz tests run their seeds with go test, and search for failures
 // with -fuzz:
 //
-//	go test ./internal/grammar -run '^$' -fuzz FuzzCompile -fuzztime 60s
-//	go test ./internal/grammar -run '^$' -fuzz FuzzMatch -fuzztime 60s
-//	go test ./internal/grammar -run '^$' -fuzz FuzzWords -fuzztime 60s
+//	go test -run '^$' -fuzz FuzzCompile -fuzztime 60s
+//	go test -run '^$' -fuzz FuzzMatch -fuzztime 60s
+//	go test -run '^$' -fuzz FuzzWords -fuzztime 60s
 
 // Compile never panics, however mangled its source: it returns an error.
 func FuzzCompile(f *testing.F) {

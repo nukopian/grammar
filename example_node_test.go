@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"unicode"
 
-	"github.com/nukopian/job-meta/internal/grammar"
+	"github.com/nukopian/grammar"
 	"github.com/nukopian/scalar"
 )
 

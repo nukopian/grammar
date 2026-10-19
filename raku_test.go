@@ -38,7 +38,7 @@ var rakuCases = []struct {
 	    token y { y }
 	}`, Inputs: []string{"", "xxbc", "xbcy", "bc", "xxy"}},
 	// >> inside a lookaround is a word boundary, not the lookaround's end
-	// (found dogfooding internal/hours, 2026-10-17).
+	// (found dogfooding job-meta's internal/hours, 2026-10-17).
 	{Src: `grammar LookBoundary {
 	    token TOP { <!before [ \s | ',' | << [:i as \s+ a ] >> ]* x> \w+ <?after \w >> > }
 	}`, Sub: true, Inputs: []string{"as a max", "x y", "abc"}},

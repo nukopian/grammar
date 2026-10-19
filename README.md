@@ -743,8 +743,8 @@ options: `grammar.Rule("name")` to start somewhere other than `TOP`,
 `FindAll` and `Split` search from there. Unlike matching a slice of the
 text, what's before is still there: a lookbehind sees it, and `<<` won't
 match in the middle of a word. The match's positions are the whole
-text's. internal/soc uses it to try a word list at each word of a job
-title.
+text's. [job-meta](https://github.com/nukopian/job-meta)'s occupation
+coder uses it to try a word list at each word of a job title.
 
 ### Into Go structs: `To` and `Values`
 
@@ -817,8 +817,8 @@ proportion to the square of the text's length. On a 4 KB text
 1 ms, and the sections grammar's `<?after <[.!?:]> \s+> What` from
 425 ms to 40 ms. Unbounded patterns still try every start they could
 begin at, so they stay slower: `<!after @hedges \s*>`, unbounded, took
-internal/hours past `StepLimit` on a 37 KB text; with `\s ** 0..3` it
-takes 66 ms. `TestLookbehindChangesNothing` and `FuzzMatch` check that
+job-meta's hours package past `StepLimit` on a 37 KB text; with
+`\s ** 0..3` it takes 66 ms. `TestLookbehindChangesNothing` and `FuzzMatch` check that
 the narrowing changes no results.
 
 ## Errors
@@ -965,7 +965,7 @@ whatever the grammar or text:
 in `testdata/fuzz`. To search for new failures:
 
 ```sh
-go test ./internal/grammar -run '^$' -fuzz '^FuzzMatch$' -fuzztime 2m
+go test -run '^$' -fuzz '^FuzzMatch$' -fuzztime 2m
 ```
 
 `FuzzMatch` keeps texts short and leaves out `regex` rules and `:!r`,
@@ -1102,13 +1102,18 @@ Thanks to the Raku and Perl communities for decades of thought about
 parsing text well.
 
 `grammar` was conceived and directed by Iain Campbell (nukopian). He set
-its rules: Raku as the baseline, checked against Rakudo itself; tests
+its rules, which are in [CLAUDE.md](CLAUDE.md): Raku as the baseline, checked against Rakudo itself; tests
 first; speed changes kept only when measured; and features added when
 real use called for them. He decided what to build and what not to, and
 reviewed and committed each change. Most of the code, tests and
 documentation were written by Claude, Anthropic's AI model, working to
 that direction; nearly all its commits credit Claude in a
 `Co-Authored-By` trailer.
+
+`grammar` started inside [job-meta](https://github.com/nukopian/job-meta),
+a proof of concept for extracting metadata from job postings, and was
+extracted with its history, so some commit messages mention packages that
+stayed behind.
 
 ## Reference
 
@@ -1118,7 +1123,7 @@ examples are a guide to grammars as well as to the API: read them in order.
 
 Generated from the examples in `example_*_test.go`, which `go test` runs, so every
 example here works and prints what it says. Edit the examples, not this section, then run
-`go test ./internal/grammar -run TestReference -update`.
+`go test . -run TestReference -update`.
 
 - [A worked example](#reference-a-worked-example)
 - [Writing grammars](#reference-writing-grammars)

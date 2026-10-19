@@ -6,7 +6,7 @@ import (
 )
 
 // ExactAcronyms keeps a folded list's acronyms in capitals: "IT" isn't
-// "it" (found dogfooding internal/soc, which kept a second, unfolded list
+// "it" (found dogfooding job-meta's internal/soc, which kept a second, unfolded list
 // for its acronyms, 2026-10-17).
 func TestExactAcronyms(t *testing.T) {
 	l := NewWordList("q", FoldCase(), WholeWords(), Plurals(), ExactAcronyms()).

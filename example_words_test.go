@@ -5,7 +5,7 @@ import (
 
 	"github.com/nukopian/scalar"
 
-	"github.com/nukopian/job-meta/internal/grammar"
+	"github.com/nukopian/grammar"
 )
 
 // A word list holds words and phrases, each with a canonical value, so that

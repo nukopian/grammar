@@ -3,7 +3,7 @@ package grammar
 import (
 	"testing"
 
-	"github.com/nukopian/job-meta/internal/docref"
+	"github.com/nukopian/grammar/internal/docref"
 )
 
 // referenceGroups are the example files, in the order and under the
@@ -21,5 +21,5 @@ func TestEveryFeatureHasExample(t *testing.T) { docref.CheckExamples(t, referenc
 
 // README.md's Reference section is what the examples generate. To update it:
 //
-//	go test ./internal/grammar -run TestReference -update
+//	go test -run TestReference -update
 func TestReference(t *testing.T) { docref.CheckReadme(t, referenceGroups) }
