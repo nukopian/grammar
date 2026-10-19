@@ -264,7 +264,7 @@ func once(n Node, st *state, pos int, c *capList, e env) (int, *capList, bool) {
 func step(n Node, st *state, pos int, c *capList, e env, k cont) bool {
 	st.deeper()
 	var ok bool
-	if !e.ratchet || extendable(n) {
+	if !e.ratchet || extendable(n) || fastPaths && oneWay(n) {
 		ok = n.match(st, pos, c, e, k)
 	} else {
 		var p int
@@ -274,6 +274,25 @@ func step(n Node, st *state, pos int, c *capList, e env, k cont) bool {
 	}
 	st.shallower()
 	return ok
+}
+
+// fastPaths turns on the matcher's fast paths, which skip machinery that
+// can't change the result: committing to an atom that matches only one way
+// (oneWay). Tests turn it off to check that the fast paths change nothing,
+// as skipStarts does for Find.
+var fastPaths = true
+
+// oneWay reports whether n calls its continuation at most once, at the one
+// place it can match: a literal, a class, an anchor, a regex or a
+// backreference. Committing to its first match, as ratchet does, then
+// changes nothing, so step can match it directly, without the closure once
+// needs to catch a first match.
+func oneWay(n Node) bool {
+	switch n.(type) {
+	case lit, class, anchor, re, backref:
+		return true
+	}
+	return false
 }
 
 // extendable reports whether n holds a frugal quantifier that can still
