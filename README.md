@@ -21,11 +21,12 @@ what they extract (pay, titles, working arrangements) follows rules. I
 remembered that grammars were one of Raku's biggest selling points, and
 wondered whether rules could do that part locally.
 
-For the reasons behind [`scalar`](https://github.com/nukopian/scalar#rationale), I
-wanted that in Go without the usual cost. Go's parser generators, such as
-Participle, are faster, about one and a half times as fast on a pay
-string. But each grammar there is Go code, with types and struct tags,
-and often a lexer to design first. That's a lot of schlepping just to find out whether rules
+For the reasons behind
+[`scalar`](https://github.com/nukopian/scalar#rationale), I wanted that in
+Go without the usual cost. Go's parser generators, such as Participle, are
+faster, about one and a half times as fast on a pay string. But each
+grammar there is Go code, with types and struct tags, and often a lexer to
+design first. That's a lot of schlepping just to find out whether rules
 can do a job at all. `grammar` borrows from where the ideas are best
 worked out:
 
