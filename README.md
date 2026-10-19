@@ -12,6 +12,15 @@ unreadable, splitting it into pieces means hand-written glue to put the
 pieces back together, and even then "SWE", "Software Developer" and
 "Software Engineer" come out as three different things.
 
+## Install
+
+```sh
+go get github.com/nukopian/grammar
+```
+
+It needs Go 1.25 or later, and brings in `scalar`, `regexp2` for `Re`'s
+Perl-style regexes, and `x/text` for reading text in NFC.
+
 ## Why this exists
 
 I'd never written a grammar, or used Rakudo, though I knew of both. I came
@@ -96,12 +105,6 @@ Two more things set it apart:
   nothing should surprise you. See
   [Testing against Raku](docs/REFERENCE.md#testing-against-raku).
 
-**Status: experimental.** It works and is well tested, and a pay grammar
-agreed with a language model's extraction on all 16 postings tried so far,
-but it hasn't yet met real volumes, and the API may still change. What it
-doesn't do yet is listed, with what each would take, in
-[Gaps and possible additions](docs/REFERENCE.md#gaps-and-possible-additions).
-
 ## A first grammar
 
 A grammar is a set of named rules that call each other. Here's one for
@@ -182,6 +185,46 @@ all work on it. [The match](docs/REFERENCE.md#the-match), in the
 reference, has the details, and the examples'
 [Match tree](docs/EXAMPLES.md#match-tree) prints a real one.
 
+## What's in it
+
+| For | Use | Raku |
+|---|---|---|
+| Writing a grammar | `Compile` and `MustCompile`, from Raku's syntax: `grammar`, `token`, `rule` and `regex`; or built in Go, with `New`, `Token`, `Regex`, `Seq`, `Alt`, `Lit`, `Class`, `Call` and the rest | `grammar G { token TOP { … } }` |
+| Capturing | `<name>`, `<alias=name>`, `( … )`, `$<name>=[ … ]`; `Call`, `Alias`, `Capture`, `Named` | the same |
+| Repeats and alternatives | `*`, `+`, `?`, `** m..n`, separators with `%` and `%%`, frugal `*?`; `\|` for the longest alternative, `\|\|` for the first; `Star`, `Plus`, `Repeat`, `Alt`, `First` | the same |
+| Looking around, matching again | `<?before …>`, `<!after …>`, `$<name>`, `$0`; `Before`, `NotAfter`, `Backref` | the same |
+| Synonyms | `NewWordList`, with `Add` or `AddRules` in the synonym format Elasticsearch and Solr use, and `FoldCase`, `LooseSpacing`, `JoinedSpacing`, `Plurals`, `WholeWords` and `ExactAcronyms`; `@list` in a rule, its canonical value as `made` | `@list`, without canonical values |
+| Patterns from data | `NewPatternList`, `<@name>` | `<@array>` |
+| Sharing rules | roles with `NewRole` and `Does`, inheritance with `Extend`, protos with `Proto` and `:sym<…>` | `role`, `does`, `is`, `proto token` |
+| Parsing and searching | `Parse`, `Subparse`, `Find`, `FindAll`, `Split`; `Pos` and `Rule` to start elsewhere | `.parse`, `.subparse`, `m:g//`, `split(:v)` |
+| Reading a match | ordinary `scalar` data: `At("min.amount.~")`, `Or`; `Caps` and `Chunks` | `$/`, `.caps`, `.chunks` |
+| Values from a match | `Actions`, methods named after rules, whose results are `made`; `To[T]` into a Go struct, and `Values` | action classes, `make` and `.made` |
+| When text doesn't match | `ParseErr` and `SubparseErr`, saying where the parse got furthest and what it expected; `Check` for mistakes in a grammar; `StepLimit` and `DepthLimit` for runaway matches | |
+
+For how each feature behaves, see the [reference](docs/REFERENCE.md); for
+a working example of every function and method, see the
+[examples](docs/EXAMPLES.md).
+
+## When not to use it
+
+- **For one pattern.** A regex does that. `grammar` is for text with
+  structure: several pieces, each following rules, that you'd otherwise
+  glue together by hand.
+- **At high volumes, once a grammar has settled.** Go's parser generators
+  are faster: Participle is about one and a half times as fast on a pay
+  string. `grammar` is for finding out whether rules can do the job, and
+  keeping them readable; port a settled rule set if you need the speed
+  (see [Handing a grammar on](docs/REFERENCE.md#handing-a-grammar-on)).
+- **For text that doesn't follow rules.** A language model, or comparing
+  embeddings, does better with wording nobody anticipated.
+- **When you need to watch a parse to debug it.** There's no trace yet:
+  `ParseErr` says where a parse got furthest and what it expected, but
+  not which rules it tried on the way.
+- **When a panic is unacceptable.** `Parse`, `Find` and the rest panic
+  when a match runs past `StepLimit` or `DepthLimit`, and `MustCompile`
+  on a malformed grammar. `ParseErr`, `SubparseErr` and `Compile` return
+  errors instead.
+
 ## Documentation
 
 - [Reference](docs/REFERENCE.md): each feature in depth: writing grammars,
@@ -197,6 +240,15 @@ reference, has the details, and the examples'
 
 PDFs of the documents, for reading offline, are built on demand by
 `scripts/readme-pdf.sh`.
+
+## Status
+
+**Experimental.** It works and is well tested, against Rakudo itself and
+by fuzzing, and a pay grammar agreed with a language model's extraction
+on all 16 postings tried so far, but it hasn't yet met real volumes, and
+the API may still change before 1.0. What it doesn't do yet is listed,
+with what each would take, in
+[Gaps and possible additions](docs/REFERENCE.md#gaps-and-possible-additions).
 
 ## Licence
 
