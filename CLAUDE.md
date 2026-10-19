@@ -66,7 +66,16 @@ make it honest for everyone else.
   not your local one; that's also how to test on Go 1.25, as `go.work`
   names the Go that made it.
 - Run `gofmt -l .`, `go vet ./...` and `go test ./...` before every
-  commit.
+  commit. CI (`.github/workflows/test.yml`) runs the same on every push:
+  on Linux with the race detector, Rakudo, govulncheck and staticcheck,
+  failing unless the Raku tests ran; on macOS and Windows with `-short`;
+  and 30 seconds of each fuzz target.
+- scalar is private, so CI reads it with a deploy key: read-only, added to
+  scalar under Settings → Deploy keys as "grammar CI: read scalar", with
+  its private half in grammar's `SCALAR_DEPLOY_KEY` secret. To replace it,
+  make a new ed25519 pair, add the public half to scalar and remove the
+  old one, then set the secret again with
+  `gh secret set SCALAR_DEPLOY_KEY --repo nukopian/grammar < key`.
 
 ## Documentation keeps up with the code
 
