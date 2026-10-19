@@ -1059,6 +1059,19 @@ Before changing anything, it helps to know how the package is put together:
 | **No trace of a parse.** When a grammar won't match, there's no way to watch it work: which rules it tried, where, and what each matched before something failed. `ParseErr` reports only the furthest failure. | Writing or debugging a grammar, and learning how grammars work: seeing the rules called, nested by depth, with what each matched, is the quickest way to understand both. Raku programmers use the `Grammar::Tracer` module from `Grammar::Debugger` for this. | A `Trace(w io.Writer)` option, printing in `Grammar::Tracer`'s style: each rule as it's entered, indented by depth, then `* MATCH "text"` or `* FAIL`. Hook it into the rule call in `call.match`, not `tick`, which fires on every repeat item and alternation and would bury the rules in noise. Off, it costs a nil check per rule call; measure with `BenchmarkParse` before keeping it. `FuzzMatch` would check that tracing changes no result. | yes | 1–2 |
 | **The limit errors don't say where.** A `StepLimitError` or `DepthLimitError` names the grammar and the limit, not the rule that was running or the place in the text. | Finding the rule that backtracks badly, when a long run stops at a limit. | Keep the current rule and position in `state` as rules are called, and put them in the error: "gave up after 10000000 steps, in <inline> at line 3, column 14". That's a store per rule call, so measure it; or record them only while tracing (above), and point the error at `Trace`. | yes | 1 |
 
+### Handing a grammar on
+
+`grammar` is for getting rules working quickly on messy text. Once a
+grammar has settled, it could hand on to other tools, as `scalar` hands
+loose data on to typed Go with `To`. Both of these walk a grammar's rules,
+the same nodes the Raku-syntax parser builds, and write them out in
+another notation, so the second can build on the first.
+
+| Gap | When you'd need it | What it would take | Fixable | Effort |
+|---|---|---|---|---|
+| **No picture of a grammar.** There's no way to print a grammar as EBNF, the standard notation, or to draw it as a railroad diagram. | Documenting, reviewing or learning a grammar: a diagram of the pay grammar beside its rules shows at a glance what the rules take a while to read. | Walk the rules and print EBNF, with a note wherever a Raku feature has no EBNF form: backreferences, lookbehind, word lists, a token's ratchet. Draw the diagrams from the EBNF with an existing tool rather than writing one; check which before relying on it (Participle's repository may have one). | yes | 1–2 |
+| **No hand-off to [Participle](https://github.com/alecthomas/participle).** | A grammar that has settled, where a typed syntax tree, structure checked when the code compiles, and Participle's error messages and ecosystem are worth more than Raku compatibility: prototype in `grammar`, then graduate. | Generate Go source from a grammar: structs with Participle's tags, and a lexer, as a starting point you own and edit, not one kept in step with the grammar. Only a subset translates: sequences, alternation, repetition and named captures do; backreferences, lookbehind, frugal quantifiers, and the whitespace rules that tokens and rules apply to characters don't, as Participle works on tokens. Those must be written out as marked gaps, a comment in the code and a list in a report, never dropped silently. Word lists become lexer tokens or literal alternatives, and their canonical values a generated lookup map, as Participle captures only the text. Prove it as the Raku tests prove `grammar`: run the grammar and the generated parser on the same inputs, and compare. A disagreement is a bug in the generator or a gap it should have marked. | partly | 3–4 |
+
 ## Licence
 
 Copyright 2026 Iain Campbell. `grammar` is free software; you can
