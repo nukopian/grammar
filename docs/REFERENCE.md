@@ -13,6 +13,7 @@ the [examples](EXAMPLES.md).
 - [The match](#the-match)
 - [Parsing](#parsing)
 - [Errors](#errors)
+- [Differences from Raku](#differences-from-raku)
 - [Testing against Raku](#testing-against-raku)
 - [Gaps and possible additions](#gaps-and-possible-additions)
 
@@ -35,6 +36,11 @@ that catch nearly everyone once. Each row below behaves the same in
 | A literal ignores case, as the word lists do | `'Ab'` matches only "Ab". Word lists ignore case only with `FoldCase` | `:i` ignores case for the rest of the rule or group: `token { :i 'Ab' }` matches "ab" |
 
 ## Writing a grammar
+
+A grammar is written in Raku's syntax and compiled with `Compile`, or
+built in Go with the builder functions; both make the same grammar. The
+tables below give each piece both ways, with what it means. If you know
+regexes, read [What you might assume](#what-you-might-assume) first.
 
 ### Rules
 
@@ -582,6 +588,10 @@ its ties put in name order.
 
 ## Parsing
 
+A compiled grammar runs over text with these: `Parse` and `Subparse`
+match from the start of the text, `Find`, `FindAll` and `Split` search
+it, and `ParseErr` and `SubparseErr` say why a parse failed.
+
 | Method | Does |
 |---|---|
 | `g.Parse(text)` | match all of text, as Raku's `.parse` |
@@ -805,6 +815,27 @@ for grammars in package-level variables, so a bad one fails as the program
 starts. Grammars built in Go are checked when they're first used, and
 panic, as a bad regex does in `scalar`.
 
+## Differences from Raku
+
+Where `grammar` behaves differently from Rakudo, on purpose or not yet,
+with when each matters. *Fixable* and *Effort* are as in the
+[gaps](#gaps-and-possible-additions).
+
+| Difference | When it matters | What it would take | Fixable | Effort |
+|---|---|---|---|---|
+| **A grammar that calls a rule it doesn't have is an error,** even if an extension would supply it. Raku allows it, and fails only if the rule is called. | Only for grammars meant to be completed by extensions: write those as roles, which may call rules they don't have. | — | by design | — |
+| **`<p:sym<x>>` is an error.** Raku reads it as a call to the proto `<p>`, ignoring the `:sym<x>`, which is never what it looks like. | Only when calling one variant directly: give its rules a name of their own instead. | — | by design | — |
+| **A pattern list's bad pattern is an error when the list is made.** Raku fails only when it comes to match it. | Never for patterns that compile. | — | by design | — |
+| **An unknown Unicode property is an error.** Raku's `<:Bogus>` matches nothing, silently. | Never for a property that exists. A misspelt one fails when the grammar compiles, rather than making a rule that can never match. | — | by design | — |
+| **`Caps` puts captures at the same place in name order.** Raku's `.caps` leaves them in hash order, which changes from run to run. | Never for captures at different places. An alias and its rule's name, or two empty captures at one spot, come in a fixed order here and a varying one in Raku. | — | by design | — |
+| **`\|`, and a call to a proto, pick the branch whose first match is longest,** and of equal ones, the first. Raku picks by the longest declarative prefix, roughly the part of each branch before anything that could backtrack. | Rarely: they agree on ordinary alternations of words and phrases. They can differ when branches share a start and something after it decides. | True longest-token matching (above). | yes | 5 |
+| **Actions run after the whole match succeeds,** innermost first. Raku runs each as its rule matches, including for matches it later backtracks out of. | Only for actions with side effects, such as counting or logging. | Run actions in `call`'s `finish`, keeping their values on the `mnode`. Running after is easier to reason about, so keep it unless something needs the other. | by design | 2 |
+| **Text is read as UTF-8, a rune at a time.** A byte that isn't valid UTF-8 becomes U+FFFD (`�`), as Go's `[]rune(text)` does, so a match's `~` holds `�` where the text held the bad byte. Raku can't hold such text at all: it fails to decode it. | Scraped text with bad bytes in it, when the exact bytes matter. | Clean or decode the text first, or match byte strings as `scalar` does (each byte a character from 0 to 255). | by design | 2 |
+| **Positions count runes, not graphemes,** in NFC. Text is read in NFC, so an accented letter that has a composed form is one character, as in Raku. One that doesn't, such as q with a combining tilde (q̃), is two here, and one grapheme in Raku, so `.` can match half of it. | Rare in job postings: languages whose letters have no composed form, and emoji sequences. | Segment the input with `rivo/uniseg` and match on graphemes. | yes | 3 |
+| **`<alias=name>` captures under both names,** as Raku does. | When you expect only the alias. | Nothing to fix: use `<alias=.name>`. | by design | — |
+| **`Re` takes Perl-style regex syntax.** | Only that it isn't Raku syntax. It's for patterns you already have. | — | by design | — |
+| **Word lists add to Raku's `@list`:** canonical values, `FoldCase`, `LooseSpacing`, `JoinedSpacing`, `Plurals` and `WholeWords`. | Never for Raku-compatible lists: without the options, a list matches as Raku's does. | — | by design | — |
+
 ## Testing against Raku
 
 `TestMatchesRaku` compiles each grammar in `rakuCases` here and in Raku,
@@ -848,8 +879,9 @@ commit it, so it's checked from then on.
 
 ## Gaps and possible additions
 
-What this package doesn't do yet, where it behaves differently from Raku,
-and what it would take to change. Each entry says when you'd need it, so
+What this package doesn't do yet, and what it would take. Where it
+behaves differently from Raku has its own section,
+[Differences from Raku](#differences-from-raku). Each entry says when you'd need it, so
 that it's clear which to do first when the need comes up.
 
 **Effort** is a rough guide for someone new to the code:
@@ -898,23 +930,6 @@ Before changing anything, it helps to know how the package is put together:
 | **Interpolation**: `$var`, `<$regex>`, `<{ … }>` | Patterns chosen at run time. Backreferences, `$<name>` and `$0`, are supported. | Word lists cover literal phrases, pattern lists (`<@name>`) patterns from data, and `Re` regex strings. Variables would come with rule parameters (below). | partly | 2 |
 | **Failure reports from `Find` and `FindAll`** | Finding out why pay wasn't found in a posting, rather than why one string didn't parse. | Track failures across every start position and report the furthest. The noise is the hard part: most positions fail at once, for no interesting reason. | partly | 2 |
 | **Backtracking control beyond `:`**: `::`, `:::`, `<commit>`, `<cut>` | Taming slow, heavily backtracking `regex` rules. `:` after an atom (`[ a \| ab ]:`, `<w>:`) is supported, as Rakudo supports it. | Rakudo doesn't implement these either (2025.11: `::` and `:::` are "not yet implemented", and `<commit>` and `<cut>` are taken as calls to rules of those names), so there's nothing to check them against, and a grammar using them wouldn't run in Raku; `Compile` rejects `::` and `:::`. They need the matcher to unwind to a marked point, which continuation-passing makes awkward. `:`, tokens and `StepLimit` usually do the job. | partly | 3 |
-
-### Differences from Raku
-
-| Difference | When it matters | What it would take | Fixable | Effort |
-|---|---|---|---|---|
-| **A grammar that calls a rule it doesn't have is an error,** even if an extension would supply it. Raku allows it, and fails only if the rule is called. | Only for grammars meant to be completed by extensions: write those as roles, which may call rules they don't have. | — | by design | — |
-| **`<p:sym<x>>` is an error.** Raku reads it as a call to the proto `<p>`, ignoring the `:sym<x>`, which is never what it looks like. | Only when calling one variant directly: give its rules a name of their own instead. | — | by design | — |
-| **A pattern list's bad pattern is an error when the list is made.** Raku fails only when it comes to match it. | Never for patterns that compile. | — | by design | — |
-| **An unknown Unicode property is an error.** Raku's `<:Bogus>` matches nothing, silently. | Never for a property that exists. A misspelt one fails when the grammar compiles, rather than making a rule that can never match. | — | by design | — |
-| **`Caps` puts captures at the same place in name order.** Raku's `.caps` leaves them in hash order, which changes from run to run. | Never for captures at different places. An alias and its rule's name, or two empty captures at one spot, come in a fixed order here and a varying one in Raku. | — | by design | — |
-| **`\|`, and a call to a proto, pick the branch whose first match is longest,** and of equal ones, the first. Raku picks by the longest declarative prefix, roughly the part of each branch before anything that could backtrack. | Rarely: they agree on ordinary alternations of words and phrases. They can differ when branches share a start and something after it decides. | True longest-token matching (above). | yes | 5 |
-| **Actions run after the whole match succeeds,** innermost first. Raku runs each as its rule matches, including for matches it later backtracks out of. | Only for actions with side effects, such as counting or logging. | Run actions in `call`'s `finish`, keeping their values on the `mnode`. Running after is easier to reason about, so keep it unless something needs the other. | by design | 2 |
-| **Text is read as UTF-8, a rune at a time.** A byte that isn't valid UTF-8 becomes U+FFFD (`�`), as Go's `[]rune(text)` does, so a match's `~` holds `�` where the text held the bad byte. Raku can't hold such text at all: it fails to decode it. | Scraped text with bad bytes in it, when the exact bytes matter. | Clean or decode the text first, or match byte strings as `scalar` does (each byte a character from 0 to 255). | by design | 2 |
-| **Positions count runes, not graphemes,** in NFC. Text is read in NFC, so an accented letter that has a composed form is one character, as in Raku. One that doesn't, such as q with a combining tilde (q̃), is two here, and one grapheme in Raku, so `.` can match half of it. | Rare in job postings: languages whose letters have no composed form, and emoji sequences. | Segment the input with `rivo/uniseg` and match on graphemes. | yes | 3 |
-| **`<alias=name>` captures under both names,** as Raku does. | When you expect only the alias. | Nothing to fix: use `<alias=.name>`. | by design | — |
-| **`Re` takes Perl-style regex syntax.** | Only that it isn't Raku syntax. It's for patterns you already have. | — | by design | — |
-| **Word lists add to Raku's `@list`:** canonical values, `FoldCase`, `LooseSpacing`, `JoinedSpacing`, `Plurals` and `WholeWords`. | Never for Raku-compatible lists: without the options, a list matches as Raku's does. | — | by design | — |
 
 ### Engineering
 
