@@ -14,10 +14,10 @@ import (
 
 // compileErr compiles src, reporting a panic as an error too, so a test can
 // tell a crash from a syntax error.
-func compileErr(src string) (err error, panicked any) {
+func compileErr(src string) (panicked any, err error) {
 	defer func() { panicked = recover() }()
 	_, err = Compile(src)
-	return err, nil
+	return nil, err
 }
 
 // Left recursion is an error, not a fatal stack overflow: Compile reports
@@ -30,7 +30,7 @@ func TestLeftRecursion(t *testing.T) {
 		{`grammar L4 { token TOP { <?before <TOP>> a } }`, "TOP → TOP"},
 		{`grammar L5 { token TOP { [ a | <TOP> ] b } }`, "TOP → TOP"},
 	} {
-		err, p := compileErr(c.src)
+		p, err := compileErr(c.src)
 		if p != nil || err == nil || !strings.Contains(err.Error(), "left-recursive") || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("%s: err %v, panic %v; want left-recursive %s", c.src, err, p, c.want)
 		}
@@ -41,7 +41,7 @@ func TestLeftRecursion(t *testing.T) {
 		`grammar R2 { token TOP { '(' <TOP>* ')' } }`,
 		`grammar R3 { token TOP { <x> <TOP>? }; token x { a } }`,
 	} {
-		if err, p := compileErr(src); err != nil || p != nil {
+		if p, err := compileErr(src); err != nil || p != nil {
 			t.Errorf("%s: err %v, panic %v", src, err, p)
 		}
 	}
@@ -79,7 +79,7 @@ func TestCompileNeverPanics(t *testing.T) {
 		{`grammar G { token TOP { a ** 99999999999999999999 } }`, "too large"},
 		{`grammar G { token TOP { a ** 3..1 } }`, "empty range"},
 	} {
-		err, p := compileErr(c.src)
+		p, err := compileErr(c.src)
 		if p != nil || err == nil || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("%s: err %v, panic %v; want %q", c.src, err, p, c.want)
 		}
