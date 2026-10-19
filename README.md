@@ -23,9 +23,9 @@ wondered whether rules could do that part locally.
 
 For the reasons behind [`scalar`](https://github.com/nukopian/scalar#rationale), I
 wanted that in Go without the usual cost. Go's parser generators, such as
-Participle, are faster, about twice as fast on a pay string. But each
-grammar there is Go code, with types and struct tags, and often a lexer to
-design first. That's a lot of schlepping just to find out whether rules
+Participle, are faster, about one and a half times as fast on a pay
+string. But each grammar there is Go code, with types and struct tags,
+and often a lexer to design first. That's a lot of schlepping just to find out whether rules
 can do a job at all. `grammar` borrows from where the ideas are best
 worked out:
 
@@ -38,7 +38,7 @@ and changing a rule means changing a line. It's for getting from "could
 rules do this?" to a measured answer quickly: its pay grammar went from
 first sketch to agreeing with a language model on every posting tried, in
 a day. It's also for keeping the rules readable once they work. At about
-13 µs a parse, it gets through the 134,000 postings it was built for in
+9 µs a parse, it gets through the 134,000 postings it was built for in
 seconds. Where production volumes need more, a rule set that has settled
 can be ported.
 
