@@ -381,7 +381,7 @@ print Rakudo::Internals::JSON.to-json(@out, :!pretty);
 			} else {
 				got = g.Parse(input)
 			}
-			w := want.AV().Get(i).AV().Get(j)
+			w := want.Get(i).Get(j)
 			stripMade(got) // Raku's <@list> has no canonical values
 			if d := got.Diff(w); d != "" {
 				gj, _ := got.MarshalJSON()
@@ -420,7 +420,7 @@ func caseLists(lists map[string][]string) []Use {
 func stripMade(m *scalar.SV) {
 	switch m.Kind() {
 	case scalar.HashRef:
-		m.HV().Delete("made")
+		m.Delete("made")
 		for _, v := range m.HV().All() {
 			stripMade(v)
 		}

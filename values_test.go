@@ -31,14 +31,14 @@ func TestValues(t *testing.T) {
 		}
 	}
 	for _, key := range reserved {
-		if v.HV().Exists(key) {
+		if v.Exists(key) {
 			t.Errorf("%q kept", key)
 		}
 	}
 
 	// Missing captures are missing; quantified ones are empty arrays.
 	v = Values(shapes.Parse("Ada Lovelace: "))
-	if v.HV().Exists("0") || v.At("tag").AV().Length() != 0 {
+	if v.Exists("0") || v.At("tag").AV().Length() != 0 {
 		t.Errorf("missing captures: %v", v)
 	}
 
