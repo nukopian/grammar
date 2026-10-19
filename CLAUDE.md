@@ -53,9 +53,11 @@ make it honest for everyone else.
   `go test -run '^$' -fuzz '^FuzzMatch$' -fuzztime 60s`. A failure it
   finds is written to `testdata/fuzz`: commit it, so it's checked from
   then on.
-- Speed-ups sit behind a switch, as `skipStarts` does for `Find`, with a
-  test that runs with it on and off and compares the results, as
-  `FuzzMatch` and `starts_test.go` do.
+- Speed-ups sit behind a switch, as `skipStarts` does for `Find` and
+  `fastPaths` for the matcher, with a test that runs with it on and off
+  and compares the results, as `FuzzMatch`, `starts_test.go` and
+  `fastpath_test.go` do, and a planted bug to show the comparison would
+  notice a difference.
 - grammar supports Go 1.25 and later, as `go.mod` says, as scalar does.
   Don't use newer standard-library features unless raising the minimum is
   a deliberate decision.
