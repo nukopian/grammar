@@ -1,5 +1,7 @@
 # grammar
 
+[![test](https://github.com/nukopian/grammar/actions/workflows/test.yml/badge.svg)](https://github.com/nukopian/grammar/actions/workflows/test.yml)
+
 Pull structured facts out of messy text, such as job titles and pay, with
 Raku-style grammars and synonym lists, in Go.
 

@@ -1,0 +1,98 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  GOTOOLCHAIN: local # test the Go asked for, not a newer one it fetches
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        # The oldest Go that go.mod allows, and the newest.
+        go: ['1.25', 'stable']
+    name: test (Go ${{ matrix.go }})
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ matrix.go }}
+      - run: go version
+
+      # The differential tests run the same cases through Rakudo and
+      # compare. Ubuntu's own package is years old, so this is Rakudo's
+      # prebuilt release of the version the tests are written against,
+      # checked against its published SHA-256 before it's used.
+      - name: Rakudo
+        env:
+          RAKUDO: rakudo-moar-2025.11-01-linux-x86_64-gcc
+          SHA256: 86e71268ead9032f98b736ad51834f55ab290db70cea531baae1daafbc5869e9
+        run: |
+          curl -sSfL -o "$RUNNER_TEMP/$RAKUDO.tar.gz" "https://rakudo.org/dl/rakudo/$RAKUDO.tar.gz"
+          echo "$SHA256  $RUNNER_TEMP/$RAKUDO.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$RAKUDO.tar.gz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/$RAKUDO/bin" >> "$GITHUB_PATH"
+      - run: raku --version
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then echo "$unformatted"; exit 1; fi
+
+      - run: go vet ./...
+
+      - run: go test -race ./...
+
+      # Known vulnerabilities in what grammar calls, in its dependencies or
+      # the standard library; then staticcheck. Both need a recent Go.
+      - name: govulncheck
+        if: matrix.go == 'stable'
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+      - name: staticcheck
+        if: matrix.go == 'stable'
+        run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
+
+      # Fail unless both Raku differential tests ran and passed, so a
+      # missing or broken Rakudo can't quietly turn the comparison off.
+      - name: Raku tests ran
+        run: |
+          go test -v -run 'Raku' . | tee "$RUNNER_TEMP/raku.txt"
+          if grep -E -- '--- SKIP' "$RUNNER_TEMP/raku.txt"; then exit 1; fi
+          grep -q -- '--- PASS: TestMatchesRaku' "$RUNNER_TEMP/raku.txt"
+          grep -q -- '--- PASS: TestCapsMatchRaku' "$RUNNER_TEMP/raku.txt"
+
+  # The other systems, without Rakudo: the Raku differential tests skip
+  # without it, and -short keeps the run quick.
+  portability:
+    strategy:
+      matrix:
+        os: [macos-15, windows-2025]
+    runs-on: ${{ matrix.os }}
+    name: test (${{ matrix.os }})
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+      - run: go vet ./...
+      - run: go test -short ./...
+
+  # A short run of each fuzz target, from the seed corpus on.
+  fuzz:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+      - run: go test -run '^$' -fuzz '^FuzzCompile$' -fuzztime 30s .
+      - run: go test -run '^$' -fuzz '^FuzzMatch$' -fuzztime 30s .
+      - run: go test -run '^$' -fuzz '^FuzzWords$' -fuzztime 30s .
