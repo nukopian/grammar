@@ -253,7 +253,7 @@ func ExampleGrammar_IsRole() {
 // call to <.ws>, which matches any amount of whitespace, so the rule reads
 // like the text it matches. Here "up to £500 per day" matches with any
 // spacing, but "upto" doesn't, as <.ws> won't match nothing between two
-// words. See the README's "Spaces in rules" for exactly where a space counts.
+// words. See "Spaces in rules" in docs/REFERENCE.md for exactly where a space counts.
 func ExampleCompile_rule() {
 	g := grammar.MustCompile(`
 grammar Rate {

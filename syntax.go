@@ -24,8 +24,8 @@ import (
 //
 // The source can refer by name to what's declared earlier in it, and to
 // uses: grammars to extend (is), roles to compose (does), and word lists to
-// match (@units). The syntax is a subset of Raku's; the package README
-// lists what's in it.
+// match (@units). The syntax is a subset of Raku's; the reference,
+// docs/REFERENCE.md, lists what's in it.
 func Compile(src string, uses ...Use) (g *Grammar, err error) {
 	p := &parser{src: []rune(nfc(src)), grammars: map[string]*Grammar{}, lists: map[string]*WordList{},
 		patterns: map[string]*PatternList{}}

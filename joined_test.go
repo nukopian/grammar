@@ -126,7 +126,8 @@ func TestJoinedSpacingLongRuns(t *testing.T) {
 }
 
 // benchList times Find over a sentence with a list of work-arrangement
-// phrases, with and without JoinedSpacing; README.md quotes the comparison.
+// phrases, with and without JoinedSpacing; docs/REFERENCE.md quotes the
+// comparison.
 func benchList(b *testing.B, joined bool, text string) {
 	opts := []ListOption{FoldCase(), LooseSpacing(), WholeWords()}
 	if joined {

@@ -22,7 +22,7 @@ measurement shows a real cost.
 
 - **Where Raku has a feature, match Raku's behaviour.** When the Go and
   Raku results differ, Raku is right, unless the difference is listed
-  under the README's "Differences from Raku". Raise any new difference
+  under "Differences from Raku" in the reference. Raise any new difference
   with Iain before building it, and document it there, with when it
   matters.
 - **Check what Raku does before writing an expected output.** Ask it
@@ -32,7 +32,7 @@ measurement shows a real cost.
   the reference build.
 - **Where grammar goes beyond Raku**, as with word lists' canonical
   values, `FoldCase`, `JoinedSpacing` and `Plurals`, or `Re` taking
-  Perl-style regexes, say so in the README, and keep a Raku-compatible
+  Perl-style regexes, say so in the reference, and keep a Raku-compatible
   form matching as Raku does.
 - **Naming follows Go's convention,** as in scalar: Go names for the API
   (`Compile`, `FindAll`, `ParseErr`), Raku's spelling inside the grammar
@@ -83,14 +83,17 @@ make it honest for everyone else.
 
 A feature isn't done until its documentation is.
 
-- The README explains each feature, and ends with a Reference section
-  generated from the examples. Every exported function and method has an
-  example in the right `example_*_test.go` file, which
-  `TestEveryFeatureHasExample` enforces; edit the examples, then run
-  `go test -run TestReference -update`.
+- The documents: `README.md` (what grammar is, a synopsis, why it exists,
+  and a first grammar), `docs/REFERENCE.md` (each feature in depth,
+  testing against Raku, and the gaps) and `docs/EXAMPLES.md` (one
+  generated example per function), as scalar's are laid out.
+- Every exported function and method has an example in the right
+  `example_*_test.go` file, which `TestEveryFeatureHasExample` enforces.
+  `docs/EXAMPLES.md` is generated from those examples: edit the
+  examples, then run `go test -run TestReference -update`.
 - Examples use job-posting text, such as pay, hours and titles, as the
   postings put it, unless an example needs something neutral.
-- "Gaps and possible additions" in the README lists what grammar doesn't
+- "Gaps and possible additions" in the reference lists what grammar doesn't
   do yet, when you'd need it, what it would take, and the effort, for a
   future reader with only the package as context. Keep it current: add a
   gap when one's found, and remove it when it's closed.
@@ -113,7 +116,7 @@ included, and gaps found by reading them have led to real features.
   record baseline benchmarks (`BenchmarkParse`, `BenchmarkFindAll` and the
   others), and profile first, because the profile's share sets a ceiling
   on the gain. Keep what pays, revert what doesn't, and record reverted
-  ideas and their numbers in the README's gaps so they aren't retried
+  ideas and their numbers in the reference's gaps so they aren't retried
   blind.
 - **Wash-ups.** After a run of features, review them together for
   crashes, memory, correctness, inefficiency and slop. Reproduce each

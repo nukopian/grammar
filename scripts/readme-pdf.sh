@@ -4,7 +4,7 @@
 # them.
 #
 #   scripts/readme-pdf.sh                      # every document, each PDF beside it
-#   scripts/readme-pdf.sh README.md            # README.pdf
+#   scripts/readme-pdf.sh docs/REFERENCE.md    # docs/REFERENCE.pdf
 #   scripts/readme-pdf.sh README.md out.pdf
 set -eu
 
@@ -31,7 +31,7 @@ build() {
 }
 
 if [ $# -eq 0 ]; then
-	for doc in README.md; do
+	for doc in README.md docs/REFERENCE.md docs/EXAMPLES.md; do
 		build "$root/$doc" "$root/${doc%.md}.pdf"
 	done
 else
