@@ -45,7 +45,7 @@ func tieOrder(tree *scalar.SV) {
 		n := items.Length()
 		for i := 0; i < n; {
 			j := i + 1
-			for j < n && items.Get(i).Get(0).Str() != "~" && items.Get(j).Get(0).Str() != "~" &&
+			for j < n && items.Get(i, 0).Str() != "~" && items.Get(j, 0).Str() != "~" &&
 				place(items.Get(i)) == place(items.Get(j)) {
 				j++
 			}
@@ -55,7 +55,7 @@ func tieOrder(tree *scalar.SV) {
 					idx[k] = i + k
 				}
 				slices.SortStableFunc(idx, func(a, b int) int {
-					return keyCmp(items.Get(a).Get(0).Str(), items.Get(b).Get(0).Str())
+					return keyCmp(items.Get(a, 0).Str(), items.Get(b, 0).Str())
 				})
 				reorder := func(av *scalar.AV) {
 					vals := make([]*scalar.SV, len(idx))
@@ -133,7 +133,7 @@ print Rakudo::Internals::JSON.to-json(@out, :!pretty);
 			} else {
 				m = g.Parse(input)
 			}
-			w := want.Get(i).Get(j)
+			w := want.Get(i, j)
 			if !m.Defined() {
 				if w.Defined() {
 					t.Errorf("%s on %q: no match here", g.Name(), input)

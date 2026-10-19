@@ -381,7 +381,7 @@ print Rakudo::Internals::JSON.to-json(@out, :!pretty);
 			} else {
 				got = g.Parse(input)
 			}
-			w := want.Get(i).Get(j)
+			w := want.Get(i, j)
 			stripMade(got) // Raku's <@list> has no canonical values
 			if d := got.Diff(w); d != "" {
 				gj, _ := got.MarshalJSON()
