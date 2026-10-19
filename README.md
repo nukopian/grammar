@@ -189,6 +189,9 @@ reference, has the details, and the examples'
   what's not done yet.
 - [Examples](docs/EXAMPLES.md): one working example for every function
   and method, with the output it prints.
+- [The process](https://github.com/nukopian/scalar/blob/main/docs/PROCESS.md): how `grammar` and
+  [`scalar`](https://github.com/nukopian/scalar) were made, as a
+  partnership with Claude in which judgement stayed with Iain.
 
 PDFs of the documents, for reading offline, are built on demand by
 `scripts/readme-pdf.sh`.
@@ -216,7 +219,8 @@ real use called for them. He decided what to build and what not to, and
 reviewed and committed each change. Most of the code, tests and
 documentation were written by Claude, Anthropic's AI model, working to
 that direction; nearly all its commits credit Claude in a
-`Co-Authored-By` trailer.
+`Co-Authored-By` trailer. How the partnership worked is in Iain's essay,
+[The process](https://github.com/nukopian/scalar/blob/main/docs/PROCESS.md).
 
 `grammar` started inside [job-meta](https://github.com/nukopian/job-meta),
 a proof of concept for extracting metadata from job postings, and was

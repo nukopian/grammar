@@ -4,7 +4,8 @@ These are the working rules for this repository. grammar is developed by
 Iain Campbell with Claude (see the README's Acknowledgements), and they
 follow scalar's (`../scalar/CLAUDE.md`) as far as they apply, so that the
 repositories read alike and work moves between them easily. Each rule
-comes with the reason for it.
+comes with the reason for it, and the why behind them all is Iain's essay,
+[The process](https://github.com/nukopian/scalar/blob/main/docs/PROCESS.md).
 
 ## What grammar is for
 
