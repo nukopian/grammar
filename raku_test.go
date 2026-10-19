@@ -19,7 +19,7 @@ var rakuCases = []struct {
 	// Pattern lists, for <@name>: Raku arrays of regexes.
 	Patterns map[string][]string `json:"patterns,omitempty"`
 }{
-	// The pay grammar from the README.
+	// The pay grammar from the how-to guide's quick start.
 	{Src: `grammar Pay {
 	    token TOP    { <min=money> [ <.sep> <max=money> ]? <period>? }
 	    token money  { '£' \s? <amount> }

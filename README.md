@@ -105,86 +105,6 @@ Two more things set it apart:
   nothing should surprise you. See
   [Testing against Raku](docs/REFERENCE.md#testing-against-raku).
 
-## A first grammar
-
-A grammar is a set of named rules that call each other. Here's one for
-pay:
-
-```go
-var Pay = grammar.MustCompile(`
-grammar Pay {
-    token TOP    { <min=money> [ <.sep> <max=money> ]? <period>? }
-    token money  { '£' \s? <amount> }
-    token amount { <num> [ $<k>=[:i k] ]? }
-    token num    { \d ** 1..3 [ ',' \d ** 3 ]* [ '.' \d+ ]? }
-    token sep    { \s* [ '-' | '–' | to ] \s* }
-    token period { :i \s* [ 'p.a.' | pa | per \s+ [ annum | year | hour | day ] ] }
-}`)
-```
-
-Parsing starts at `TOP`, which reads: a `<money>`, captured as `min`; then
-optionally a separator and another `<money>`, captured as `max`; then
-optionally a `<period>`. Each rule is described in the same way, and the
-[tables in the reference](docs/REFERENCE.md#writing-a-grammar) say what
-each piece means.
-
-An action is a Go method named after a rule. It's called with that rule's
-match, and what it returns is stored in the match as `made`:
-
-```go
-type PayActions struct{}
-
-// Amount is called for each <amount>: "45,000" is 45000, and "45k" is too.
-func (PayActions) Amount(m *scalar.SV) any {
-	n := m.At("num.~").S(`,`, "", "gr").Num() // num.~ is the text <num> matched
-	if m.At("k").Defined() {
-		n *= 1000
-	}
-	return n
-}
-
-m := Pay.Find("Salary: £45k – £55,000 per annum, plus bonus.", grammar.Actions(PayActions{}))
-m.At("~")                // "£45k – £55,000 per annum": the text matched
-m.At("min.amount.made")  // 45000
-m.At("max.amount.made")  // 55000
-m.At("period.~")         // " per annum"
-```
-
-### What a match looks like
-
-A match is a tree that follows the grammar: each rule that matched is a
-match of its own, under the name it was captured as. Every match has its
-text under `~`, and each also has `from` and `to`, its position, left out
-here:
-
-```yaml
-"~": £45k – £55,000 per annum   # the text TOP matched
-min:                            # <min=money>
-  "~": £45k
-  amount:                       # <amount>, inside money
-    "~": 45k
-    num: { "~": "45" }
-    k:   { "~": k }             # $<k>=[ k ]: only there when it matched
-    made: 45000                 # what the Amount action returned
-max:                            # <max=money>
-  "~": £55,000
-  amount:
-    "~": 55,000
-    num: { "~": "55,000" }
-    made: 55000
-money: [ …, … ]                 # the same two matches: money is captured twice, so it's an array
-period:
-  "~": " per annum"
-```
-
-So `m.At("min.amount.made")` walks down the tree to a value, and
-`m.At("period.~")` reads "the text of the period capture". A capture that
-didn't match is missing, and reads as undef, so `Or` and `Defined` work on
-it. The match is ordinary `scalar` data, so `At`, `Or`, `To` and the rest
-all work on it. [The match](docs/REFERENCE.md#the-match), in the
-reference, has the details, and the examples'
-[Match tree](docs/EXAMPLES.md#match-tree) prints a real one.
-
 ## What's in it
 
 | For | Use | Raku |
@@ -227,6 +147,9 @@ a working example of every function and method, see the
 
 ## Documentation
 
+- [How-to guide](docs/HOWTO.md): a quick start, a first grammar for pay,
+  recipes for common tasks, and the same job done with a regex and with a
+  grammar.
 - [Reference](docs/REFERENCE.md): each feature in depth: writing grammars,
   word lists, roles, matches, parsing, errors, testing against Raku, and
   what's not done yet. If you know regexes, start with

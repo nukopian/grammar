@@ -85,9 +85,12 @@ make it honest for everyone else.
 A feature isn't done until its documentation is.
 
 - The documents: `README.md` (what grammar is, a synopsis, why it exists,
-  and a first grammar), `docs/REFERENCE.md` (each feature in depth,
-  testing against Raku, and the gaps) and `docs/EXAMPLES.md` (one
-  generated example per function), as scalar's are laid out.
+  what's in it and when not to use it), `docs/HOWTO.md` (a quick start,
+  recipes, and a regex beside a grammar), `docs/REFERENCE.md` (each
+  feature in depth, what you might assume, testing against Raku, and the
+  gaps) and `docs/EXAMPLES.md` (one generated example per function), as
+  scalar's are laid out. The how-to's code is compiled and run, with its
+  output compared, whenever it changes.
 - Every exported function and method has an example in the right
   `example_*_test.go` file, which `TestEveryFeatureHasExample` enforces.
   `docs/EXAMPLES.md` is generated from those examples: edit the
