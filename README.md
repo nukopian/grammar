@@ -1214,7 +1214,7 @@ Compile compiles grammars and roles written in Raku syntax, and returns the last
 
 A grammar is a set of named rules. Parsing starts at TOP, and a rule calls another by writing its name in angle brackets. Here TOP calls \<word> and \<num>, and the match has one of each.
 
-Inside a rule, spaces and # comments mean nothing; letters and digits match themselves, and anything else must be quoted, as '-' is.
+Inside a rule, spaces and \# comments mean nothing; letters and digits match themselves, and anything else must be quoted, as '-' is.
 
 ```go
 g, err := grammar.Compile(`
@@ -1713,7 +1713,7 @@ fmt.Printf("%+v %v\n", r, err)
 
 How captures are shaped. A capture that can match more than once, because it's quantified (\*, +, \*\*) or its name appears twice, is always an array, even when it matched once or not at all. Any other capture is a single match, or missing when it didn't match. The grammar decides this, not the text, so code reading a match never has to check which it got.
 
-( ... ) captures by position, as "0", "1" and so on; $\<name>=\[ ... ] captures the text it matched under a name.
+( ... ) captures by position, as "0", "1" and so on; \$\<name>=\[ ... ] captures the text it matched under a name.
 
 ```go
 g := grammar.MustCompile(`
@@ -1875,9 +1875,9 @@ grammar Long: match too deep: gave up after 1000 levels (see DepthLimit)
 
 #### `Backref`
 
-Backref is $<name>, or $0 for the first positional capture: it matches the text the capture last matched, as Raku's does: a separator used again, as in \d+ $<sep>=<[,.]> \d ** 3 - \d+ $<sep> \d ** 3, or a closing quote.
+Backref is \$<name>, or \$0 for the first positional capture: it matches the text the capture last matched, as Raku's does: a separator used again, as in \d+ \$<sep>=<[,.]> \d ** 3 - \d+ \$<sep> \d ** 3, or a closing quote.
 
-Backref is $\<name>: the text a capture matched, again. Here a pay range must use the same thousands separator in both figures, so a range that mixes them, likely two figures run together, isn't read as one.
+Backref is \$\<name>: the text a capture matched, again. Here a pay range must use the same thousands separator in both figures, so a range that mixes them, likely two figures run together, isn't read as one.
 
 ```go
 g := grammar.MustCompile(`
@@ -2312,7 +2312,7 @@ Frugal returns q matching as few items as it can, as *? and +? do.
 
 Frugal makes a quantifier match as little as it can, as \*? and +? do in Raku and Perl, taking more only when what follows fails. Here the frugal .\*? stops at the first " - "; a greedy .\* would run to the last.
 
-In a token, where nothing else gives back what it matched, a frugal quantifier still takes more when it needs to, so .\*? is how a token skips ahead. That works through \[ ... ] and $\<name>=\[ ... ], but a capture ( ... ) commits to its first match, as in Raku: (.\*?) in a token matches nothing, and stays that way. Name the text with $\<name>=\[ .\*? ] instead, or use a regex.
+In a token, where nothing else gives back what it matched, a frugal quantifier still takes more when it needs to, so .\*? is how a token skips ahead. That works through \[ ... ] and \$\<name>=\[ ... ], but a capture ( ... ) commits to its first match, as in Raku: (.\*?) in a token matches nothing, and stays that way. Name the text with \$\<name>=\[ .\*? ] instead, or use a regex.
 
 ```go
 g := grammar.New("G").Token("TOP", grammar.Seq(
@@ -2436,9 +2436,9 @@ fmt.Println(m.At("0.~"), m.At("1.~"))
 
 #### `Named`
 
-Named is $<name>=n.
+Named is \$<name>=n.
 
-Named captures the text of part of a rule under a name: $\<year>=\[ ... ] in Raku syntax. Named(name, Capture(...)), $\<name>=( ... ), captures with a scope of its own, so positional captures inside it are its own.
+Named captures the text of part of a rule under a name: \$\<year>=\[ ... ] in Raku syntax. Named(name, Capture(...)), \$\<name>=( ... ), captures with a scope of its own, so positional captures inside it are its own.
 
 ```go
 digits := func(n int) grammar.Node { return grammar.Repeat(grammar.Digit, n, n) }
@@ -2555,7 +2555,7 @@ true
 
 #### `Start`
 
-Start and End match at the start and end of the text, as ^ and $ do in Raku. LineStart and LineEnd, ^^ and $$, match at the start and end of any line.
+Start and End match at the start and end of the text, as ^ and \$ do in Raku. LineStart and LineEnd, ^^ and \$\$, match at the start and end of any line.
 
 ```go
 g := grammar.New("G").Token("TOP", grammar.Seq(grammar.Start, grammar.Plus(grammar.Digit)))
@@ -2742,7 +2742,7 @@ grammar: synonym rule "a => b => c" has more than one =>
 
 AddRules adds each line of rules as a rule, as AddRule does, and reports the first bad one.
 
-AddRules takes many rules, one per line, as Elasticsearch's synonyms API returns them. Blank lines and lines starting with # are skipped.
+AddRules takes many rules, one per line, as Elasticsearch's synonyms API returns them. Blank lines and lines starting with \# are skipped.
 
 ```go
 units := grammar.NewWordList("units", grammar.FoldCase())
@@ -3018,7 +3018,7 @@ Senior Year
 
 #### `Named.wordList`
 
-A named capture of a word list, $\<name>=@list, has the canonical value as its made value, so a list inside a bigger rule needs no rule of its own, and grammar.To can read it straight into a struct.
+A named capture of a word list, \$\<name>=@list, has the canonical value as its made value, so a list inside a bigger rule needs no rule of its own, and grammar.To can read it straight into a struct.
 
 ```go
 levels := grammar.NewWordList("levels", grammar.FoldCase()).Add("Senior", "snr", "sr")
