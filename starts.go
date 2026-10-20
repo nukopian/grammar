@@ -130,7 +130,7 @@ func (f *startFinder) add(n Node, ci bool, s *starts) bool {
 			root := l.rootFold
 			acro := l.acro // an acronym starts with its capital, as written
 			s.preds = append(s.preds, func(r rune) bool {
-				return root.next[unicode.ToLower(r)] != nil || acro && root.next[r] != nil
+				return foldStep(root, unicode.ToLower(r)) != nil || acro && foldStep(root, r) != nil
 			})
 		} else {
 			for r := range l.root.next {

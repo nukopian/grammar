@@ -7,6 +7,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"golang.org/x/text/unicode/norm"
 )
 
 // WordList is a list of words and phrases, each with a canonical value: the
@@ -181,10 +183,57 @@ func (l *WordList) addKey(key, canonical string, made bool) {
 			delete(values, key)
 			delete(madeKeys, key)
 		}
-		insert(root, values, key, canonical)
+		insert(root, values, key, canonical, root == l.rootFold)
 	}
 	add(l.root, l.values, l.made, key)
-	add(l.rootFold, l.valuesFold, l.madeFold, l.foldKey(key))
+	add(l.rootFold, l.valuesFold, l.madeFold, l.folded(key))
+}
+
+// folded is key as the folded trie's values hold it: foldKey's, in NFC
+// again, since folding can leave a phrase out of NFC (see foldStep).
+func (l *WordList) folded(key string) string { return nfc(l.foldKey(key)) }
+
+// foldStep follows r from t in the folded trie, which holds each character
+// decomposed. Case folds a character at a time, and a capital can have no
+// precomposed form where its lower case does: Y and a ring is two
+// characters, and in lower case they're ẙ, one. Decomposed, both are y and
+// a ring, so a phrase is the same however it's spelt, as Raku's fc has it.
+// Below U+00C0 nothing decomposes, so ASCII and Latin-1 text takes one
+// step, as before, inlined where it's called.
+func foldStep(t *trie, r rune) *trie {
+	if r < 0xC0 {
+		return t.next[r]
+	}
+	return foldSteps(t, r)
+}
+
+// foldSteps is foldStep for a character from U+00C0 on.
+func foldSteps(t *trie, r rune) *trie {
+	var b [utf8.UTFMax]byte
+	d := norm.NFD.Properties(b[:utf8.EncodeRune(b[:], r)]).Decomposition()
+	if d == nil {
+		return t.next[r]
+	}
+	for len(d) > 0 && t != nil {
+		r, n := utf8.DecodeRune(d)
+		t, d = t.next[r], d[n:]
+	}
+	return t
+}
+
+// foldPath is key as the folded trie's path spells it: each character
+// decomposed, as foldStep reads them.
+func foldPath(key string) []rune {
+	var path []rune
+	for _, r := range key {
+		var b [utf8.UTFMax]byte
+		if d := norm.NFD.Properties(b[:utf8.EncodeRune(b[:], r)]).Decomposition(); r >= 0xC0 && d != nil {
+			path = append(path, []rune(string(d))...)
+		} else {
+			path = append(path, r)
+		}
+	}
+	return path
 }
 
 // foldKey is key as the folded trie holds it: lower case, but for
@@ -256,12 +305,16 @@ func pluralOf(phrase string) string {
 	return phrase + "s"
 }
 
-func insert(root *trie, values map[string][]string, key, canonical string) {
+func insert(root *trie, values map[string][]string, key, canonical string, fold bool) {
 	if !slices.Contains(values[key], canonical) {
 		values[key] = append(values[key], canonical)
 	}
+	path := []rune(key)
+	if fold {
+		path = foldPath(key)
+	}
 	t := root
-	for _, r := range key {
+	for _, r := range path {
 		if t.next == nil {
 			t.next = map[rune]*trie{}
 		}
@@ -404,7 +457,7 @@ func (l *WordList) Canonical(phrase string) []string {
 	if v, ok := l.values[key]; ok {
 		return slices.Clone(v)
 	}
-	if v, ok := l.valuesFold[l.foldKey(key)]; ok || !l.joined && !l.acro {
+	if v, ok := l.valuesFold[l.folded(key)]; ok || !l.joined && !l.acro {
 		return slices.Clone(v)
 	}
 	// Else walk the trie, as matching does: past spacing the phrase leaves
@@ -462,7 +515,7 @@ func isListSpace(r rune) bool {
 func (l *WordList) normalise(phrase string) string {
 	phrase = nfc(phrase)
 	if l.fold {
-		phrase = l.foldKey(phrase)
+		phrase = l.folded(phrase)
 	}
 	if l.loose {
 		phrase = strings.Join(strings.FieldsFunc(phrase, isListSpace), " ")
@@ -478,17 +531,19 @@ func Words(l *WordList) Node { return words{l} }
 
 // width is the least and most text the list can match, in characters, for
 // a lookbehind to narrow its starts by: up to its longest phrase, plurals
-// included (case folds rune for rune, and JoinedSpacing only shortens), but
-// no limit with LooseSpacing, where any run of spacing matches a space.
-// The least is taken as none, which is always safe.
+// included (folded text is no longer than the decomposed path it follows,
+// and JoinedSpacing only shortens), but no limit with LooseSpacing, where
+// any run of spacing matches a space. The least is taken as none, which is
+// always safe.
 func (l *WordList) width() (lo, hi int) {
 	if l.loose {
 		return 0, -1
 	}
-	for _, values := range []map[string][]string{l.values, l.valuesFold} {
-		for k := range values {
-			hi = max(hi, utf8.RuneCountInString(k))
-		}
+	for k := range l.values {
+		hi = max(hi, utf8.RuneCountInString(k))
+	}
+	for k := range l.valuesFold {
+		hi = max(hi, len(foldPath(k))) // no character of text is shorter than its path
 	}
 	return 0, hi
 }
@@ -532,9 +587,10 @@ func (n words) match(st *state, pos int, c *capList, e env, k cont) bool {
 			r = ' '
 		}
 		if fold {
-			r = unicode.ToLower(r)
+			t = foldStep(t, unicode.ToLower(r))
+		} else {
+			t = t.next[r]
 		}
-		t = t.next[r]
 		i += width
 	}
 	if end < 0 {
@@ -594,16 +650,19 @@ func (l *WordList) longest(in []rune, pos int, fold bool, st *state) (int, *trie
 				}
 				r = ' '
 			}
+			var next *trie
 			if fold {
 				lower := unicode.ToLower(r)
 				if l.acro && lower != r {
-					if next := t.next[r]; next != nil {
+					if next := foldStep(t, r); next != nil {
 						walk(next, i+width) // an acronym's capital, as written
 					}
 				}
-				r = lower
+				next = foldStep(t, lower)
+			} else {
+				next = t.next[r]
 			}
-			if next := t.next[r]; next != nil {
+			if next != nil {
 				walk(next, i+width)
 			}
 		}

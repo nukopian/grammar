@@ -176,3 +176,50 @@ func TestWholeWordsAfterDigits(t *testing.T) {
 		t.Error("<!before \\w> doesn't check only the end")
 	}
 }
+
+// Case folds a character at a time, and a capital can have no precomposed
+// form where its lower case does: Y and a ring is two characters, ẙ is one.
+// A folded phrase is the same phrase however it's spelt, composed or not,
+// as Raku's fc has it. FuzzWords found the first two (from "0́Y̊" and,
+// in CI, "Ω͂0").
+func TestFoldCaseComposes(t *testing.T) {
+	for _, spellings := range [][]string{
+		{"0́Y̊", "0́ẙ", "0́ẙ"}, // 0́Y̊, 0́ẙ, 0́ẙ
+		{"Ω͂0", "ῶ0", "ῶ0"},    // Ω͂0, ῶ0, ῶ0
+		{"W̊eek", "ẘeek"},       // W̊eek, ẘeek
+	} {
+		for _, phrase := range spellings {
+			for _, opts := range [][]ListOption{
+				{FoldCase()},
+				{FoldCase(), JoinedSpacing()},
+				{FoldCase(), ExactAcronyms()},
+				{FoldCase(), WholeWords()},
+				{}, // with :i
+			} {
+				l := NewWordList("w", opts...).Add("x", phrase)
+				token := `token TOP { @w }`
+				if len(opts) == 0 {
+					token = `token TOP { :i @w }`
+				}
+				g := MustCompile(`grammar W { `+token+` }`, l)
+				find := MustCompile(`grammar F { token TOP { <?after ' '> :i @w } }`, l)
+				for _, p := range l.Phrases() {
+					if !slices.Equal(l.Canonical(p), []string{"x"}) {
+						t.Errorf("%q, %d options: its phrase %q means %q", phrase, len(opts), p, l.Canonical(p))
+					}
+				}
+				for _, text := range spellings {
+					if len(opts) > 0 && !slices.Equal(l.Canonical(text), []string{"x"}) {
+						t.Errorf("%q, %d options: %q means %q", phrase, len(opts), text, l.Canonical(text))
+					}
+					if m := g.Parse(text); !m.Defined() || m.At("made").Str() != "x" {
+						t.Errorf("%q, %d options: %q doesn't match", phrase, len(opts), text)
+					}
+					if got := find.FindAll("on " + text + " and " + strings.ToUpper(text)).Length(); got != 2 {
+						t.Errorf("%q, %d options: found %d in text, want 2", phrase, len(opts), got)
+					}
+				}
+			}
+		}
+	}
+}

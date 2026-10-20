@@ -553,6 +553,16 @@ A byte that isn't valid UTF-8 is read as U+FFFD first, as Go reads text
 into runes, everywhere text is read, so a phrase and the text it's found
 in always agree.
 
+Case is folded a character at a time, and a few capitals with an accent
+have no composed form where their lower case does: Y with a ring above is
+two characters, `Y` and U+030A, and in lower case it's one, `ẙ`. So a word
+list that ignores case, with `FoldCase` or under `:i`, compares letters
+decomposed, and a phrase matches however it's spelt: `Y̊`, `ẙ` and `y` with
+a ring are one phrase, as they are to Raku's `fc`. Its `Phrases` and
+`Canonical` hold it in NFC. Text below U+00C0 has nothing to decompose and
+takes the same step as before. A literal under `:i` still folds one
+character at a time (see the differences table).
+
 Checking that text is in NFC takes about 1.3 ns a byte (`BenchmarkNFC`), but
 a shortcut skips the check for text below U+0300 (English with `£` and
 accented Latin letters), so a posting in plain English costs nothing
@@ -833,6 +843,7 @@ with when each matters. *Fixable* and *Effort* are as in the
 | **Actions run after the whole match succeeds,** innermost first. Raku runs each as its rule matches, including for matches it later backtracks out of. | Only for actions with side effects, such as counting or logging. | Run actions in `call`'s `finish`, keeping their values on the `mnode`. Running after is easier to reason about, so keep it unless something needs the other. | by design | 2 |
 | **Text is read as UTF-8, a rune at a time.** A byte that isn't valid UTF-8 becomes U+FFFD (`�`), as Go's `[]rune(text)` does, so a match's `~` holds `�` where the text held the bad byte. Raku can't hold such text at all: it fails to decode it. | Scraped text with bad bytes in it, when the exact bytes matter. | Clean or decode the text first, or match byte strings as `scalar` does (each byte a character from 0 to 255). | by design | 2 |
 | **Positions count runes, not graphemes,** in NFC. Text is read in NFC, so an accented letter that has a composed form is one character, as in Raku. One that doesn't, such as q with a combining tilde (q̃), is two here, and one grapheme in Raku, so `.` can match half of it. | Rare in job postings: languages whose letters have no composed form, and emoji sequences. | Segment the input with `rivo/uniseg` and match on graphemes. | yes | 3 |
+| **A literal under `:i` folds case a character at a time,** so `:i 'ẙ'` doesn't match `Y̊`, a capital with no composed form. Word lists compare such letters decomposed, so they match (see [Accented letters](#accented-letters-text-is-read-in-nfc)). Rakudo 2025.11 agrees that the two are equal under `fc`, but matches only one way round with a literal, and neither way with an array. | Almost never: a handful of letters, such as Y and W with a ring above, J with a caron, and some Greek capitals with accents, none of them in English or most European languages. | Fold literals as word lists do, a decomposed character at a time. | yes | 1 |
 | **`<alias=name>` captures under both names,** as Raku does. | When you expect only the alias. | Nothing to fix: use `<alias=.name>`. | by design | — |
 | **`Re` takes Perl-style regex syntax.** | Only that it isn't Raku syntax. It's for patterns you already have. | — | by design | — |
 | **Word lists add to Raku's `@list`:** canonical values, `FoldCase`, `LooseSpacing`, `JoinedSpacing`, `Plurals` and `WholeWords`. | Never for Raku-compatible lists: without the options, a list matches as Raku's does. | — | by design | — |
