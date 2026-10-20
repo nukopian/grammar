@@ -141,6 +141,12 @@ included, and gaps found by reading them have led to real features.
   `test: ...` or `ci: ...`. Say why as well as what.
 - Claude commits and pushes changes once they're done and checked, and
   Iain reviews them. Commits are signed.
+- Work is committed and pushed to `develop`. `main` is the latest release
+  and moves only at a release, by a fast-forward to `develop`, with the
+  tag on it; it's protected, so a push to it needs CI passing. Add what
+  changed for users to `CHANGELOG.md` under Unreleased in the same
+  commit. [MAINTAINING.md](https://github.com/nukopian/scalar/blob/main/docs/MAINTAINING.md) has the release steps and the git
+  and GitHub work done by hand.
 - Every commit ends with a `Co-Authored-By` trailer for the Claude model
   that worked on it, currently
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.

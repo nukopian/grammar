@@ -162,6 +162,11 @@ a working example of every function and method, see the
 - [The process](https://github.com/nukopian/scalar/blob/main/docs/PROCESS.md): how `grammar` and
   [`scalar`](https://github.com/nukopian/scalar) were made, as a
   partnership with Claude in which judgement stayed with Iain.
+- [Changes](CHANGELOG.md): what each release changed, and what's waiting
+  for the next.
+- [Maintaining](https://github.com/nukopian/scalar/blob/main/docs/MAINTAINING.md): scalar's guide to branches,
+  releases and the git and GitHub work done by hand, for both
+  repositories.
 
 PDFs of the documents, for reading offline, are built on demand by
 `scripts/readme-pdf.sh`.
