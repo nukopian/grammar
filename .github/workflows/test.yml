@@ -10,7 +10,6 @@ permissions:
 
 env:
   GOTOOLCHAIN: local # test the Go asked for, not a newer one it fetches
-  GOPRIVATE: github.com/nukopian/* # scalar is private: fetch it directly, not from the public proxy
 
 jobs:
   test:
@@ -22,21 +21,6 @@ jobs:
     name: test (Go ${{ matrix.go }})
     steps:
       - uses: actions/checkout@v7
-      # scalar is private, so read it with its read-only deploy key: the
-      # private half is this repository's SCALAR_DEPLOY_KEY secret, and the
-      # public half is on scalar (see CLAUDE.md). GitHub's host key is
-      # pinned, as GitHub publishes it.
-      - name: read access to scalar
-        shell: bash
-        env:
-          SCALAR_DEPLOY_KEY: ${{ secrets.SCALAR_DEPLOY_KEY }}
-        run: |
-          mkdir -p "$HOME/.ssh"
-          printf '%s\n' "$SCALAR_DEPLOY_KEY" > "$HOME/.ssh/scalar_deploy"
-          chmod 600 "$HOME/.ssh/scalar_deploy"
-          echo 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' >> "$HOME/.ssh/known_hosts"
-          git config --global url."git@github.com:nukopian/scalar".insteadOf "https://github.com/nukopian/scalar"
-          git config --global core.sshCommand "ssh -i $HOME/.ssh/scalar_deploy -o IdentitiesOnly=yes"
 
       - uses: actions/setup-go@v7
         with:
@@ -98,21 +82,6 @@ jobs:
     name: test (${{ matrix.os }})
     steps:
       - uses: actions/checkout@v7
-      # scalar is private, so read it with its read-only deploy key: the
-      # private half is this repository's SCALAR_DEPLOY_KEY secret, and the
-      # public half is on scalar (see CLAUDE.md). GitHub's host key is
-      # pinned, as GitHub publishes it.
-      - name: read access to scalar
-        shell: bash
-        env:
-          SCALAR_DEPLOY_KEY: ${{ secrets.SCALAR_DEPLOY_KEY }}
-        run: |
-          mkdir -p "$HOME/.ssh"
-          printf '%s\n' "$SCALAR_DEPLOY_KEY" > "$HOME/.ssh/scalar_deploy"
-          chmod 600 "$HOME/.ssh/scalar_deploy"
-          echo 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' >> "$HOME/.ssh/known_hosts"
-          git config --global url."git@github.com:nukopian/scalar".insteadOf "https://github.com/nukopian/scalar"
-          git config --global core.sshCommand "ssh -i $HOME/.ssh/scalar_deploy -o IdentitiesOnly=yes"
       - uses: actions/setup-go@v7
         with:
           go-version: stable
@@ -124,21 +93,6 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      # scalar is private, so read it with its read-only deploy key: the
-      # private half is this repository's SCALAR_DEPLOY_KEY secret, and the
-      # public half is on scalar (see CLAUDE.md). GitHub's host key is
-      # pinned, as GitHub publishes it.
-      - name: read access to scalar
-        shell: bash
-        env:
-          SCALAR_DEPLOY_KEY: ${{ secrets.SCALAR_DEPLOY_KEY }}
-        run: |
-          mkdir -p "$HOME/.ssh"
-          printf '%s\n' "$SCALAR_DEPLOY_KEY" > "$HOME/.ssh/scalar_deploy"
-          chmod 600 "$HOME/.ssh/scalar_deploy"
-          echo 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' >> "$HOME/.ssh/known_hosts"
-          git config --global url."git@github.com:nukopian/scalar".insteadOf "https://github.com/nukopian/scalar"
-          git config --global core.sshCommand "ssh -i $HOME/.ssh/scalar_deploy -o IdentitiesOnly=yes"
       - uses: actions/setup-go@v7
         with:
           go-version: stable

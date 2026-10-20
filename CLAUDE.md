@@ -80,12 +80,6 @@ make it honest for everyone else.
   before a tag, and after any history rewrite, before it's pushed. A leak
   stops the work like a failing test: once history is published, it
   can't be taken back.
-- scalar is private, so CI reads it with a deploy key: read-only, added to
-  scalar under Settings → Deploy keys as "grammar CI: read scalar", with
-  its private half in grammar's `SCALAR_DEPLOY_KEY` secret. To replace it,
-  make a new ed25519 pair, add the public half to scalar and remove the
-  old one, then set the secret again with
-  `gh secret set SCALAR_DEPLOY_KEY --repo nukopian/grammar < key`.
 
 ## Documentation keeps up with the code
 
