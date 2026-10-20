@@ -16,8 +16,10 @@ Nothing yet.
 
 ## v0.1.2 (2026-10-20)
 
-A folded phrase matches however its accents are spelt, and the docs are
-split and extended as scalar's are. None of the changes is to the API.
+A folded phrase matches however its accents are spelt
+
+None of the changes is to the API, and the docs are split and extended
+as scalar's are.
 
 - Fix: a word list that ignores case, with FoldCase or under `:i`,
   matches a phrase however its accents are spelt. A few capitals with an
