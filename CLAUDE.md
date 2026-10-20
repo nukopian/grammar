@@ -75,6 +75,11 @@ make it honest for everyone else.
   on Linux with the race detector, Rakudo, govulncheck and staticcheck,
   failing unless the Raku tests ran; on macOS and Windows with `-short`;
   and 30 seconds of each fuzz target.
+- gitleaks scans the whole history for secrets: in CI on every push, and
+  by hand (`gitleaks git --redact .`) before a repository goes public,
+  before a tag, and after any history rewrite, before it's pushed. A leak
+  stops the work like a failing test: once history is published, it
+  can't be taken back.
 - scalar is private, so CI reads it with a deploy key: read-only, added to
   scalar under Settings → Deploy keys as "grammar CI: read scalar", with
   its private half in grammar's `SCALAR_DEPLOY_KEY` secret. To replace it,
