@@ -12,6 +12,13 @@ has the steps, for both repositories).
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.1.2 (2026-10-20)
+
+A folded phrase matches however its accents are spelt, and the docs are
+split and extended as scalar's are. None of the changes is to the API.
+
 - Fix: a word list that ignores case, with FoldCase or under `:i`,
   matches a phrase however its accents are spelt. A few capitals with an
   accent have no composed form where their lower case does: Y with a ring
@@ -31,6 +38,8 @@ has the steps, for both repositories).
   the essay on how grammar and scalar were made.
 - CI scans the whole history for secrets with gitleaks on every push, and
   fetches scalar publicly: the deploy key is gone.
+- This change log, and a `develop` branch for work: `main` is the latest
+  release, and moves only at the next.
 - The repository is public, from 2026-10-20.
 
 ## v0.1.1 (2026-10-19)
