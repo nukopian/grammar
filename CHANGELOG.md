@@ -11,6 +11,14 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.1.3 (2026-10-22)
+
+grammar's own maintainer's guide
+
+None of the changes is to the code or the API.
+
 - Docs: [docs/MAINTAINING.md](docs/MAINTAINING.md), grammar's own
   maintainer's guide, in place of pointing to scalar's. It adds what's
   particular to grammar: testing against the tagged scalar with
