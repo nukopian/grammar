@@ -11,7 +11,10 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- Planned work for a later session is listed in a `TODO.md` on
+  `develop`, checked at the start of each session, and gone before a
+  release, so it never reaches `main`. CLAUDE.md has the rules, and the
+  release steps check for it.
 
 ## v0.1.3 (2026-10-22)
 

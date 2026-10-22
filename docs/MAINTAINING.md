@@ -30,6 +30,9 @@ both:
   is on it. Visitors to GitHub see `main`, so its README and docs describe
   what `go get` installs.
 - There are no feature branches, for now: changes are made one at a time.
+- `TODO.md`, when there is one, lists work planned for a later session.
+  It's committed on `develop` and gone before a release, so it never
+  reaches `main` ([CLAUDE.md](../CLAUDE.md#planned-work) has the rules).
 
 `main` is protected on GitHub. Pushes to it need signed commits, a linear
 history (no merge commits) and CI passing on every job, and it can't be
@@ -147,20 +150,24 @@ A release is a signed, annotated tag on `main`. Before v1, a breaking
 change bumps the minor version (v0.1.2 to v0.2.0) and anything else the
 patch (v0.1.2 to v0.1.3). Claude asks before tagging.
 
-1. **Check `develop`:** CI is green on its last commit, the tests pass
-   against the scalar `go.mod` asks for, and the history has no secrets.
+1. **Check `develop`:** CI is green on its last commit, there's no
+   `TODO.md`, the tests pass against the scalar `go.mod` asks for, and
+   the history has no secrets.
 
    ```
    cd ~/Git/github.com/nukopian/grammar
    git switch develop
    git pull --ff-only
    gh run list --branch develop --limit 1
+   if [ -e TODO.md ]; then cat TODO.md; else echo "no TODO.md"; fi
    grep nukopian/scalar go.mod
    GOWORK=off go test ./...
    gitleaks git --redact --no-banner .
    ```
 
-   `go.mod` names a scalar tag, such as `v0.5.2`, and never a pseudo-version
+   If `TODO.md` is there, its tasks come first: do them, or move them
+   where CLAUDE.md says, and delete the file before going on. `go.mod`
+   names a scalar tag, such as `v0.5.2`, and never a pseudo-version
    (`v0.5.3-0.2026...`) or a `replace` pointing at `../scalar`.
 
 2. **Turn Unreleased into the release** in [CHANGELOG.md](../CHANGELOG.md):
