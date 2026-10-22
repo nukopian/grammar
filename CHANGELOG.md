@@ -6,13 +6,16 @@ entry is taken from its signed tag message. Versions follow
 bumps the minor version.
 
 Work collects under Unreleased on the `develop` branch, and becomes a
-release's entry when `main` is moved to it and tagged (scalar's
-[MAINTAINING.md](https://github.com/nukopian/scalar/blob/main/docs/MAINTAINING.md)
-has the steps, for both repositories).
+release's entry when `main` is moved to it and tagged
+([docs/MAINTAINING.md](docs/MAINTAINING.md) has the steps).
 
 ## Unreleased
 
-Nothing yet.
+- Docs: [docs/MAINTAINING.md](docs/MAINTAINING.md), grammar's own
+  maintainer's guide, in place of pointing to scalar's. It adds what's
+  particular to grammar: testing against the tagged scalar with
+  `GOWORK=off`, checking the Raku tests ran, taking up a new scalar, and
+  comparing job-meta's output before and after a release.
 
 ## v0.1.2 (2026-10-20)
 

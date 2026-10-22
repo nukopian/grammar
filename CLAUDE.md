@@ -92,7 +92,9 @@ A feature isn't done until its documentation is.
   gaps), `docs/EXAMPLES.md` (one generated example per function) and
   `docs/RAKU.md` (a Raku → grammar → plain Go phrasebook, whose every row
   `TestMappingMatchesRaku` runs in all three and compares), as scalar's
-  are laid out. The how-to's code is compiled and run, with its
+  are laid out, with `CHANGELOG.md` (what each release changed) and
+  `docs/MAINTAINING.md` (branches, releases, and the git and GitHub work
+  done by hand) beside them. The how-to's code is compiled and run, with its
   output compared, whenever it changes.
 - Every exported function and method has an example in the right
   `example_*_test.go` file, which `TestEveryFeatureHasExample` enforces.
@@ -145,8 +147,8 @@ included, and gaps found by reading them have led to real features.
   and moves only at a release, by a fast-forward to `develop`, with the
   tag on it; it's protected, so a push to it needs CI passing. Add what
   changed for users to `CHANGELOG.md` under Unreleased in the same
-  commit. [MAINTAINING.md](https://github.com/nukopian/scalar/blob/main/docs/MAINTAINING.md) has the release steps and the git
-  and GitHub work done by hand.
+  commit. [MAINTAINING.md](docs/MAINTAINING.md) has the release steps
+  and the git and GitHub work done by hand.
 - Every commit ends with a `Co-Authored-By` trailer for the Claude model
   that worked on it, currently
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
