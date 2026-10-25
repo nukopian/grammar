@@ -39,6 +39,11 @@ type WordList struct {
 	// same for valuesFold, so Phrases, Len and Ambiguous can leave them out,
 	// and a phrase added as itself can take one over.
 	made, madeFold map[string]bool
+
+	// canonicals are the canonical values, each once, in the order a
+	// phrase first meant them, for Canonicals; isCanonical holds the same.
+	canonicals  []string
+	isCanonical map[string]bool
 }
 
 type trie struct {
@@ -129,7 +134,8 @@ func ExactAcronyms() ListOption { return func(l *WordList) { l.acro = true } }
 // refers to it: @name.
 func NewWordList(name string, opts ...ListOption) *WordList {
 	l := &WordList{name: name, root: &trie{}, values: map[string][]string{},
-		rootFold: &trie{}, valuesFold: map[string][]string{}, made: map[string]bool{}, madeFold: map[string]bool{}}
+		rootFold: &trie{}, valuesFold: map[string][]string{}, made: map[string]bool{}, madeFold: map[string]bool{},
+		isCanonical: map[string]bool{}}
 	for _, opt := range opts {
 		opt(l)
 	}
@@ -159,6 +165,10 @@ func (l *WordList) AddAs(value string, phrases ...string) *WordList {
 		key := l.normalise(phrase)
 		if key == "" {
 			continue
+		}
+		if !l.isCanonical[value] {
+			l.isCanonical[value] = true
+			l.canonicals = append(l.canonicals, value)
 		}
 		l.addKey(key, value, false)
 		if plural := pluralOf(key); l.plural && plural != "" {
@@ -491,6 +501,12 @@ func (l *WordList) Ambiguous() map[string][]string {
 	}
 	return out
 }
+
+// Canonicals returns the list's canonical values, each once, in the order
+// they were first added: by Add, AddAs, AddRule or AddRules, so a rules
+// file's order is kept, as data. A value no phrase means, as from AddAs
+// with none, isn't one.
+func (l *WordList) Canonicals() []string { return slices.Clone(l.canonicals) }
 
 // Phrases returns the list's phrases, normalised, in sorted order, without
 // the plurals that Plurals made.

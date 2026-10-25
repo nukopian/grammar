@@ -1784,6 +1784,32 @@ fmt.Println(l.Phrases())
 [annum p.a. year]
 ```
 
+#### `WordList.Canonicals`
+
+Canonicals returns the list's canonical values, each once, in the order they were first added: by Add, AddAs, AddRule or AddRules, so a rules file's order is kept, as data.
+
+Canonicals gives the canonical values in the order they were first added, so the order of a rules file can be used as data: here, which section wins when a heading has phrases of two, such as "Desirable skills".
+
+```go
+sections := grammar.NewWordList("sections", grammar.FoldCase())
+sections.AddRules(`Desirable, nice to have, ideally
+Requirements, skills, essential
+Benefits, perks, what we offer
+Requirements, experience`)
+
+rank := map[string]int{}
+for i, s := range sections.Canonicals() {
+	rank[s] = i
+}
+fmt.Println(sections.Canonicals())
+fmt.Println(rank["Desirable"] < rank["Requirements"])
+```
+
+```
+[Desirable Requirements Benefits]
+true
+```
+
 #### `WordList.Len`
 
 Len returns how many distinct phrases the list holds, not counting plurals that Plurals made.

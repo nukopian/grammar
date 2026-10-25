@@ -11,6 +11,11 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+- New: `WordList.Canonicals()` gives a list's canonical values, each once,
+  in the order they were first added, by `Add`, `AddAs`, `AddRule` or
+  `AddRules`. A rules file's order can then be used as data, such as
+  which value wins when a text has phrases of two, without reading the
+  file a second time: `Phrases()` is sorted, and nothing gave the values.
 - New: `ToAll[T]`, `To` for `FindAll`, reduces each match and gives a
   `[]T` in the order found, so a word list's canonical values come back as
   Go strings: `grammar.ToAll[string](g.FindAll(text))`. Before, a caller

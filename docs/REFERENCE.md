@@ -252,6 +252,14 @@ long rules can be wrapped. `WordLists(map[string]string{...}, opts...)`
 builds a list for each set of rules, keyed by name, ready to pass to
 `Compile`: one call instead of a loop per list.
 
+**Reading a list back.** `Phrases()` gives its phrases, sorted, and
+`Len()` counts them. `Canonical(phrase)` gives what one phrase means.
+`Canonicals()` gives the canonical values, each once, in the order they
+were first added, however they were added, so the order of a rules file
+can be used as data: which value wins when a text has phrases of two,
+say, without reading the file a second time. `Ambiguous()` is below.
+None of this is in Raku, whose `@list` is only its phrases.
+
 **Matching options**, given to `NewWordList`:
 
 | Option | Effect |

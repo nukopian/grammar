@@ -179,6 +179,28 @@ func ExampleWordList_Phrases() {
 	// [annum p.a. year]
 }
 
+// Canonicals gives the canonical values in the order they were first
+// added, so the order of a rules file can be used as data: here, which
+// section wins when a heading has phrases of two, such as "Desirable
+// skills".
+func ExampleWordList_Canonicals() {
+	sections := grammar.NewWordList("sections", grammar.FoldCase())
+	sections.AddRules(`Desirable, nice to have, ideally
+Requirements, skills, essential
+Benefits, perks, what we offer
+Requirements, experience`)
+
+	rank := map[string]int{}
+	for i, s := range sections.Canonicals() {
+		rank[s] = i
+	}
+	fmt.Println(sections.Canonicals())
+	fmt.Println(rank["Desirable"] < rank["Requirements"])
+	// Output:
+	// [Desirable Requirements Benefits]
+	// true
+}
+
 // Len counts distinct phrases: a synonym added twice counts once.
 func ExampleWordList_Len() {
 	l := grammar.NewWordList("units").Add("Year", "annum").Add("Year", "annum", "yr")

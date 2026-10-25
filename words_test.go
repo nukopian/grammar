@@ -118,6 +118,34 @@ func TestWordsBuilder(t *testing.T) {
 	}
 }
 
+// Canonicals keeps the order values were first added in, each once,
+// whichever way they were added; plurals, folding, empty phrases and a value
+// with no phrases add none.
+func TestCanonicals(t *testing.T) {
+	l := NewWordList("sections", FoldCase(), Plurals())
+	l.Add("Desirable", "nice to have")
+	l.AddAs("2134", "Software engineer", "")
+	l.AddAs("9999") // no phrase means it
+	if err := l.AddRule("perk, benefit => Benefits, Pay"); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.AddRules("# a comment\nRequirements, essential,\n    must have\nDesirable, ideally\nPay, salary"); err != nil {
+		t.Fatal(err)
+	}
+	l.Add("desirable") // another value: case isn't folded for values
+	want := []string{"Desirable", "2134", "Benefits", "Pay", "Requirements", "desirable"}
+	if got := l.Canonicals(); !slices.Equal(got, want) {
+		t.Errorf("got %q, want %q", got, want)
+	}
+	l.Canonicals()[0] = "changed"
+	if l.Canonicals()[0] != "Desirable" {
+		t.Error("Canonicals returned the list's own slice")
+	}
+	if got := NewWordList("empty").Canonicals(); len(got) != 0 {
+		t.Errorf("empty list: %q", got)
+	}
+}
+
 // A role's rules can use lists and call the grammar's rules; the grammar's
 // own rules win wherever Does is called.
 func TestDoesBuilder(t *testing.T) {
