@@ -12,13 +12,14 @@ step for step, with what's different for grammar: it depends on a tagged
 scalar, its differential tests need Rakudo, and a release can change
 what job-meta's programs print.
 
-The repositories sit side by side. grammar uses scalar, and job-meta uses
-both:
+The repositories sit side by side. grammar uses scalar, job-meta uses
+both, and jdc-lab uses grammar:
 
 ```
 ~/Git/github.com/nukopian/scalar
 ~/Git/github.com/nukopian/grammar
 ~/Git/github.com/nukopian/job-meta
+~/Git/github.com/nukopian/jdc-lab
 ```
 
 ## Branches
@@ -33,6 +34,13 @@ both:
 - `TODO.md`, when there is one, lists work planned for a later session.
   It's committed on `develop` and gone before a release, so it never
   reaches `main` ([CLAUDE.md](../CLAUDE.md#planned-work) has the rules).
+  Sessions in scalar and jdc-lab add tasks to it too, so pull and re-read
+  it before each commit. Each task opens with **From** (the session that
+  added it, the date, and the commit that prompted it, or the last
+  commit and "work uncommitted") and **Waiting on** (what it needs first,
+  or nothing). A task added to scalar's or jdc-lab's `TODO.md` is
+  committed and pushed there at once, after a `git pull --ff-only`, so
+  `TODO.md` only ever changes through commits.
 
 `main` is protected on GitHub. Pushes to it need signed commits, a linear
 history (no merge commits) and CI passing on every job, and it can't be
@@ -274,6 +282,19 @@ patch (v0.1.2 to v0.1.3). Claude asks before tagging.
    mean to make is a bug in the release, fixed with a new one. Commit as
    `build: grammar v0.1.3, ...`, with what the release brings after the
    comma.
+
+7. **Tell the waiting tasks.** Look in scalar's `TODO.md` on `develop`
+   and jdc-lab's on `main` for tasks waiting on this release, and tell
+   Iain which can now be done. Nothing else tells their sessions it has
+   landed:
+
+   ```
+   for r in scalar:develop jdc-lab:main; do
+     repo=${r%%:*}; branch=${r#*:}
+     git -C ~/Git/github.com/nukopian/$repo fetch -q
+     git -C ~/Git/github.com/nukopian/$repo show origin/$branch:TODO.md 2>/dev/null | grep -n -B3 '^\*\*Waiting on:\*\*.*grammar' | sed "s|^|$repo: |"
+   done
+   ```
 
 ## When something goes wrong
 

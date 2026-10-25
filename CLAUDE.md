@@ -170,8 +170,19 @@ included, and gaps found by reading them have led to real features.
   ```
 
   `From` names the repository whose session added it, the date, and the
-  commit that prompted it. `Waiting on` is "nothing" when the task can be
-  done now.
+  commit that prompted it. If that work isn't committed yet, it gives the
+  last commit and adds "work uncommitted". `Waiting on` is "nothing" when
+  the task can be done now.
+- **A task added to another repository's `TODO.md`** (scalar's on
+  `develop`, jdc-lab's on `main`) **is committed and pushed there at
+  once,** after a `git pull --ff-only`, as its own `docs:` commit (Iain,
+  2026-10-25). `TODO.md` changes only through commits: an uncommitted
+  task blocks that repository's pulls when incoming commits touch the
+  file, and is invisible to the session that finishes it. A code fix
+  made there to get past a bug may still stay uncommitted.
+- **A release's last step** is to look in the other repositories'
+  `TODO.md` for tasks waiting on it, and tell Iain which can now be done.
+  Nothing else tells their sessions it has landed.
 - **`TODO.md` never reaches `main`.** `main` is a fast-forward of
   `develop`, so a release waits until the file is gone: each task done,
   or, to outlast the release, moved to a GitHub issue, or for a decision
