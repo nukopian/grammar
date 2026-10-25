@@ -2,6 +2,8 @@ package grammar
 
 import (
 	"errors"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/nukopian/scalar"
@@ -95,6 +97,42 @@ func TestGrammarTo(t *testing.T) {
 	_, err = To[Wrong](shapes.Parse("Ada Lovelace: "))
 	var de *scalar.DecodeError
 	if !errors.As(err, &de) {
+		t.Errorf("decode error: %v", err)
+	}
+}
+
+func TestGrammarToAll(t *testing.T) {
+	l := NewWordList("sections", FoldCase(), WholeWords())
+	if err := l.AddRules("Benefits, perk, perks\nDuties, duty, responsibilities"); err != nil {
+		t.Fatal(err)
+	}
+	g := MustCompile(`grammar Headings { token TOP { @sections } }`, l)
+
+	// Canonical values, in the order found, repeats kept.
+	kinds, err := ToAll[string](g.FindAll("Duties, perks and responsibilities"))
+	if want := []string{"Duties", "Benefits", "Duties"}; err != nil || !slices.Equal(kinds, want) {
+		t.Errorf("got %q, %v, want %q", kinds, err, want)
+	}
+
+	// Structs, one per match.
+	type Pay struct {
+		Min, Max struct{ Amount struct{ Num string } }
+	}
+	pays, err := ToAll[Pay](pay.FindAll("£30k basic, £5k - £6k car allowance"))
+	if err != nil || len(pays) != 2 || pays[0].Min.Amount.Num != "30" || pays[1].Max.Amount.Num != "6" {
+		t.Errorf("got %+v, %v", pays, err)
+	}
+
+	// No match is an empty slice, not an error: FindAll found nothing.
+	none, err := ToAll[string](g.FindAll("Salary negotiable"))
+	if err != nil || len(none) != 0 {
+		t.Errorf("no match: %q, %v", none, err)
+	}
+
+	// scalar.To's errors come through, naming the match by its index.
+	_, err = ToAll[int](g.FindAll("perks"))
+	var de *scalar.DecodeError
+	if !errors.As(err, &de) || !strings.Contains(err.Error(), "[0]") {
 		t.Errorf("decode error: %v", err)
 	}
 }

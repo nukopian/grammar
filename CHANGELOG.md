@@ -11,6 +11,11 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+- New: `ToAll[T]`, `To` for `FindAll`, reduces each match and gives a
+  `[]T` in the order found, so a word list's canonical values come back as
+  Go strings: `grammar.ToAll[string](g.FindAll(text))`. Before, a caller
+  ranged over `FindAll(...).Items()` and read `m.At("made").String()`
+  from each match.
 - Changed: the undef that `Parse`, `Subparse`, `Find`, `ParseErr` and
   `SubparseErr` return for no match is locked, so reading it stays undef,
   as in Raku. Before, reading through it with `At` autovivified it into a

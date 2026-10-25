@@ -635,7 +635,7 @@ match in the middle of a word. The match's positions are the whole
 text's. [job-meta](https://github.com/nukopian/job-meta)'s occupation
 coder uses it to try a word list at each word of a job title.
 
-### Into Go structs: `To` and `Values`
+### Into Go structs: `To`, `ToAll` and `Values`
 
 `grammar.To[T](m)` fills a struct from a match:
 
@@ -663,6 +663,18 @@ So the usual pattern is: let the grammar's capture names be your field
 names, give an action only to rules whose value isn't their text (a number,
 say), and call `To`. `Values` on its own gives the reduced match as
 `scalar` data, for reading with `At`.
+
+`grammar.ToAll[T](matches)` is `To` for `FindAll`: it reduces each match
+the same way and gives a `[]T`, in the order found. A word list's
+canonical values come back as Go strings, with no scalar in sight:
+
+```go
+kinds, err := grammar.ToAll[string](headings.FindAll(text))
+```
+
+Finding nothing gives an empty slice, not `ErrNoMatch`, as no match is
+an answer for a search. An error names the match by its index, such as
+`[1]`. Raku's nearest is `@matches».made`.
 
 ### Actions
 

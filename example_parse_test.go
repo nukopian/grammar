@@ -207,6 +207,20 @@ func ExampleTo() {
 	// grammar: no match true
 }
 
+// ToAll is To for FindAll: each match becomes a T, in order, here each
+// amount of money in a posting as the number its action made.
+func ExampleToAll() {
+	acts := grammar.Actions(map[string]func(*scalar.SV) any{
+		"money":  func(m *scalar.SV) any { return m.At("amount.made") },
+		"amount": PayActions{}.Amount,
+	})
+	posting := "£30k basic, £5k car allowance, £2.5k bonus"
+	amounts, err := grammar.ToAll[float64](Pay.FindAll(posting, grammar.Rule("money"), acts))
+	fmt.Println(amounts, err)
+	// Output:
+	// [30000 5000 2500] <nil>
+}
+
 // ParseErr says why a parse failed: where in the text the grammar got
 // furthest, and what it expected there. A rule that couldn't start there is
 // named, <money> here; one that got part of the way is reported by what it

@@ -118,7 +118,7 @@ Two more things set it apart:
 | Sharing rules | roles with `NewRole` and `Does`, inheritance with `Extend`, protos with `Proto` and `:sym<…>` | `role`, `does`, `is`, `proto token` |
 | Parsing and searching | `Parse`, `Subparse`, `Find`, `FindAll`, `Split`; `Pos` and `Rule` to start elsewhere | `.parse`, `.subparse`, `m:g//`, `split(:v)` |
 | Reading a match | ordinary `scalar` data: `At("min.amount.~")`, `Or`; `Caps` and `Chunks` | `$/`, `.caps`, `.chunks` |
-| Values from a match | `Actions`, methods named after rules, whose results are `made`; `To[T]` into a Go struct, and `Values` | action classes, `make` and `.made` |
+| Values from a match | `Actions`, methods named after rules, whose results are `made`; `To[T]` into a Go struct, `ToAll[T]` for every match `FindAll` finds, and `Values` | action classes, `make` and `.made` |
 | When text doesn't match | `ParseErr` and `SubparseErr`, saying where the parse got furthest and what it expected; `Check` for mistakes in a grammar; `StepLimit` and `DepthLimit` for runaway matches | |
 
 For how each feature behaves, see the [reference](docs/REFERENCE.md); for

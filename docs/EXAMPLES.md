@@ -728,6 +728,26 @@ fmt.Println(err, errors.Is(err, grammar.ErrNoMatch))
 grammar: no match true
 ```
 
+#### `ToAll`
+
+ToAll is To for FindAll: it reduces each match with Values and converts them to a []T, in order, so a word list's canonical values come back as Go strings:
+
+ToAll is To for FindAll: each match becomes a T, in order, here each amount of money in a posting as the number its action made.
+
+```go
+acts := grammar.Actions(map[string]func(*scalar.SV) any{
+	"money":  func(m *scalar.SV) any { return m.At("amount.made") },
+	"amount": PayActions{}.Amount,
+})
+posting := "£30k basic, £5k car allowance, £2.5k bonus"
+amounts, err := grammar.ToAll[float64](Pay.FindAll(posting, grammar.Rule("money"), acts))
+fmt.Println(amounts, err)
+```
+
+```
+[30000 5000 2500] <nil>
+```
+
 #### `Grammar.ParseErr`
 
 ParseErr is Parse, but when the text doesn't match it also returns a *ParseError, saying where the parse got furthest and what it expected there.

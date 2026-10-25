@@ -15,33 +15,6 @@ inside longer words, and `Ambiguous` and `Canonical` check the phrase
 file in jdc-lab's tests. None of what follows is a bug; each is friction worth
 deciding on.
 
-## Make FindAll's matches easier to range over from Go
-
-**What:** consider a Go-shaped way to go through `FindAll`'s matches. It
-returns a `*scalar.AV`, so a Go caller writes `.Items()` before ranging,
-and then `.At("made")` on each. An iterator (`iter.Seq[*scalar.SV]`),
-or a method giving each match's `made` value as a string, would read as
-the rest of a Go program does.
-
-**Why:** jdc-lab's `sections.All` lists every kind of section a
-heading's phrases point to, which is this loop:
-
-```go
-for _, m := range finder.FindAll(key).Items() {
-	kind := m.At("made").String()
-	...
-}
-```
-
-It works, and is short, but it's the one place jdc-lab's code reaches
-into scalar, only to get strings back out of a list of matches.
-
-**Files:** `grammar.go`, where `FindAll` is, a test, an
-example in `example_parse_test.go`, `docs/REFERENCE.md`, `CHANGELOG.md`.
-
-**Done when:** it's decided either way; if added, it's tested, has an
-example, and the reference shows it beside `FindAll`.
-
 ## Keep the order a word list's canonical values were added in
 
 **What:** let a word list say its canonical values in the order they were

@@ -66,3 +66,15 @@ func To[T any](m *scalar.SV) (T, error) {
 	}
 	return scalar.To[T](Values(m))
 }
+
+// ToAll is To for FindAll: it reduces each match with Values and converts
+// them to a []T, in order, so a word list's canonical values come back as
+// Go strings:
+//
+//	kinds, err := grammar.ToAll[string](g.FindAll(text))
+//
+// No match gives an empty slice; its errors are scalar.To's, which name
+// the match by its index. Raku's nearest idiom is @matches».made.
+func ToAll[T any](matches *scalar.AV) ([]T, error) {
+	return scalar.To[[]T](matches.Map(func(m *scalar.SV) any { return Values(m) }))
+}
