@@ -42,6 +42,23 @@ func ExampleGrammar_Find() {
 	// £30k to £35k at 14
 }
 
+// When Find finds nothing, check Defined before reading anything else from
+// the result: reading through the undef with At turns it into a hash, which
+// is then defined. AtOK reads without changing anything.
+func ExampleGrammar_Find_noMatch() {
+	m := Pay.Find("Salary negotiable")
+	fmt.Println(m.Defined()) // check first
+	_, ok := m.AtOK("min.~")
+	fmt.Println(ok, m.Defined()) // AtOK leaves it undef
+	fmt.Println(m.At("min.~").Or("none"))
+	fmt.Println(m.Defined()) // At made it a hash
+	// Output:
+	// false
+	// false false
+	// none
+	// true
+}
+
 // FindAll finds every match, left to right, without overlapping.
 func ExampleGrammar_FindAll() {
 	for _, m := range Pay.FindAll("£30k basic, £5k car allowance, £2k bonus").All() {

@@ -15,47 +15,6 @@ inside longer words, and `Ambiguous` and `Canonical` check the phrase
 file in jdc-lab's tests. None of what follows is a bug; each is friction worth
 deciding on.
 
-## Say that reading a result before checking it turns no match into a hash
-
-**What:** in [docs/REFERENCE.md](docs/REFERENCE.md), under
-[When text doesn't match](docs/REFERENCE.md#when-text-doesnt-match), and
-beside `Find` in the parsing section, say that a result must be checked
-with `Defined()` before anything is read from it, or read with `AtOK`:
-`At` on the undef that means no match autovivifies it into a hash, after
-which `Defined()` is true and `String()` gives `HASH(0x…)`. Then decide
-whether grammar should do more than document it, such as returning a
-no-match result that reading can't change.
-
-**Why:** in jdc-lab, a probe printed `m.At("made")` and then
-`m.Defined()` for a `Find` that matched nothing, and so reported a
-defined result, `HASH(0x…)`, for no match at all. It took a second,
-careful probe to see that the read had made the hash. The behaviour is
-scalar's, by design and documented there ("intermediate levels
-autovivify"; `AtOK` "never creates anything"), but a grammar user reading
-a result meets it first, and grammar's reference doesn't mention it. The
-order of two harmless-looking reads changes the answer.
-
-To see it, in any module that uses grammar:
-
-```go
-l := grammar.NewWordList("sections", grammar.FoldCase(), grammar.WholeWords())
-l.AddRules("benefits, perk, offer")
-g := grammar.MustCompile(`grammar H { token TOP { @sections } }`, l)
-m := g.Find("nothing here")
-fmt.Println(m.Defined())            // false: no match
-fmt.Println(m.At("made").String())  // "": the read makes m a hash
-fmt.Println(m.Defined(), m.String()) // true HASH(0x…)
-```
-
-**Files:** `docs/REFERENCE.md`; an example in `example_parse_test.go`
-showing the check (`Defined()` first, or `AtOK`), with the Reference
-regenerated as MAINTAINING.md says; `CHANGELOG.md` under Unreleased. If
-grammar's behaviour changes, `grammar.go` and a test too.
-
-**Done when:** the reference says it where a reader of `Find` and `Parse`
-will see it, the example runs as a test, and the PDF
-(`scripts/readme-pdf.sh docs/REFERENCE.md`) reads well.
-
 ## Make FindAll's matches easier to range over from Go
 
 **What:** consider a Go-shaped way to go through `FindAll`'s matches. It

@@ -11,7 +11,12 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- Docs: the reference says to check a result with `Defined()` before
+  reading from it, or to read with `AtOK`. Reading through the undef that
+  means no match turns it into a hash, which is then defined. This is
+  scalar's autovivification, and it differs from Raku, so it's now listed
+  under "What you might assume", "When text doesn't match" and
+  "Differences from Raku". `Find` has an example showing it.
 
 ## v0.1.6 (2026-10-22)
 

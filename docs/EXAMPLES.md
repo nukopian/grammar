@@ -522,6 +522,26 @@ fmt.Println(m.At("~"), "at", m.At("from"))
 £30k to £35k at 14
 ```
 
+#### `Grammar.Find_noMatch`
+
+When Find finds nothing, check Defined before reading anything else from the result: reading through the undef with At turns it into a hash, which is then defined. AtOK reads without changing anything.
+
+```go
+m := Pay.Find("Salary negotiable")
+fmt.Println(m.Defined()) // check first
+_, ok := m.AtOK("min.~")
+fmt.Println(ok, m.Defined()) // AtOK leaves it undef
+fmt.Println(m.At("min.~").Or("none"))
+fmt.Println(m.Defined()) // At made it a hash
+```
+
+```
+false
+false false
+none
+true
+```
+
 #### `Grammar.FindAll`
 
 FindAll returns every match in text, left to right and not overlapping.
