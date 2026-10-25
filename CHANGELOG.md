@@ -11,8 +11,20 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-- New: [ROADMAP.md](ROADMAP.md) says what grammar means to do next, and
-  why: what's being worked on, what's decided, and ideas worth keeping.
+Nothing yet.
+
+## v0.2.1 (2026-10-25)
+
+Documentation only: a roadmap
+
+No change in behaviour or in the API: no Go code changed. Needs scalar
+v0.5.7, as before.
+
+- Docs: a [roadmap](ROADMAP.md) says what grammar means to do next, and
+  why: what's being worked on (at most three items, and none yet), what's
+  decided (a parse trace, limit errors that say where, and code
+  assertions), and ideas worth keeping. The README and the reference's
+  gaps link to it.
 
 ## v0.2.0 (2026-10-25)
 
