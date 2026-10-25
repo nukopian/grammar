@@ -11,6 +11,18 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.2.0 (2026-10-25)
+
+Reading a match changes nothing, as in Raku
+
+A breaking change, hence v0.2.0: writing into a no-match now panics, and
+code that relied on a read leaving an empty capture in a match will find
+it missing. Two new functions come from grammar's first use in jdc-lab:
+`ToAll`, `To` for `FindAll`, and `WordList.Canonicals`. Needs scalar
+v0.5.7.
+
 - New: `WordList.Canonicals()` gives a list's canonical values, each once,
   in the order they were first added, by `Add`, `AddAs`, `AddRule` or
   `AddRules`. A rules file's order can then be used as data, such as
