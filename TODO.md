@@ -38,35 +38,3 @@ the format, and would go wrong if the two ever disagreed about it
 `Add`, `AddAs`, `AddRule` and `AddRules` alike, each once), is tested and
 has an example, and the reference lists it with `Phrases` and
 `Canonical`.
-
-## Mark each match with scalar's Autovivify(false)
-
-**What:** once scalar releases `Autovivify` (on its `develop` since
-5fd3f0dd76c34de50c011d0389719abf85dcc0f2, not yet tagged), raise grammar's scalar to that release and
-set `Autovivify(false)` on each finished match in `options.result`
-(`grammar.go`), so that reading a capture a match doesn't have creates
-nothing. Then remove the "Reading a missing capture adds it to the
-match" row from the reference's Differences from Raku, whose last
-column still points at scalar's TODO.md.
-
-**Why:** today `m.At("period.~")` on a match without a `period` leaves
-an empty `period` behind, which `AtOK`, `Exists` and `MarshalJSON` then
-find. Raku creates nothing on a read. `Lock` couldn't fix it, as a
-locked hash panics on a missing key, which would break `At`, `Values`
-and `To`. scalar's `Autovivify(false)` is Perl's `no autovivification`:
-missing levels read as undef and create nothing, writes still create,
-and values stored later take the setting. The scalar side was decided
-with Iain on 2026-10-25 and tested against the CPAN pragma.
-
-**Files:** `go.mod` and `go.sum` (the scalar release), `grammar.go`
-(`options.result`; `noMatch` can stay a locked undef, which already
-reads through quietly), a Go test that reads a missing capture and
-checks the match is unchanged (`Equal` to a clone taken before, the
-same `MarshalJSON`), a Raku test beside the others that does the same
-and compares, `docs/REFERENCE.md` (the Differences row), and
-`CHANGELOG.md`.
-
-**Done when:** scalar is released with `Autovivify`, grammar uses it,
-reading a missing capture leaves a match unchanged in Go and agrees
-with Raku, the Differences row is gone, and the reference PDF reads
-well.
