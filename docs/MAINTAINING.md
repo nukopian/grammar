@@ -283,13 +283,13 @@ patch (v0.1.2 to v0.1.3). Claude asks before tagging.
    `build: grammar v0.1.3, ...`, with what the release brings after the
    comma.
 
-7. **Tell the waiting tasks.** Look in scalar's `TODO.md` on `develop`
-   and jdc-lab's on `main` for tasks waiting on this release, and tell
-   Iain which can now be done. Nothing else tells their sessions it has
+7. **Tell the waiting tasks.** Look in scalar's and jdc-lab's `TODO.md`,
+   both on `develop`, for tasks waiting on this release, and tell Iain
+   which can now be done. Nothing else tells their sessions it has
    landed:
 
    ```
-   for r in scalar:develop jdc-lab:main; do
+   for r in scalar:develop jdc-lab:develop; do
      repo=${r%%:*}; branch=${r#*:}
      git -C ~/Git/github.com/nukopian/$repo fetch -q
      git -C ~/Git/github.com/nukopian/$repo show origin/$branch:TODO.md 2>/dev/null | grep -n -B3 '^\*\*Waiting on:\*\*.*grammar' | sed "s|^|$repo: |"

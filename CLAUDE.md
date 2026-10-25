@@ -173,8 +173,8 @@ included, and gaps found by reading them have led to real features.
   commit that prompted it. If that work isn't committed yet, it gives the
   last commit and adds "work uncommitted". `Waiting on` is "nothing" when
   the task can be done now.
-- **A task added to another repository's `TODO.md`** (scalar's on
-  `develop`, jdc-lab's on `main`) **is committed and pushed there at
+- **A task added to another repository's `TODO.md`** (scalar's and
+  jdc-lab's, both on `develop`) **is committed and pushed there at
   once,** after a `git pull --ff-only`, as its own `docs:` commit (Iain,
   2026-10-25). `TODO.md` changes only through commits: an uncommitted
   task blocks that repository's pulls when incoming commits touch the
