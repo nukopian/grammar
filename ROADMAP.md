@@ -18,7 +18,7 @@ Each item names what it serves:
 Items come in three groups, the most useful first in each:
 
 - **Now:** being worked on, each with a plan detailed enough to pick up
-  cold;
+  cold; never more than three, so that it stays a queue;
 - **Next:** decided, but not started;
 - **Later:** ideas worth keeping.
 

@@ -150,7 +150,9 @@ included, and gaps found by reading them have led to real features.
 - **`ROADMAP.md` holds what grammar means to do:** features and
   outcomes, not session tasks, each saying what it serves. **Now** is
   what's being worked on, each item with a full plan in `TODO.md`'s
-  task format; **Next** is decided but not started (what, why, done
+  task format, and at most three items, so it stays a queue, not a
+  fire-hose (Iain, 2026-10-25): another starts only when one ships or
+  goes back to Next; **Next** is decided but not started (what, why, done
   when); **Later** is ideas worth keeping, in a line or two. Most useful
   first in each. The CHANGELOG is the past, the README the present, and
   the roadmap the future.

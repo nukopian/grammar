@@ -33,15 +33,16 @@ both, and jdc-lab uses grammar:
 - There are no feature branches, for now: changes are made one at a time.
 - [ROADMAP.md](../ROADMAP.md) holds what grammar means to do: features
   and outcomes, in Now, Next and Later, each saying what it serves. It's
-  public, on both branches, and in every release. An item in Now has a
-  plan written to be picked up cold; one leaves when it ships, in the
-  commit that adds it to the CHANGELOG.
+  public, on both branches, and in every release. Now holds three
+  items at most, so the roadmap stays a queue to pull from, not a list
+  pushing work; an item in Now has a plan written to be picked up
+  cold; one leaves when it ships, in the commit that adds it to the
+  CHANGELOG.
 - `TODO.md`, when there is one, lists work planned for a later session,
-  such as the concrete steps of a roadmap item being worked on. Its tasks come before the roadmap's
-  items. It's committed on `develop` and gone before a release, so it
-  never reaches `main` ([CLAUDE.md](../CLAUDE.md#planned-work) has the
-  rules).
-  Sessions in scalar and jdc-lab add tasks to it too, so pull and re-read
+  such as the concrete steps of a roadmap item being worked on. Its
+  tasks come before the roadmap's items. It's committed on `develop` and
+  gone before a release, so it never reaches `main`
+  ([CLAUDE.md](../CLAUDE.md#planned-work) has the rules). Sessions in scalar and jdc-lab add tasks to it too, so pull and re-read
   it before each commit. Each task opens with **From** (the session that
   added it, the date, and the commit that prompted it, or the last
   commit and "work uncommitted") and **Waiting on** (what it needs first,
@@ -168,8 +169,9 @@ patch (v0.1.2 to v0.1.3). Claude asks before tagging.
 
 1. **Check `develop`:** CI is green on its last commit, there's no
    `TODO.md`, ROADMAP.md is current (what shipped is out of it, and Now
-   is what's really being worked on), the tests pass against the scalar `go.mod` asks for, and
-   the history has no secrets.
+   is what's really being worked on, three items at most), the tests
+   pass against the scalar `go.mod` asks for, and the history has no
+   secrets.
 
    ```
    cd ~/Git/github.com/nukopian/grammar
