@@ -941,7 +941,8 @@ commit it, so it's checked from then on.
 What this package doesn't do yet, and what it would take. Where it
 behaves differently from Raku has its own section,
 [Differences from Raku](#differences-from-raku). Each entry says when you'd need it, so
-that it's clear which to do first when the need comes up.
+that it's clear which to do first when the need comes up. Which are
+planned, and in what order, is in the [roadmap](../ROADMAP.md).
 
 **Effort** is a rough guide for someone new to the code:
 

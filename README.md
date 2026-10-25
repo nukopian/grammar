@@ -164,6 +164,7 @@ a working example of every function and method, see the
   partnership with Claude in which judgement stayed with Iain.
 - [Changes](CHANGELOG.md): what each release changed, and what's waiting
   for the next.
+- [Roadmap](ROADMAP.md): what's planned, and why.
 - [Maintaining](docs/MAINTAINING.md): the guide to branches, releases,
   and the git and GitHub work done by hand.
 
@@ -175,8 +176,9 @@ PDFs of the documents, for reading offline, are built on demand by
 **Experimental.** It works and is well tested, against Rakudo itself and
 by fuzzing, and a pay grammar agreed with a language model's extraction
 on all 16 postings tried so far, but it hasn't yet met real volumes, and
-the API may still change before 1.0. What it doesn't do yet is listed,
-with what each would take, in
+the API may still change before 1.0. What's planned is in the
+[roadmap](ROADMAP.md). What it doesn't do yet is listed, with what each
+would take, in
 [Gaps and possible additions](docs/REFERENCE.md#gaps-and-possible-additions).
 
 ## Security

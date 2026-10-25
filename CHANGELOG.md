@@ -11,7 +11,8 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- New: [ROADMAP.md](ROADMAP.md) says what grammar means to do next, and
+  why: what's being worked on, what's decided, and ideas worth keeping.
 
 ## v0.2.0 (2026-10-25)
 

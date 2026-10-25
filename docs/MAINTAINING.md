@@ -31,9 +31,16 @@ both, and jdc-lab uses grammar:
   is on it. Visitors to GitHub see `main`, so its README and docs describe
   what `go get` installs.
 - There are no feature branches, for now: changes are made one at a time.
-- `TODO.md`, when there is one, lists work planned for a later session.
-  It's committed on `develop` and gone before a release, so it never
-  reaches `main` ([CLAUDE.md](../CLAUDE.md#planned-work) has the rules).
+- [ROADMAP.md](../ROADMAP.md) holds what grammar means to do: features
+  and outcomes, in Now, Next and Later, each saying what it serves. It's
+  public, on both branches, and in every release. An item in Now has a
+  plan written to be picked up cold; one leaves when it ships, in the
+  commit that adds it to the CHANGELOG.
+- `TODO.md`, when there is one, lists work planned for a later session,
+  such as the concrete steps of a roadmap item being worked on. Its tasks come before the roadmap's
+  items. It's committed on `develop` and gone before a release, so it
+  never reaches `main` ([CLAUDE.md](../CLAUDE.md#planned-work) has the
+  rules).
   Sessions in scalar and jdc-lab add tasks to it too, so pull and re-read
   it before each commit. Each task opens with **From** (the session that
   added it, the date, and the commit that prompted it, or the last
@@ -131,7 +138,8 @@ git log --format='%h %G? %s' -10
 ```
 
 Add what changed for users to `CHANGELOG.md` under Unreleased, in the same
-commit.
+commit. A change that ships, starts or drops a feature updates
+[ROADMAP.md](../ROADMAP.md) in that commit too: a shipped item leaves it.
 
 ## Taking up a new scalar
 
@@ -159,7 +167,8 @@ change bumps the minor version (v0.1.2 to v0.2.0) and anything else the
 patch (v0.1.2 to v0.1.3). Claude asks before tagging.
 
 1. **Check `develop`:** CI is green on its last commit, there's no
-   `TODO.md`, the tests pass against the scalar `go.mod` asks for, and
+   `TODO.md`, ROADMAP.md is current (what shipped is out of it, and Now
+   is what's really being worked on), the tests pass against the scalar `go.mod` asks for, and
    the history has no secrets.
 
    ```
@@ -173,8 +182,9 @@ patch (v0.1.2 to v0.1.3). Claude asks before tagging.
    gitleaks git --redact --no-banner .
    ```
 
-   If `TODO.md` is there, its tasks come first: do them, or move them
-   where CLAUDE.md says, and delete the file before going on. `go.mod`
+   If `TODO.md` is there, its tasks come first: do them, or move a
+   feature word for word into ROADMAP.md, or a decision awaiting Iain
+   to a Claude Doc, and delete the file before going on. `go.mod`
    names a scalar tag, such as `v0.5.2`, and never a pseudo-version
    (`v0.5.3-0.2026...`) or a `replace` pointing at `../scalar`.
 
