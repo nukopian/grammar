@@ -11,12 +11,14 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-- Docs: the reference says to check a result with `Defined()` before
-  reading from it, or to read with `AtOK`. Reading through the undef that
-  means no match turns it into a hash, which is then defined. This is
-  scalar's autovivification, and it differs from Raku, so it's now listed
-  under "What you might assume", "When text doesn't match" and
-  "Differences from Raku". `Find` has an example showing it.
+- Changed: the undef that `Parse`, `Subparse`, `Find`, `ParseErr` and
+  `SubparseErr` return for no match is locked, so reading it stays undef,
+  as in Raku. Before, reading through it with `At` autovivified it into a
+  hash. `m.At("made")` and then `m.Defined()` reported a match, and
+  `m.String()` gave `HASH(0x…)`. Writing into a no-match now panics
+  (`scalar: Not a HASH reference`). `Find` has an example showing it.
+- Docs: "Differences from Raku" says that reading a missing capture of a
+  match, such as `At("period.~")`, still adds it to the match.
 
 ## v0.1.6 (2026-10-22)
 

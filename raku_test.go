@@ -351,6 +351,7 @@ for @(Rakudo::Internals::JSON.from-json($*IN.slurp)) -> $case {
     my $g = EVAL $prelude ~ $case<src>;
     @out.push: [ $case<inputs>.map: -> $in {
         my $m = $case<sub> ?? $g.subparse($in) !! $g.parse($in);
+        $m<unread><y>; # reading creates nothing
         $m ?? conv($m) !! Any
     } ];
 }
@@ -380,6 +381,11 @@ print Rakudo::Internals::JSON.to-json(@out, :!pretty);
 				got = g.Subparse(input)
 			} else {
 				got = g.Parse(input)
+			}
+			if !got.Defined() {
+				// Reading a no-match through leaves it undef, as in Raku.
+				// Reading a match still adds the key (see Differences).
+				got.At("unread.y")
 			}
 			w := want.Get(i, j)
 			stripMade(got) // Raku's <@list> has no canonical values

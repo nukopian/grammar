@@ -271,3 +271,39 @@ func BenchmarkLookbehind(b *testing.B) {
 		})
 	}
 }
+
+// Every way of finding no match returns an undef that reading leaves undef,
+// as in Raku, rather than autovivifying it into a hash that Defined would
+// then report as a match.
+func TestNoMatchStaysUndef(t *testing.T) {
+	parseErr := func(m *scalar.SV, _ error) *scalar.SV { return m }
+	var limited, limitedSub *scalar.SV
+	withStepLimit(t, 1000, func() {
+		limited = parseErr(blowup.ParseErr(nearMiss))
+		limitedSub = parseErr(blowup.SubparseErr(nearMiss))
+	})
+	for name, m := range map[string]*scalar.SV{
+		"Parse":               pay.Parse("negotiable"),
+		"Subparse":            pay.Subparse("Pay: £45k"),
+		"Find":                pay.Find("Salary negotiable"),
+		"ParseErr":            parseErr(pay.ParseErr("negotiable")),
+		"SubparseErr":         parseErr(pay.SubparseErr("negotiable")),
+		"Parse past the end":  pay.Parse("£45k", Pos(10)),
+		"ParseErr past end":   parseErr(pay.ParseErr("£45k", Pos(10))),
+		"ParseErr step limit": limited,
+		"SubparseErr limit":   limitedSub,
+	} {
+		if got := m.At("min.amount.~").Or("none").String(); got != "none" {
+			t.Errorf("%s: read %q, want none", name, got)
+		}
+		if _, ok := m.AtOK("made"); ok {
+			t.Errorf("%s: AtOK found made", name)
+		}
+		if m.Defined() || m.String() != "" {
+			t.Errorf("%s: reading made it %q", name, m.String())
+		}
+		if _, err := To[struct{ Min string }](m); err != ErrNoMatch {
+			t.Errorf("%s: To gave %v, want ErrNoMatch", name, err)
+		}
+	}
+}

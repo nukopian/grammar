@@ -34,7 +34,6 @@ that catch nearly everyone once. Each row below behaves the same in
 | A capture is one match | A capture that can match more than once, `<x>*`, `<x>+` or `<x>` written twice, is always an array, even of one match, or none. `<x>?` is one match, or missing | Read an array capture with `At("x").AV()`, or `To`, which fills a slice field from it |
 | `'e'` matches the e of "é" typed as e plus an accent | Text is read in NFC, so e followed by a combining accent becomes the one character é, which `'e'` doesn't match. `from` and `to` count characters of the text as read, not bytes | Write the accented letter: a grammar's literals are read in NFC too. See [Accented letters](#accented-letters-text-is-read-in-nfc) |
 | `.` stops at the end of a line | `.` matches any character, a newline included | `\N` matches any character but a newline |
-| Reading a result that didn't match leaves it as it was | The undef that means no match becomes a hash when it's read through: after `m.At("made")`, `m.Defined()` is true and `m.String()` is `HASH(0x…)`. That's scalar's autovivification, as in Perl; Raku's reads don't change anything | Check `m.Defined()` before reading anything else from `m`, or read with `AtOK`, which never creates anything. See [When text doesn't match](#when-text-doesnt-match) |
 | A literal ignores case, as the word lists do | `'Ab'` matches only "Ab". Word lists ignore case only with `FoldCase` | `:i` ignores case for the rest of the rule or group: `token { :i 'Ab' }` matches "ab" |
 
 ## Writing a grammar
@@ -613,9 +612,9 @@ it, and `ParseErr` and `SubparseErr` say why a parse failed.
 | `g.Split(text)` | the text between matches, with each match's text in place, as Raku's `split` with `:v` does |
 | `g.ParseErr(text)`, `g.SubparseErr(text)` | as `Parse` and `Subparse`, with a `*ParseError` saying why when the text doesn't match |
 
-Each returns undef (or an empty array) when nothing matches: check
-`Defined()` before reading from the result, as reading through undef turns
-it into a hash (see [When text doesn't match](#when-text-doesnt-match)).
+Each returns undef (or an empty array) when nothing matches. The undef is
+read-only, so reading through it leaves it undef (see
+[When text doesn't match](#when-text-doesnt-match)).
 Each takes
 options: `grammar.Rule("name")` to start somewhere other than `TOP`,
 `grammar.Pos(n)` to start n characters in, and `grammar.Actions(a)`.
@@ -724,25 +723,20 @@ step count with them on and off, over every Raku case,
 ### When text doesn't match
 
 `Parse` returns undef when text doesn't match, as do `Subparse` and
-`Find`. Check that first, with `Defined()`, before reading anything else
-from the result. Reading through undef with `At` autovivifies it, as
-scalar does with any undef, the way Perl does: the read gives undef, but
-the result is now a hash, so a `Defined()` after it is true and `String()`
-gives `HASH(0x…)`. The order of two harmless-looking reads changes the
-answer:
+`Find`. Reading through it gives undef, so
+`Pay.Parse("negotiable").At("min.~").Or("none")` gives "none", and the
+result stays undef, as it does in Raku:
 
 ```go
 m := Pay.Find("Salary negotiable")
+m.At("min.~").String() // ""
 m.Defined()            // false: no match
-m.At("min.~").String() // "", and m is now a hash
-m.Defined()            // true
 ```
 
-Reading through a no-match is fine when all you want is the value:
-`Pay.Parse("negotiable").At("min.~").Or("none")` gives "none". To read
-without changing anything, use `AtOK`, which never creates anything and
-says whether the value was there. Raku is different here: there, reading
-never creates anything (see [Differences from Raku](#differences-from-raku)).
+That's because the undef is locked with scalar's `Lock`. Any other undef
+in scalar would autovivify into a hash when read through, as in Perl, and
+`Defined()` would then report a match. Writing into it panics
+(`scalar: Not a HASH reference`); there's nothing to write to.
 
 `ParseErr` returns the same, plus an error saying where the grammar got
 furthest and what it expected there:
@@ -868,7 +862,7 @@ with when each matters. *Fixable* and *Effort* are as in the
 | **Text is read as UTF-8, a rune at a time.** A byte that isn't valid UTF-8 becomes U+FFFD (`�`), as Go's `[]rune(text)` does, so a match's `~` holds `�` where the text held the bad byte. Raku can't hold such text at all: it fails to decode it. | Scraped text with bad bytes in it, when the exact bytes matter. | Clean or decode the text first, or match byte strings as `scalar` does (each byte a character from 0 to 255). | by design | 2 |
 | **Positions count runes, not graphemes,** in NFC. Text is read in NFC, so an accented letter that has a composed form is one character, as in Raku. One that doesn't, such as q with a combining tilde (q̃), is two here, and one grapheme in Raku, so `.` can match half of it. | Rare in job postings: languages whose letters have no composed form, and emoji sequences. | Segment the input with `rivo/uniseg` and match on graphemes. | yes | 3 |
 | **A literal under `:i` folds case a character at a time,** so `:i 'ẙ'` doesn't match `Y̊`, a capital with no composed form. Word lists compare such letters decomposed, so they match (see [Accented letters](#accented-letters-text-is-read-in-nfc)). Rakudo 2025.11 agrees that the two are equal under `fc`, but matches only one way round with a literal, and neither way with an array. | Almost never: a handful of letters, such as Y and W with a ring above, J with a caron, and some Greek capitals with accents, none of them in English or most European languages. | Fold literals as word lists do, a decomposed character at a time. | yes | 1 |
-| **Reading a result can change it.** A match is a scalar value, and scalar autovivifies as Perl does: `At` through the undef that means no match turns it into a hash, so `Defined()` is then true, and reading a missing capture, such as `At("period.~")`, adds the key. In Raku, reading never creates anything. | When a result is read before it's checked: check `Defined()` first, or read with `AtOK`. | Return a locked undef for no match (scalar's `Lock`), which reads as undef and stays undef; locking whole matches too would also stop the keys being added. | yes | 1 |
+| **Reading a missing capture adds it to the match.** A match is a scalar hash, and scalar autovivifies as Perl does, so `At("period.~")` on a match without a `period` leaves an empty `period` behind, which `AtOK("period")` and `Exists` then find. In Raku, reading never creates anything. A no-match is locked, so reading it changes nothing, as in Raku. | When a match is read and then asked whether a capture is there: ask first, or read with `AtOK`. | Lock whole matches as no-match is locked. That stops callers adding to a match they've been given, so first check whether any do. | yes | 2 |
 | **`<alias=name>` captures under both names,** as Raku does. | When you expect only the alias. | Nothing to fix: use `<alias=.name>`. | by design | — |
 | **`Re` takes Perl-style regex syntax.** | Only that it isn't Raku syntax. It's for patterns you already have. | — | by design | — |
 | **Word lists add to Raku's `@list`:** canonical values, `FoldCase`, `LooseSpacing`, `JoinedSpacing`, `Plurals` and `WholeWords`. | Never for Raku-compatible lists: without the options, a list matches as Raku's does. | — | by design | — |

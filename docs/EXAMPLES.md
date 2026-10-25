@@ -524,22 +524,17 @@ fmt.Println(m.At("~"), "at", m.At("from"))
 
 #### `Grammar.Find_noMatch`
 
-When Find finds nothing, check Defined before reading anything else from the result: reading through the undef with At turns it into a hash, which is then defined. AtOK reads without changing anything.
+When Find finds nothing, its undef can be read through, giving undef, and stays undef: reading it doesn't make it a match, as in Raku.
 
 ```go
 m := Pay.Find("Salary negotiable")
-fmt.Println(m.Defined()) // check first
-_, ok := m.AtOK("min.~")
-fmt.Println(ok, m.Defined()) // AtOK leaves it undef
 fmt.Println(m.At("min.~").Or("none"))
-fmt.Println(m.Defined()) // At made it a hash
+fmt.Println(m.Defined())
 ```
 
 ```
-false
-false false
 none
-true
+false
 ```
 
 #### `Grammar.FindAll`

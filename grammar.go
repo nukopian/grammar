@@ -549,7 +549,7 @@ func Actions(a any) Option { return func(o *options) { o.actions = newActions(a)
 func (g *Grammar) Parse(text string, opts ...Option) *scalar.SV {
 	o, in := g.prepare(opts), []rune(nfc(text))
 	if o.pos > len(in) {
-		return &scalar.SV{}
+		return noMatch()
 	}
 	return o.result(in, g.runState(g.newState(in), o.pos, true, o))
 }
@@ -559,7 +559,7 @@ func (g *Grammar) Parse(text string, opts ...Option) *scalar.SV {
 func (g *Grammar) Subparse(text string, opts ...Option) *scalar.SV {
 	o, in := g.prepare(opts), []rune(nfc(text))
 	if o.pos > len(in) {
-		return &scalar.SV{}
+		return noMatch()
 	}
 	return o.result(in, g.runState(g.newState(in), o.pos, false, o))
 }
@@ -577,7 +577,7 @@ func (g *Grammar) Find(text string, opts ...Option) *scalar.SV {
 			return o.result(in, m)
 		}
 	}
-	return &scalar.SV{}
+	return noMatch()
 }
 
 // FindAll returns every match in text, left to right and not overlapping.
@@ -693,20 +693,20 @@ func (g *Grammar) parseErr(text string, whole bool, opts []Option) (match *scala
 		switch e := recover().(type) {
 		case nil:
 		case *StepLimitError:
-			match, err = &scalar.SV{}, e
+			match, err = noMatch(), e
 		case *DepthLimitError:
-			match, err = &scalar.SV{}, e
+			match, err = noMatch(), e
 		default:
 			panic(e)
 		}
 	}()
 	if o.pos > len(in) {
-		return &scalar.SV{}, newParseError(g.name, in, len(in), nil)
+		return noMatch(), newParseError(g.name, in, len(in), nil)
 	}
 	if m := g.runState(st, o.pos, whole, o); m != nil {
 		return o.result(in, m), nil
 	}
-	return &scalar.SV{}, newParseError(g.name, in, st.tr.far, st.tr.exp)
+	return noMatch(), newParseError(g.name, in, st.tr.far, st.tr.exp)
 }
 
 // ParseError says why a parse failed: the furthest point in the text that
@@ -779,11 +779,17 @@ func (e *ParseError) Error() string {
 
 func (o options) result(in []rune, m *mnode) *scalar.SV {
 	if m == nil {
-		return &scalar.SV{}
+		return noMatch()
 	}
 	b := &builder{in: in, act: o.actions, built: map[*mnode]*scalar.SV{}}
 	return b.build(m)
 }
+
+// noMatch is the undef that means no match. It's locked, so reading
+// through it, as m.At("made") does, gives undef and leaves it undef, as
+// reading does in Raku, rather than autovivifying it into a hash that
+// Defined then reports as a match. Writing into it panics.
+func noMatch() *scalar.SV { return (&scalar.SV{}).Lock() }
 
 // The shape of a match.
 //
