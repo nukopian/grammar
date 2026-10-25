@@ -17,10 +17,14 @@ release's entry when `main` is moved to it and tagged
   hash. `m.At("made")` and then `m.Defined()` reported a match, and
   `m.String()` gave `HASH(0x…)`. Writing into a no-match now panics
   (`scalar: Not a HASH reference`). `Find` has an example showing it.
-- Docs: "Differences from Raku" says that reading a missing capture of a
-  match, such as `At("period.~")`, still adds it to the match, and that
-  `Subparse` returns undef when nothing matches, where Raku's `.subparse`
-  returns a failed `Match` that's defined but false.
+- Changed: reading a match creates nothing, as in Raku. Each match has
+  scalar's new `Autovivify(false)`, so a capture it hasn't got, such as
+  `At("period.~")`, reads as undef and isn't added: `AtOK`, `Exists` and
+  the match's JSON no longer find an empty `period` after the read. This
+  needs scalar v0.5.7, which go.mod now asks for.
+- Docs: "Differences from Raku" says that `Subparse` returns undef when
+  nothing matches, where Raku's `.subparse` returns a failed `Match`
+  that's defined but false.
 
 ## v0.1.6 (2026-10-22)
 

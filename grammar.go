@@ -782,7 +782,9 @@ func (o options) result(in []rune, m *mnode) *scalar.SV {
 		return noMatch()
 	}
 	b := &builder{in: in, act: o.actions, built: map[*mnode]*scalar.SV{}}
-	return b.build(m)
+	// Reading a match creates nothing, as in Raku: a capture it hasn't
+	// got reads as undef, and isn't added.
+	return b.build(m).Autovivify(false)
 }
 
 // noMatch is the undef that means no match. It's locked, so reading

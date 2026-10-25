@@ -501,6 +501,14 @@ matched, so the shape of the result never depends on the input. In `Pay`,
 `money` is an array (it's captured twice, once as `min`, once as `max`), and
 `period` is a single match that may be missing.
 
+Reading a match creates nothing, as in Raku. A missing capture reads as
+undef, so `m.At("period.~").Or("none")` gives "none" for pay with no
+period, and `period` stays missing for `AtOK`, `Exists` and the JSON a
+match writes. Elsewhere scalar autovivifies on a read, as Perl does, but
+each match has its `Autovivify(false)`, after Perl's `no autovivification`.
+A write still works, but there's no need to write into a match: `Values`
+and `To` build new values from it.
+
 ### Reading the text: `~`
 
 To get the text a capture matched, add `.~` to its path:
@@ -862,7 +870,6 @@ with when each matters. *Fixable* and *Effort* are as in the
 | **Text is read as UTF-8, a rune at a time.** A byte that isn't valid UTF-8 becomes U+FFFD (`�`), as Go's `[]rune(text)` does, so a match's `~` holds `�` where the text held the bad byte. Raku can't hold such text at all: it fails to decode it. | Scraped text with bad bytes in it, when the exact bytes matter. | Clean or decode the text first, or match byte strings as `scalar` does (each byte a character from 0 to 255). | by design | 2 |
 | **Positions count runes, not graphemes,** in NFC. Text is read in NFC, so an accented letter that has a composed form is one character, as in Raku. One that doesn't, such as q with a combining tilde (q̃), is two here, and one grapheme in Raku, so `.` can match half of it. | Rare in job postings: languages whose letters have no composed form, and emoji sequences. | Segment the input with `rivo/uniseg` and match on graphemes. | yes | 3 |
 | **A literal under `:i` folds case a character at a time,** so `:i 'ẙ'` doesn't match `Y̊`, a capital with no composed form. Word lists compare such letters decomposed, so they match (see [Accented letters](#accented-letters-text-is-read-in-nfc)). Rakudo 2025.11 agrees that the two are equal under `fc`, but matches only one way round with a literal, and neither way with an array. | Almost never: a handful of letters, such as Y and W with a ring above, J with a caron, and some Greek capitals with accents, none of them in English or most European languages. | Fold literals as word lists do, a decomposed character at a time. | yes | 1 |
-| **Reading a missing capture adds it to the match.** A match is a scalar hash, and scalar autovivifies as Perl does, so `At("period.~")` on a match without a `period` leaves an empty `period` behind, which `AtOK("period")` and `Exists` then find. In Raku, reading never creates anything. A no-match is locked, so reading it changes nothing, as in Raku. | When a match is read and then asked whether a capture is there: ask first, or read with `AtOK`. | Not scalar's `Lock`: a locked hash panics on a missing key, so `At("period.~")`, `Values` and `To` would panic. It needs a scalar mode in which reads create nothing and give undef, after Perl's `no autovivification`, planned in scalar's TODO.md; grammar would then set it on each finished match. | yes | 3 |
 | **`Subparse` returns undef when nothing matches,** as `Parse` does. Raku's `.subparse` returns a failed `Match`, which is defined but false: reading it gives `Nil`, and its text is `""`. | Only for Raku code that tests a subparse result with `.defined` rather than by its truth, which grammar's undef agrees with. In Go, one check, `Defined()`, works for every way of finding nothing. | Return a locked `""`, which is defined, false and reads through to undef, but then `Subparse` callers would have to check `Bool()` where every other method's callers check `Defined()`, and `To`, `Values` and `SubparseErr` would need special cases. | by design | — |
 | **`<alias=name>` captures under both names,** as Raku does. | When you expect only the alias. | Nothing to fix: use `<alias=.name>`. | by design | — |
 | **`Re` takes Perl-style regex syntax.** | Only that it isn't Raku syntax. It's for patterns you already have. | — | by design | — |

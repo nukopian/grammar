@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/dlclark/regexp2 v1.12.0
-	github.com/nukopian/scalar v0.5.1
+	github.com/nukopian/scalar v0.5.7
 	golang.org/x/text v0.41.0
 )
 

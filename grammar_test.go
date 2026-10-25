@@ -307,3 +307,32 @@ func TestNoMatchStaysUndef(t *testing.T) {
 		}
 	}
 }
+
+// Reading a match creates nothing, at any depth, as in Raku: a capture it
+// hasn't got reads as undef and isn't added, so the match is as it was.
+func TestReadingAMatchCreatesNothing(t *testing.T) {
+	for name, m := range map[string]*scalar.SV{
+		"Parse":   pay.Parse("£18.50"),
+		"Find":    pay.Find("Pay: £18.50 negotiable"),
+		"FindAll": pay.FindAll("£18.50 or £20").Get(1),
+	} {
+		before := m.Clone()
+		if got := m.At("period.~").Or("none").String(); got != "none" {
+			t.Errorf("%s: period read %q, want none", name, got)
+		}
+		m.At("min.amount.k.~")
+		m.At("money[5].~")
+		m.Get("max", "amount")
+		m.Exists("nothing", "here")
+		if _, ok := m.AtOK("period"); ok {
+			t.Errorf("%s: reading added period", name)
+		}
+		if !m.Equal(before) {
+			gj, _ := m.MarshalJSON()
+			t.Errorf("%s: reading changed it to %s", name, gj)
+		}
+		if v, err := To[struct{ Period string }](m); err != nil || v.Period != "" {
+			t.Errorf("%s: To gave %+v, %v", name, v, err)
+		}
+	}
+}

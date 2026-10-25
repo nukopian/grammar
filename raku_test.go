@@ -382,11 +382,7 @@ print Rakudo::Internals::JSON.to-json(@out, :!pretty);
 			} else {
 				got = g.Parse(input)
 			}
-			if !got.Defined() {
-				// Reading a no-match through leaves it undef, as in Raku.
-				// Reading a match still adds the key (see Differences).
-				got.At("unread.y")
-			}
+			got.At("unread.y") // reading creates nothing, as in Raku
 			w := want.Get(i, j)
 			stripMade(got) // Raku's <@list> has no canonical values
 			if d := got.Diff(w); d != "" {
