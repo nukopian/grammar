@@ -17,6 +17,9 @@ deciding on.
 
 ## Keep the order a word list's canonical values were added in
 
+**From:** grammar's session, dogfooding in jdc-lab, 2026-10-25 (grammar aa5f6a4f6e083a2001f09d2582308356162e32ea)
+**Waiting on:** nothing
+
 **What:** let a word list say its canonical values in the order they were
 first added, such as a `Canonicals() []string` method. Today `Phrases()`
 returns the phrases sorted, and nothing gives the canonical values, so
