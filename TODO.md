@@ -1,0 +1,108 @@
+# To do
+
+Work planned for the next session. CLAUDE.md's
+[Planned work](CLAUDE.md#planned-work) has the rules: ask whether each
+task should still be done, remove it in the commit that completes it, and
+delete this file with the last one. It must be gone before a release.
+
+These come from dogfooding: grammar's first use in jdc-lab
+(github.com/nukopian/jdc-lab, `internal/sections`, 2026-10-25), where a
+word list of heading phrases, loaded with `AddRules`, and a one-rule
+grammar (`token TOP { @sections }`) find which section of a job ad each
+heading starts. The list's options did their job well: `Plurals` found
+"Main Duties" from "duty", `WholeWords` kept short phrases from matching
+inside longer words, and `Ambiguous` and `Canonical` check the phrase
+file in jdc-lab's tests. None of what follows is a bug; each is friction worth
+deciding on.
+
+## Say that reading a result before checking it turns no match into a hash
+
+**What:** in [docs/REFERENCE.md](docs/REFERENCE.md), under
+[When text doesn't match](docs/REFERENCE.md#when-text-doesnt-match), and
+beside `Find` in the parsing section, say that a result must be checked
+with `Defined()` before anything is read from it, or read with `AtOK`:
+`At` on the undef that means no match autovivifies it into a hash, after
+which `Defined()` is true and `String()` gives `HASH(0x…)`. Then decide
+whether grammar should do more than document it, such as returning a
+no-match result that reading can't change.
+
+**Why:** in jdc-lab, a probe printed `m.At("made")` and then
+`m.Defined()` for a `Find` that matched nothing, and so reported a
+defined result, `HASH(0x…)`, for no match at all. It took a second,
+careful probe to see that the read had made the hash. The behaviour is
+scalar's, by design and documented there ("intermediate levels
+autovivify"; `AtOK` "never creates anything"), but a grammar user reading
+a result meets it first, and grammar's reference doesn't mention it. The
+order of two harmless-looking reads changes the answer.
+
+To see it, in any module that uses grammar:
+
+```go
+l := grammar.NewWordList("sections", grammar.FoldCase(), grammar.WholeWords())
+l.AddRules("benefits, perk, offer")
+g := grammar.MustCompile(`grammar H { token TOP { @sections } }`, l)
+m := g.Find("nothing here")
+fmt.Println(m.Defined())            // false: no match
+fmt.Println(m.At("made").String())  // "": the read makes m a hash
+fmt.Println(m.Defined(), m.String()) // true HASH(0x…)
+```
+
+**Files:** `docs/REFERENCE.md`; an example in `example_parse_test.go`
+showing the check (`Defined()` first, or `AtOK`), with the Reference
+regenerated as MAINTAINING.md says; `CHANGELOG.md` under Unreleased. If
+grammar's behaviour changes, `grammar.go` and a test too.
+
+**Done when:** the reference says it where a reader of `Find` and `Parse`
+will see it, the example runs as a test, and the PDF
+(`scripts/readme-pdf.sh docs/REFERENCE.md`) reads well.
+
+## Make FindAll's matches easier to range over from Go
+
+**What:** consider a Go-shaped way to go through `FindAll`'s matches. It
+returns a `*scalar.AV`, so a Go caller writes `.Items()` before ranging,
+and then `.At("made")` on each. An iterator (`iter.Seq[*scalar.SV]`),
+or a method giving each match's `made` value as a string, would read as
+the rest of a Go program does.
+
+**Why:** jdc-lab's `sections.All` lists every kind of section a
+heading's phrases point to, which is this loop:
+
+```go
+for _, m := range finder.FindAll(key).Items() {
+	kind := m.At("made").String()
+	...
+}
+```
+
+It works, and is short, but it's the one place jdc-lab's code reaches
+into scalar, only to get strings back out of a list of matches.
+
+**Files:** `grammar.go`, where `FindAll` is, a test, an
+example in `example_parse_test.go`, `docs/REFERENCE.md`, `CHANGELOG.md`.
+
+**Done when:** it's decided either way; if added, it's tested, has an
+example, and the reference shows it beside `FindAll`.
+
+## Keep the order a word list's canonical values were added in
+
+**What:** let a word list say its canonical values in the order they were
+first added, such as a `Canonicals() []string` method. Today `Phrases()`
+returns the phrases sorted, and nothing gives the canonical values, so
+the order of a list's rules is lost once it's loaded.
+
+**Why:** jdc-lab's phrase file gives each section kind a rule, and
+when a heading has phrases of two kinds, the kind whose rule comes
+first wins. That ranking is the file's own order, kept as data, but the
+word list can't give it back, so jdc-lab reads the file a second time
+itself, taking the first phrase of each line that isn't indented or a
+comment, to rank the kinds. That duplicates `AddRules`' own reading of
+the format, and would go wrong if the two ever disagreed about it
+(continued lines, say).
+
+**Files:** `words.go`, `words_test.go`, `example_words_test.go`,
+`docs/REFERENCE.md` (Word lists), `CHANGELOG.md`.
+
+**Done when:** the method exists, gives values in the order added (for
+`Add`, `AddAs`, `AddRule` and `AddRules` alike, each once), is tested and
+has an example, and the reference lists it with `Phrases` and
+`Canonical`.
