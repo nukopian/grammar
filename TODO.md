@@ -69,7 +69,7 @@ has an example, and the reference lists it with `Phrases` and
 ## Mark each match with scalar's Autovivify(false)
 
 **What:** once scalar releases `Autovivify` (on its `develop` since
-5fd3f0dc, not yet tagged), raise grammar's scalar to that release and
+5fd3f0dd76c34de50c011d0389719abf85dcc0f2, not yet tagged), raise grammar's scalar to that release and
 set `Autovivify(false)` on each finished match in `options.result`
 (`grammar.go`), so that reading a capture a match doesn't have creates
 nothing. Then remove the "Reading a missing capture adds it to the
