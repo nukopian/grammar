@@ -39,5 +39,13 @@ headings), compared with a run without `Overlap`:
 jdc-lab also suggested an option to drop the nested matches: roadmap
 idea 14, not blocking this release.
 
+**Outermost, tried by jdc-lab too** (2026-10-26, on grammar
+a15a10ad1ed91a097b9764b402190cc8e914d688 through `go.work`):
+`finder.FindAll(key, grammar.Outermost())` in place of the lab's helper,
+which goes, with its direct import of scalar. The lab's tests pass, and
+over both samples every section file (`ads.jsonl`, `unmapped.tsv`,
+`disagree.tsv`, `named.tsv`) is byte for byte the same as with the
+helper. **Go for v0.3.2** from the lab's side.
+
 **How to check it's done:** jdc-lab's task is gone from its `TODO.md`,
 this one is gone from here, and v0.3.2 is tagged with the Overlap entry.
