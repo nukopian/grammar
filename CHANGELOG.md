@@ -11,7 +11,14 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- Build: needs scalar v0.6.0, up from v0.5.9. grammar's matching doesn't
+  change, but the scalar values it hands back do, as scalar's
+  [v0.6.0 notes](https://github.com/nukopian/scalar/releases/tag/v0.6.0)
+  say: a matched number too long for a `float64`, such as a big id or a
+  long decimal, keeps its digits when written back; a whole number
+  beyond `int64` prints as an integer; `%` and `++` follow Perl further
+  (`"007"++` is `"008"`); and `To` fills `*big.Rat` and the like from a
+  number.
 
 ## v0.2.4 (2026-10-26)
 
