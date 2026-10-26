@@ -35,7 +35,15 @@ dropped is deleted, and the commit that drops it names its number.
 
 ## Now
 
-Nothing yet.
+### 12. Rules whose canonical isn't a phrase
+
+**Serves:** word lists
+
+A `MapOnly()` list option, so that a rule written `phrases => value`
+doesn't make the value a phrase too, as `AddAs` doesn't: jdc-lab's
+"legal" section names a job in most headings ("Legal Secretary"), and
+it rebuilds its rules with `AddAs` to keep the name out. The plan is in
+its [change record](docs/changes/2026-10-26-rules-whose-canonical-isnt-a-phrase.md).
 
 ## Next
 
@@ -125,15 +133,6 @@ rest of a long text as it does for other grammars.
 Added 2026-10-25. Make a word's other forms when it's added, as
 `Plurals` does for regular plurals, so "visiting" matches a list that
 has "visit". English needs a real stemmer, such as Porter's.
-
-### 12. Rules whose canonical isn't a phrase
-
-Added 2026-10-26. Let a rule file say a value isn't a phrase, as
-`AddAs` does in code: `a, b => c` makes `c` a phrase too, and
-`AddRule`'s doc doesn't say so. jdc-lab needed it for "legal", a
-section's name that in a heading usually names a job ("Legal
-Secretary"), and had to re-read its rules and rebuild them with
-`AddAs`.
 
 ### 13. Every phrase in a text, overlaps included
 
