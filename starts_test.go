@@ -7,13 +7,14 @@ import (
 	"github.com/nukopian/scalar"
 )
 
-// findBoth runs Find, FindAll and FindAll with Overlap, with and without
-// skipping positions where no match can start.
-func findBoth(g *Grammar, text string) (with, without [3]*scalar.SV) {
+// findBoth runs Find, and FindAll alone, with Overlap and with Outermost,
+// with and without skipping positions where no match can start.
+func findBoth(g *Grammar, text string) (with, without [4]*scalar.SV) {
 	defer func() { skipStarts = true }()
 	for _, skip := range []bool{true, false} {
 		skipStarts = skip
-		r := [3]*scalar.SV{g.Find(text), scalar.Value(g.FindAll(text)), scalar.Value(g.FindAll(text, Overlap()))}
+		r := [4]*scalar.SV{g.Find(text), scalar.Value(g.FindAll(text)), scalar.Value(g.FindAll(text, Overlap())),
+			scalar.Value(g.FindAll(text, Outermost()))}
 		if skip {
 			with = r
 		} else {
@@ -45,7 +46,7 @@ func TestStartsChangeNothing(t *testing.T) {
 	for _, g := range grammars {
 		for _, text := range texts {
 			with, without := findBoth(g, text)
-			for i, name := range []string{"Find", "FindAll", "FindAll with Overlap"} {
+			for i, name := range []string{"Find", "FindAll", "FindAll with Overlap", "FindAll with Outermost"} {
 				if d := with[i].Diff(without[i]); d != "" {
 					t.Errorf("%s.%s(%q): %s", g.Name(), name, text, d)
 				}

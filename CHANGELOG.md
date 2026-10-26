@@ -16,10 +16,16 @@ release's entry when `main` is moved to it and tagged
   there, not only those after the last match's end. In "In this role
   you will need", a list with "in this role you will" and "you will
   need" finds both, so text can be classified by every phrase in it. A
-  phrase wholly inside a longer one is found too; the reference says how
-  to drop those. The phrasebook has it beside Raku's `:ov` and plain Go
+  phrase wholly inside a longer one is found too; `Outermost()`, below,
+  drops those. The phrasebook has it beside Raku's `:ov` and plain Go
   (roadmap 13;
   [record](docs/changes/2026-10-26-every-phrase-overlaps-included.md)).
+- An `Outermost()` option for `FindAll`: `Overlap()`'s matches, less
+  each one wholly inside another, so "you will need" in "in this role
+  you will need" counts, but "profile" in "Company Profile" doesn't
+  outweigh the "company profile" it's part of. It implies `Overlap()`.
+  Raku has no such adverb (roadmap 14;
+  [record](docs/changes/2026-10-26-overlapping-matches-without-nested.md)).
 
 ## v0.3.1 (2026-10-26)
 

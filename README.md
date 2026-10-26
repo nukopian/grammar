@@ -116,7 +116,7 @@ Two more things set it apart:
 | Synonyms | `NewWordList`, with `Add` or `AddRules` in the synonym format Elasticsearch and Solr use, and `FoldCase`, `LooseSpacing`, `JoinedSpacing`, `Plurals`, `WholeWords`, `ExactAcronyms` and `MapOnly`; `@list` in a rule, its canonical value as `made` | `@list`, without canonical values |
 | Patterns from data | `NewPatternList`, `<@name>` | `<@array>` |
 | Sharing rules | roles with `NewRole` and `Does`, inheritance with `Extend`, protos with `Proto` and `:sym<…>` | `role`, `does`, `is`, `proto token` |
-| Parsing and searching | `Parse`, `Subparse`, `Find`, `FindAll`, `Split`; `Pos` and `Rule` to start elsewhere; `Overlap` for every match, overlaps included | `.parse`, `.subparse`, `m:g//`, `split(:v)`, `:ov` |
+| Parsing and searching | `Parse`, `Subparse`, `Find`, `FindAll`, `Split`; `Pos` and `Rule` to start elsewhere; `Overlap` for every match, overlaps included, and `Outermost` for those not inside another | `.parse`, `.subparse`, `m:g//`, `split(:v)`, `:ov` |
 | Reading a match | ordinary `scalar` data: `At("min.amount.~")`, `Or`; `Caps` and `Chunks` | `$/`, `.caps`, `.chunks` |
 | Values from a match | `Actions`, methods named after rules, whose results are `made`; `To[T]` into a Go struct, `ToAll[T]` for every match `FindAll` finds, and `Values` | action classes, `make` and `.made` |
 | When text doesn't match | `ParseErr` and `SubparseErr`, saying where the parse got furthest and what it expected; `Check` for mistakes in a grammar; `StepLimit` and `DepthLimit` for runaway matches | |

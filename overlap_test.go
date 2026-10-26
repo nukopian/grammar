@@ -58,3 +58,51 @@ func TestOverlap(t *testing.T) {
 		t.Errorf("Parse: %s", d)
 	}
 }
+
+// Outermost is Overlap's matches less each one wholly inside another.
+func TestOutermost(t *testing.T) {
+	sections := NewWordList("sections", FoldCase(), WholeWords()).
+		AddAs("responsibilities", "in this role you will").
+		AddAs("requirements", "you will need", "profile").
+		AddAs("company", "company profile").
+		Add("role")
+	s := MustCompile(`grammar S { token TOP { @sections } }`, sections)
+	nested := MustCompile(`grammar N { token TOP { @n } }`,
+		NewWordList("n", WholeWords()).Add("a b c d").Add("b c").Add("c"))
+	chain := MustCompile(`grammar C { token TOP { @c } }`,
+		NewWordList("c", WholeWords()).Add("a b").Add("b c").Add("c d"))
+	a := MustCompile(`grammar A { token TOP { a* } }`)
+	x := MustCompile(`grammar X { token TOP { x? } }`)
+	for _, c := range []struct {
+		name string
+		got  *scalar.AV
+		want string
+	}{
+		// One reaching past another's end is kept; one inside it isn't.
+		{"heading", s.FindAll("In this role you will need", Outermost()), "In this role you will@0,you will need@13"},
+		{"profile", s.FindAll("Company Profile", Outermost()), "Company Profile@0"},
+		{"profile, overlapping", s.FindAll("Company Profile", Overlap()), "Company Profile@0,Profile@8"},
+		// Inside a match that's inside another.
+		{"nested twice", nested.FindAll("a b c d", Outermost()), "a b c d@0"},
+		// Overlapping, none inside another.
+		{"chain", chain.FindAll("a b c d", Outermost()), "a b@0,b c@2,c d@4"},
+		// An empty match at a match's end is inside it; one after isn't.
+		{"empty at end", a.FindAll("aab", Outermost()), "aa@0,@3"},
+		{"empty", x.FindAll("ab", Outermost()), "@0,@1,@2"},
+		{"from Pos", a.FindAll("aaaa", Outermost(), Pos(1)), "aaa@1"},
+		// Alone, it's the same as with Overlap.
+		{"with Overlap", s.FindAll("In this role you will need", Overlap(), Outermost()), "In this role you will@0,you will need@13"},
+	} {
+		if got := overlapping(c.got); got != c.want {
+			t.Errorf("%s: %s, want %s", c.name, got, c.want)
+		}
+	}
+
+	text := "In this role you will need"
+	if d := s.Find(text, Outermost()).Diff(s.Find(text)); d != "" {
+		t.Errorf("Find: %s", d)
+	}
+	if got, want := s.Split(text, Outermost()).Join("|"), s.Split(text).Join("|"); got != want {
+		t.Errorf("Split: %s, want %s", got, want)
+	}
+}

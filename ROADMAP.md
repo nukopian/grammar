@@ -35,16 +35,7 @@ dropped is deleted, and the commit that drops it names its number.
 
 ## Now
 
-### 14. Overlapping matches without the nested ones
-
-**Serves:** word lists
-
-An `Outermost()` option for `FindAll`: `Overlap()`'s matches, less each
-one wholly inside another, so "you will need" in "in this role you will
-need" counts, but "profile" in "Company Profile" doesn't. jdc-lab wrote
-this itself; built into grammar, it ships with `Overlap` in one
-release. The plan is in its
-[change record](docs/changes/2026-10-26-overlapping-matches-without-nested.md).
+Nothing yet.
 
 ## Next
 

@@ -543,10 +543,11 @@ func limitWhere(rule string, line, column int) string {
 type Option func(*options)
 
 type options struct {
-	rule    string
-	actions *actions
-	pos     int  // where to start, in runes of the NFC text
-	overlap bool // Overlap
+	rule      string
+	actions   *actions
+	pos       int  // where to start, in runes of the NFC text
+	overlap   bool // Overlap, or Outermost
+	outermost bool // Outermost
 }
 
 // Pos starts matching n characters into the text (of its NFC form, as
@@ -565,6 +566,17 @@ func Pos(n int) Option { return func(o *options) { o.pos = n } }
 // Raku's .parse, .subparse and .split take no :ov, and Find's first match
 // is the same either way.
 func Overlap() Option { return func(o *options) { o.overlap = true } }
+
+// Outermost has FindAll find the matches Overlap finds, less each one
+// wholly inside another, so it implies Overlap. In "in this role you will
+// need", "you will need" reaches past the end of "in this role you will"
+// and is kept; in "Company Profile", "profile" lies inside "company
+// profile" and isn't, so it can't outweigh the phrase it's part of. An
+// empty match at another's end is inside it. Raku has no such adverb; the
+// other methods ignore it, as they do Overlap.
+func Outermost() Option {
+	return func(o *options) { o.overlap, o.outermost = true, true }
+}
 
 // Rule starts the match at the named rule instead of TOP, as :rule does.
 func Rule(name string) Option { return func(o *options) { o.rule = name } }
@@ -623,12 +635,16 @@ func (g *Grammar) Find(text string, opts ...Option) *scalar.SV {
 }
 
 // FindAll returns every match in text, left to right and not overlapping,
-// unless Overlap is given.
+// unless Overlap or Outermost is given.
 func (g *Grammar) FindAll(text string, opts ...Option) *scalar.AV {
 	o, in := g.prepare(opts), []rune(nfc(text))
 	all := scalar.Array()
 	s, empty := g.startsOf(o.rule)
 	st := g.newState(in)
+	// end is the furthest end of the matches so far. Overlap's matches
+	// come in order of where they start, one from each position, so a
+	// match is inside an earlier one exactly when it ends by then.
+	end := -1
 	for from := o.pos; from <= len(in); {
 		if !canStart(s, empty, in, from) {
 			from++
@@ -639,7 +655,10 @@ func (g *Grammar) FindAll(text string, opts ...Option) *scalar.AV {
 			from++
 			continue
 		}
-		all.Push(o.result(in, m))
+		if !o.outermost || m.to > end {
+			all.Push(o.result(in, m))
+		}
+		end = max(end, m.to)
 		if o.overlap {
 			from++
 		} else {

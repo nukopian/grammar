@@ -102,6 +102,26 @@ func ExampleOverlap() {
 	// responsibilities, requirements
 }
 
+// Outermost is Overlap without the matches inside another, so "profile"
+// can't outweigh the "company profile" it's part of, while "you will need"
+// still counts beside "in this role you will".
+func ExampleOutermost() {
+	sections := grammar.NewWordList("sections", grammar.FoldCase(), grammar.WholeWords()).
+		AddAs("responsibilities", "in this role you will").
+		AddAs("requirements", "you will need", "profile").
+		AddAs("company", "company profile")
+	g := grammar.MustCompile(`grammar Heading { token TOP { @sections } }`, sections)
+	made := func(m *scalar.SV) any { return m.At("made") }
+	for _, heading := range []string{"Company Profile", "In this role you will need"} {
+		fmt.Printf("%s: %s; %s\n", heading,
+			g.FindAll(heading, grammar.Overlap()).Map(made).Join(", "),
+			g.FindAll(heading, grammar.Outermost()).Map(made).Join(", "))
+	}
+	// Output:
+	// Company Profile: company, requirements; company
+	// In this role you will need: responsibilities, requirements; responsibilities, requirements
+}
+
 // Actions turns matches into values. For each rule that matched, the method
 // named after it is called with its match, and what it returns is stored in
 // the match under "made". Actions run innermost first, so here Amount has

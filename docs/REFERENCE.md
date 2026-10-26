@@ -633,7 +633,7 @@ it, and `ParseErr` and `SubparseErr` say why a parse failed.
 | `g.Parse(text)` | match all of text, as Raku's `.parse` |
 | `g.Subparse(text)` | match from the start of text, not necessarily to the end |
 | `g.Find(text)` | the first match anywhere in text |
-| `g.FindAll(text)` | every match in text, left to right, not overlapping unless given `Overlap()` |
+| `g.FindAll(text)` | every match in text, left to right, not overlapping unless given `Overlap()` or `Outermost()` |
 | `g.Split(text)` | the text between matches, with each match's text in place, as Raku's `split` with `:v` does |
 | `g.ParseErr(text)`, `g.SubparseErr(text)` | as `Parse` and `Subparse`, with a `*ParseError` saying why when the text doesn't match |
 
@@ -643,7 +643,7 @@ read-only, so reading through it leaves it undef (see
 Each takes
 options: `grammar.Rule("name")` to start somewhere other than `TOP`,
 `grammar.Pos(n)` to start n characters in, `grammar.Actions(a)`, and
-for `FindAll`, `grammar.Overlap()`.
+for `FindAll`, `grammar.Overlap()` and `grammar.Outermost()`.
 
 **Starting part-way in.** `Pos(n)` is Raku's `:pos`: `Parse` and
 `Subparse` match from there (`Parse` still to the end), and `Find`,
@@ -672,8 +672,13 @@ A phrase wholly inside a longer one is found too, as it starts at a
 position of its own: with "role" in the list as well, it's found from 8,
 inside "In this role you will". That may not be what you want: tried on
 jdc-lab's section headings, "profile" inside "Company Profile" outvoted
-"company profile". To keep only the phrases that reach past another's
-end, drop each match whose `from` and `to` lie within another's.
+"company profile". `Outermost()` keeps only the matches that aren't
+inside another: "you will need", which reaches past the end of "in this
+role you will", stays, but "role" and "profile" go. It implies
+`Overlap()`, so it's the one option to give. An empty match at another's
+end is inside it. Raku has no such adverb; it's written in Raku as
+`:ov`, then a `grep` dropping each match whose `.from` and `.to` lie
+within a longer one's.
 
 The other methods ignore it: Raku's `.parse`, `.subparse` and `.split`
 take no `:ov`, and `Find`'s first match is the same either way. Raku's
@@ -940,6 +945,7 @@ with when each matters. *Fixable* and *Effort* are as in the
 | **`Subparse` returns undef when nothing matches,** as `Parse` does. Raku's `.subparse` returns a failed `Match`, which is defined but false: reading it gives `Nil`, and its text is `""`. | Only for Raku code that tests a subparse result with `.defined` rather than by its truth, which grammar's undef agrees with. In Go, one check, `Defined()`, works for every way of finding nothing. | Return a locked `""`, which is defined, false and reads through to undef, but then `Subparse` callers would have to check `Bool()` where every other method's callers check `Defined()`, and `To`, `Values` and `SubparseErr` would need special cases. | by design | — |
 | **`<alias=name>` captures under both names,** as Raku does. | When you expect only the alias. | Nothing to fix: use `<alias=.name>`. | by design | — |
 | **`Re` takes Perl-style regex syntax.** | Only that it isn't Raku syntax. It's for patterns you already have. | — | by design | — |
+| **`Outermost()` adds to Raku's `:ov`:** `Overlap()`'s matches, less each one wholly inside another. | Never without it: `FindAll` and `Overlap()` match as Raku's `:g` and `:ov` do. | — | by design | — |
 | **Word lists add to Raku's `@list`:** canonical values, `FoldCase`, `LooseSpacing`, `JoinedSpacing`, `Plurals`, `WholeWords`, `ExactAcronyms` and `MapOnly`. | Never for Raku-compatible lists: without the options, a list matches as Raku's does. | — | by design | — |
 
 ## Testing against Raku

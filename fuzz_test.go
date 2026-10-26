@@ -155,12 +155,29 @@ func FuzzMatch(f *testing.F) {
 		if i != all.Length() {
 			t.Fatalf("Overlap's matches leave out FindAll's from %v", all.Get(i).At("from"))
 		}
+		// With Outermost, Overlap's matches less each inside a longer one,
+		// as jdc-lab first wrote it.
+		outer := g.FindAll(text, Outermost())
+		span := func(m *scalar.SV) (int64, int64) { return m.At("from").Int(), m.At("to").Int() }
+		want := over.Grep(func(m *scalar.SV) bool {
+			from, to := span(m)
+			return !slices.ContainsFunc(over.Items(), func(n *scalar.SV) bool {
+				f, t := span(n)
+				return f <= from && to <= t && t-f > to-from
+			})
+		})
+		if d := outer.Diff(want); d != "" {
+			t.Fatalf("Outermost isn't Overlap less the nested matches: %s", d)
+		}
 		_, without := findBoth(g, text) // restores skipStarts, even on a panic
 		if d := all.Diff(without[1].AV()); d != "" {
 			t.Fatalf("skipping start positions changed FindAll: %s", d)
 		}
 		if d := over.Diff(without[2].AV()); d != "" {
 			t.Fatalf("skipping start positions changed FindAll with Overlap: %s", d)
+		}
+		if d := outer.Diff(without[3].AV()); d != "" {
+			t.Fatalf("skipping start positions changed FindAll with Outermost: %s", d)
 		}
 		// Narrowing lookbehinds' starts changes nothing either.
 		var unbounded *scalar.AV

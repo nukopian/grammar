@@ -1,12 +1,12 @@
 # Overlapping matches without the nested ones
 
-**Status:** in progress
+**Status:** shipped, unreleased
 
 **Origin:** roadmap 14
 
 **Started:** 2026-10-26, in 946f127c677353e619f0d596e4dde8e5daadc505
 
-**Finished:**
+**Finished:** 2026-10-26
 
 ## The plan
 
@@ -65,3 +65,34 @@ give the same output, and this item has moved to the CHANGELOG as
 "(roadmap 14)".
 
 ## What happened
+
+- **Outcome:** all of Done when. `FindAll(text, Outermost())` gives
+  `Overlap()`'s matches less those inside another, dropped as they're
+  found by keeping the furthest end so far. `TestOutermost` covers
+  step 1's cases, and `ExampleOutermost` shows "Company Profile" and
+  the heading with each option.
+- **Changes from the plan:**
+  - Two of the test's expected answers were wrong when first written,
+    and the test said so: from `Pos(1)`, `a*` on "aaaa" also matches
+    empty at the end, which is inside "aaa" and dropped; and the chain
+    case needed a list of its own, as "a b c d" in the same list made
+    every other match nested.
+  - The reference says how to write it in Raku, `:ov` and then a `grep`
+    with jdc-lab's rule, after Raku ran it and gave the same answers
+    for both headings; and `Outermost` joined the Differences from Raku,
+    as an addition.
+- **Measurements:** none needed: without the option nothing changes,
+  and with it, `FindAll` keeps one integer and builds no match it
+  drops.
+- **Checks:** `FuzzMatch` compares `Outermost` with `Overlap`'s
+  matches filtered by jdc-lab's rule, written out plainly, and with
+  start skipping off. A planted bug, keeping a match that ends where an
+  earlier one does ("profile" in "Company Profile"), failed the first
+  seed; 60 seconds found nothing. The Raku differential tests ran
+  against Rakudo 2025.11 and pass. In jdc-lab, against this checkout,
+  `sections.All` with `Outermost()` in place of its own `outermost`
+  helper, and without its direct import of scalar, wrote identical
+  files for both samples, `ads-20261024.jsonl` and `ads-20261025.jsonl`,
+  and the lab's tests passed; its working tree was put back exactly.
+- **What's left:** nothing here. jdc-lab drops its helper when it
+  takes up the release, which its `TODO.md` will say.
