@@ -35,7 +35,16 @@ dropped is deleted, and the commit that drops it names its number.
 
 ## Now
 
-Nothing yet.
+### 14. Overlapping matches without the nested ones
+
+**Serves:** word lists
+
+An `Outermost()` option for `FindAll`: `Overlap()`'s matches, less each
+one wholly inside another, so "you will need" in "in this role you will
+need" counts, but "profile" in "Company Profile" doesn't. jdc-lab wrote
+this itself; built into grammar, it ships with `Overlap` in one
+release. The plan is in its
+[change record](docs/changes/2026-10-26-overlapping-matches-without-nested.md).
 
 ## Next
 
@@ -125,16 +134,5 @@ rest of a long text as it does for other grammars.
 Added 2026-10-25. Make a word's other forms when it's added, as
 `Plurals` does for regular plurals, so "visiting" matches a list that
 has "visit". English needs a real stemmer, such as Porter's.
-
-### 14. Overlapping matches without the nested ones
-
-Added 2026-10-26. **Dogfooding:** suggested by jdc-lab's session, to
-remove friction met in real use, not a known gap. Classifying text by
-its phrases with `Overlap()` needs the matches that lie wholly inside a
-longer one dropped, or "profile" outranks the "company profile" it's
-part of. The lab wrote that itself: a dozen lines, and a direct import
-of scalar just to read each match's `from` and `to`. An option beside
-`Overlap()`, such as `Outermost()`, would save everyone who uses it so.
-Not urgent: the reference says how, and the lab's version works.
 
 [gaps]: docs/REFERENCE.md#gaps-and-possible-additions

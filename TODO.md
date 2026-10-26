@@ -3,7 +3,7 @@
 ## Release Overlap once jdc-lab has tried it
 
 **From:** grammar's session, 2026-10-26 (grammar da7bc9b9cdc732bbed40f74bf56f312d654d3c02)
-**Waiting on:** nothing: jdc-lab tried it on 2026-10-26 (below)
+**Waiting on:** roadmap 14, `Outermost()`, which Iain asked to ship in the same release (2026-10-26); jdc-lab tried `Overlap` on 2026-10-26 (below)
 
 **What:** release `Overlap()` (roadmap 13), shipped on `develop` and
 held at Iain's request so jdc-lab can test it first. When jdc-lab's
