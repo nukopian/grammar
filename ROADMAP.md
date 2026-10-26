@@ -35,15 +35,7 @@ dropped is deleted, and the commit that drops it names its number.
 
 ## Now
 
-### 12. Rules whose canonical isn't a phrase
-
-**Serves:** word lists
-
-A `MapOnly()` list option, so that a rule written `phrases => value`
-doesn't make the value a phrase too, as `AddAs` doesn't: jdc-lab's
-"legal" section names a job in most headings ("Legal Secretary"), and
-it rebuilds its rules with `AddAs` to keep the name out. The plan is in
-its [change record](docs/changes/2026-10-26-rules-whose-canonical-isnt-a-phrase.md).
+Nothing yet.
 
 ## Next
 

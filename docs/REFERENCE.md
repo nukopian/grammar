@@ -243,9 +243,17 @@ and Solr use, as Elasticsearch's synonyms API returns them:
 
 ```
 annum, year, yr, pa        all mean the first, annum
-hr, ph => Hour             each phrase on the left means Hour
+hr, ph => Hour             each phrase on the left means Hour, as does Hour
 pm => product manager, project manager
 ```
+
+Each value on the right of `=>` is a phrase too, meaning itself, as in
+Elasticsearch, where a text left as written still matches. With the
+`MapOnly()` option, it isn't: a rule with `=>` adds its phrases as
+`AddAs` does. That's for a value that names something else in the text:
+with `legal notice, the legal bit => legal`, a heading "Legal Notice"
+means legal, but "Legal Secretary" doesn't. Under `MapOnly`, a rule with
+nothing before `=>` is an error, as it would add nothing.
 
 In `AddRules`, a rule ending with a comma carries on onto the next line, so
 long rules can be wrapped. `WordLists(map[string]string{...}, opts...)`
@@ -269,6 +277,7 @@ None of this is in Raku, whose `@list` is only its phrases.
 | `JoinedSpacing()` | the text may leave out the spacing in a phrase, so "on site" matches "onsite" and "front-end" matches "frontend". Write the spaced form; see below. |
 | `Plurals()` | each phrase matches its plural too, with the same canonical value: "Care Assistant" matches "Care Assistants". Regular English plurals of the last word only; see below. |
 | `ExactAcronyms()` | keep a list's acronyms in capitals where it otherwise ignores case: "IT" doesn't match "it", though "computing" matches "Computing". An acronym is a word of two or more capitals, perhaps with a plural s ("NHS", "PMs"); the rest of a phrase still ignores case ("NHS trust" matches "NHS Trust", not "nhs trust"). |
+| `MapOnly()` | a synonym rule written `phrases => values` doesn't make the values phrases too, as `AddAs` doesn't; see Loading synonyms, above. Rules without `=>`, and `Add` and `AddAs`, are unchanged. |
 | `WholeWords()` | match a phrase only where it isn't part of a longer word: "lead" doesn't match "leadership". It's `<< @list >>` without writing the boundaries, except that a phrase starting or ending with punctuation, such as "c++", can end where the punctuation does. The longest phrase that fits still wins. Digits are word characters, as in Raku, so "pa" in "£45000pa" isn't a whole word; to check only the end, as for a unit after a figure, leave this off and write `@units <!before \w>`. |
 
 **Joined spellings.** Postings write the same term spaced, hyphenated and
@@ -903,7 +912,7 @@ with when each matters. *Fixable* and *Effort* are as in the
 | **`Subparse` returns undef when nothing matches,** as `Parse` does. Raku's `.subparse` returns a failed `Match`, which is defined but false: reading it gives `Nil`, and its text is `""`. | Only for Raku code that tests a subparse result with `.defined` rather than by its truth, which grammar's undef agrees with. In Go, one check, `Defined()`, works for every way of finding nothing. | Return a locked `""`, which is defined, false and reads through to undef, but then `Subparse` callers would have to check `Bool()` where every other method's callers check `Defined()`, and `To`, `Values` and `SubparseErr` would need special cases. | by design | — |
 | **`<alias=name>` captures under both names,** as Raku does. | When you expect only the alias. | Nothing to fix: use `<alias=.name>`. | by design | — |
 | **`Re` takes Perl-style regex syntax.** | Only that it isn't Raku syntax. It's for patterns you already have. | — | by design | — |
-| **Word lists add to Raku's `@list`:** canonical values, `FoldCase`, `LooseSpacing`, `JoinedSpacing`, `Plurals` and `WholeWords`. | Never for Raku-compatible lists: without the options, a list matches as Raku's does. | — | by design | — |
+| **Word lists add to Raku's `@list`:** canonical values, `FoldCase`, `LooseSpacing`, `JoinedSpacing`, `Plurals`, `WholeWords`, `ExactAcronyms` and `MapOnly`. | Never for Raku-compatible lists: without the options, a list matches as Raku's does. | — | by design | — |
 
 ## Testing against Raku
 

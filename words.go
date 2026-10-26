@@ -28,6 +28,7 @@ type WordList struct {
 	whole  bool
 	plural bool
 	acro   bool // ExactAcronyms
+	mapped bool // MapOnly
 	root   *trie
 	values map[string][]string // a normalised phrase's canonical values, in the order added
 
@@ -129,6 +130,17 @@ func WholeWords() ListOption { return func(l *WordList) { l.whole = true } }
 // rest of a phrase still ignores case, so "NHS trust" matches "NHS Trust"
 // but not "nhs trust". Without FoldCase or :i, case matters anyway.
 func ExactAcronyms() ListOption { return func(l *WordList) { l.acro = true } }
+
+// MapOnly makes a rule written phrases => values add the phrases meaning
+// the values, as AddAs does, without making the values phrases too. Use it
+// for a value that names something else in the text: with "legal notice,
+// the legal bit => legal", a heading "Legal Notice" means legal, but
+// "Legal Secretary" doesn't. Rules without =>, and Add and AddAs, are
+// unchanged, and Canonicals still lists the values in the rules' order.
+//
+// Without it, as in Elasticsearch, where a text left as written still
+// matches, each value is a phrase too.
+func MapOnly() ListOption { return func(l *WordList) { l.mapped = true } }
 
 // NewWordList returns an empty list called name, which is how Raku syntax
 // refers to it: @name.
@@ -346,8 +358,9 @@ func insert(root *trie, values map[string][]string, key, canonical string, fold 
 //	pm => product manager, project manager
 //	                          pm means both; see Ambiguous
 //
-// Commas and => may be escaped with a backslash. Blank rules and rules
-// starting with # are ignored.
+// Each value on the right of => is a phrase too, meaning itself, unless the
+// list has MapOnly. Commas and => may be escaped with a backslash. Blank
+// rules and rules starting with # are ignored.
 func (l *WordList) AddRule(rule string) error {
 	rule = strings.TrimSpace(rule)
 	if rule == "" || strings.HasPrefix(rule, "#") {
@@ -363,8 +376,15 @@ func (l *WordList) AddRule(rule string) error {
 		if len(rhs) == 1 && rhs[0] == "" {
 			return fmt.Errorf("grammar: synonym rule %q has nothing after =>", rule)
 		}
+		if l.mapped && !slices.ContainsFunc(lhs, func(p string) bool { return p != "" }) {
+			return fmt.Errorf("grammar: synonym rule %q has nothing before =>, so with MapOnly it would add nothing", rule)
+		}
 		for _, canonical := range rhs {
-			l.Add(canonical, lhs...)
+			if l.mapped {
+				l.AddAs(canonical, lhs...)
+			} else {
+				l.Add(canonical, lhs...)
+			}
 		}
 	default:
 		return fmt.Errorf("grammar: synonym rule %q has more than one =>", rule)

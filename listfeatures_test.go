@@ -121,3 +121,65 @@ hr, ph`)
 		t.Error("the wrapped line became a rule of its own")
 	}
 }
+
+// 6. MapOnly: a rule written phrases => values adds the phrases meaning
+// the values, as AddAs does, without making the values phrases too.
+func TestMapOnly(t *testing.T) {
+	const rules = `
+benefits, perks, what we offer
+legal notice, the legal bit => legal
+pm => product manager, project manager
+`
+	l := NewWordList("sections", FoldCase(), Plurals(), MapOnly())
+	if err := l.AddRules(rules); err != nil {
+		t.Fatal(err)
+	}
+	for phrase, want := range map[string]string{
+		"legal": "", "Legal": "", "legals": "",
+		"legal notice": "legal", "Legal Notices": "legal", "the legal bit": "legal",
+		"benefits": "benefits", "What We Offer": "benefits", "Perks": "benefits",
+		"pm": "product manager,project manager", "product manager": "", "project manager": "",
+	} {
+		if got := strings.Join(l.Canonical(phrase), ","); got != want {
+			t.Errorf("Canonical(%q) = %q, want %q", phrase, got, want)
+		}
+	}
+	if got := l.Canonicals(); !slices.Equal(got, []string{"benefits", "legal", "product manager", "project manager"}) {
+		t.Errorf("Canonicals: %q", got)
+	}
+	if amb := l.Ambiguous(); len(amb) != 1 || len(amb["pm"]) != 2 {
+		t.Errorf("Ambiguous: %v", amb)
+	}
+	g := MustCompile(`grammar H { token TOP { @sections } }`, l)
+	if g.Parse("Legal").Defined() || g.Parse("Legal Notice").At("made").Str() != "legal" {
+		t.Error("matching doesn't follow Canonical")
+	}
+
+	// Without it, the values are phrases too, as before.
+	plain := NewWordList("sections", FoldCase())
+	if err := plain.AddRules(rules); err != nil {
+		t.Fatal(err)
+	}
+	if got := plain.Canonical("legal"); !slices.Equal(got, []string{"legal"}) {
+		t.Errorf("without MapOnly, Canonical(legal) = %q", got)
+	}
+
+	// A rule with nothing before => would add nothing.
+	for _, bad := range []string{"=> legal", " , => legal"} {
+		if err := NewWordList("x", MapOnly()).AddRule(bad); err == nil || !strings.Contains(err.Error(), "nothing before =>") {
+			t.Errorf("%q: %v", bad, err)
+		}
+		if err := NewWordList("x").AddRule(bad); err != nil {
+			t.Errorf("%q without MapOnly: %v", bad, err)
+		}
+	}
+
+	// WordLists passes it to each list.
+	uses, err := WordLists(map[string]string{"sections": rules}, MapOnly())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := uses[0].(*WordList).Canonical("legal"); got != nil {
+		t.Errorf("WordLists: Canonical(legal) = %q", got)
+	}
+}

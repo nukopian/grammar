@@ -1,6 +1,7 @@
 package grammar
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -159,6 +160,7 @@ func FuzzWords(f *testing.F) {
 	f.Add("Year, annum, yr\nhr, ph => Hour\npm => product manager, project manager\nc\\, d => cd", true, true)
 	f.Add("a\\\\, b => c\n# comment\n=>\n, ,", false, true)
 	f.Add("Front-end Developer, Frontend Developer", true, false)
+	f.Add("legal notice, the legal bit => legal\nlegal, law => legal", true, true)
 	f.Fuzz(func(t *testing.T, rules string, fold, loose bool) {
 		// A phrase with a long run of spacing makes JoinedSpacing's search
 		// slow, by design, until StepLimit stops it; a low limit keeps
@@ -188,42 +190,61 @@ func FuzzWords(f *testing.F) {
 				opts = append(opts, Plurals())
 			}
 			l := NewWordList("w", opts...)
-			l.AddRules(rules) // errors are fine; panics aren't
-			g := MustCompile(`grammar W { token TOP { @w } }`, l)
-			for _, phrase := range l.Phrases() {
-				texts := []string{phrase}
-				if joined && utf8.ValidString(phrase) {
-					// Run together, it still matches, and means something.
-					// (Joining the bytes of invalid UTF-8 could make a
-					// character that was never in the phrase. And where a
-					// word starts with a bare combining mark, joining can
-					// put two marks together, which NFC then reorders, so
-					// the text is no longer the phrase without its spaces:
-					// those are left out.)
-					if run := strings.Join(strings.FieldsFunc(phrase, isListSpace), ""); nfc(run) == run {
-						texts = append(texts, run)
+			err := l.AddRules(rules) // errors are fine; panics aren't
+			mapped := NewWordList("w", append(opts, MapOnly())...)
+			errMapped := mapped.AddRules(rules)
+			if err == nil && errMapped == nil {
+				// MapOnly only takes phrases and meanings away.
+				for _, phrase := range mapped.Phrases() {
+					for _, c := range mapped.Canonical(phrase) {
+						if !slices.Contains(l.Canonical(phrase), c) {
+							t.Fatalf("with MapOnly, %q means %q, which it doesn't without", phrase, c)
+						}
 					}
 				}
-				if p := pluralOf(phrase); plural && p != "" {
-					texts = append(texts, p) // and its plural
-				}
-				for _, text := range texts {
-					if text == "" {
-						continue
-					}
-					if len(l.Canonical(text)) == 0 {
-						t.Fatalf("%q (from phrase %q) has no meaning", text, phrase)
-					}
-					m := g.Parse(text)
-					if !m.Defined() {
-						t.Fatalf("%q (from phrase %q) doesn't match", text, phrase)
-					}
-					if len(l.Canonical(m.At("~").Str())) == 0 {
-						t.Fatalf("%q matched as %q, which has no meaning", text, m.At("~").Str())
+				for _, c := range mapped.Canonicals() {
+					if !slices.Contains(l.Canonicals(), c) {
+						t.Fatalf("with MapOnly, %q is a canonical value, which it isn't without", c)
 					}
 				}
 			}
-			g.FindAll(rules)
+			for _, l := range []*WordList{l, mapped} {
+				g := MustCompile(`grammar W { token TOP { @w } }`, l)
+				for _, phrase := range l.Phrases() {
+					texts := []string{phrase}
+					if joined && utf8.ValidString(phrase) {
+						// Run together, it still matches, and means something.
+						// (Joining the bytes of invalid UTF-8 could make a
+						// character that was never in the phrase. And where a
+						// word starts with a bare combining mark, joining can
+						// put two marks together, which NFC then reorders, so
+						// the text is no longer the phrase without its spaces:
+						// those are left out.)
+						if run := strings.Join(strings.FieldsFunc(phrase, isListSpace), ""); nfc(run) == run {
+							texts = append(texts, run)
+						}
+					}
+					if p := pluralOf(phrase); plural && p != "" {
+						texts = append(texts, p) // and its plural
+					}
+					for _, text := range texts {
+						if text == "" {
+							continue
+						}
+						if len(l.Canonical(text)) == 0 {
+							t.Fatalf("%q (from phrase %q) has no meaning", text, phrase)
+						}
+						m := g.Parse(text)
+						if !m.Defined() {
+							t.Fatalf("%q (from phrase %q) doesn't match", text, phrase)
+						}
+						if len(l.Canonical(m.At("~").Str())) == 0 {
+							t.Fatalf("%q matched as %q, which has no meaning", text, m.At("~").Str())
+						}
+					}
+				}
+				g.FindAll(rules)
+			}
 		}
 	})
 }

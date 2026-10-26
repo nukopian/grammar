@@ -1,12 +1,12 @@
 # Rules whose canonical isn't a phrase
 
-**Status:** in progress
+**Status:** shipped, unreleased
 
 **Origin:** roadmap 12
 
 **Started:** 2026-10-26, in a67788361c9280bef0163c6c1d19b4a79c21363c
 
-**Finished:**
+**Finished:** 2026-10-26
 
 ## The plan
 
@@ -68,3 +68,33 @@ rebuild is shown to be unnecessary with it, and this item has moved to
 the CHANGELOG as "(roadmap 12)".
 
 ## What happened
+
+- **Outcome:** all of Done when. Under `MapOnly`, a `=>` rule adds its
+  phrases with `AddAs`; a rule with nothing before `=>` is an error
+  ("has nothing before =>, so with MapOnly it would add nothing");
+  `AddRule`'s doc says that, without the option, the values are phrases
+  too. `TestMapOnly` covers step 1's cases, and `ExampleMapOnly` uses
+  headings, as jdc-lab's sections do.
+- **Changes from the plan:**
+  - Step 1's `Plurals` case showed a mistake in the test, not the code:
+    `Plurals` makes "perks" from "perk", not "perk" from "perks", so the
+    test now looks up a phrase as written.
+  - Step 6 also put `ExactAcronyms`, missing since it was added, beside
+    `MapOnly` in the reference's row on what word lists add to Raku's.
+  - Step 7 found the rebuild unnecessary twice over: jdc-lab's
+    `internal/sections`, using `MapOnly` and reading its rules straight
+    into its list, builds the same list as its rebuild (239 phrases, the
+    same meanings, the kinds in the same order, checked by a temporary
+    test), its tests pass, and `cmd/sections` writes the same files for
+    `data/ingestion/ads-20261024.jsonl`. The rework was undone there, and
+    left to jdc-lab, after the release, as a task in its `TODO.md`.
+- **Measurements:** none needed: matching doesn't change, and the option
+  is read only while rules are added.
+- **Checks:** `FuzzWords` builds each list with and without `MapOnly`,
+  checking that with it, each phrase means only what it does without,
+  and each canonical value is one without, then matches every phrase of
+  both. A planted bug, adding an extra phrase under `MapOnly`, failed
+  it on the first seed. It ran for 60 seconds and found nothing. The
+  Raku differential tests ran against Rakudo 2025.11 and pass, showing
+  nothing else changed.
+- **What's left:** nothing.

@@ -2096,4 +2096,34 @@ fmt.Println(g.FindAll("Is it IT or Computing?").Map(func(m *scalar.SV) any { ret
 IT, Computing
 ```
 
+#### `MapOnly`
+
+MapOnly makes a rule written phrases => values add the phrases meaning the values, as AddAs does, without making the values phrases too.
+
+MapOnly keeps the value of a phrases => value rule out of the phrases, so a section called legal isn't found in "Legal Secretary".
+
+```go
+sections := grammar.NewWordList("sections", grammar.FoldCase(), grammar.WholeWords(), grammar.MapOnly())
+err := sections.AddRules(`
+benefits, perks, what we offer
+legal notice, the legal bit => legal
+`)
+if err != nil {
+	fmt.Println(err)
+	return
+}
+g := grammar.MustCompile(`grammar Heading { token TOP { @sections } }`, sections)
+for _, heading := range []string{"Legal Secretary", "Benefits", "Legal Notice"} {
+	fmt.Printf("%s: %v\n", heading, g.Find(heading).At("made").Or("no section"))
+}
+fmt.Println(sections.Canonicals())
+```
+
+```
+Legal Secretary: no section
+Benefits: benefits
+Legal Notice: legal
+[benefits legal]
+```
+
 <!-- reference:end -->

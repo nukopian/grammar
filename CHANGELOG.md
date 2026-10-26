@@ -11,7 +11,13 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- A `MapOnly()` list option: under it, a synonym rule written
+  `phrases => values` adds the phrases meaning the values, as `AddAs`
+  does, without making the values phrases too. So a rules file can map
+  "legal notice, the legal bit => legal" without "Legal Secretary"
+  becoming a legal section. Without it, nothing changes, and
+  `AddRule`'s doc now says that the values are phrases too (roadmap 12;
+  [record](docs/changes/2026-10-26-rules-whose-canonical-isnt-a-phrase.md)).
 
 ## v0.3.0 (2026-10-26)
 
