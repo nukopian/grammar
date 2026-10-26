@@ -35,7 +35,15 @@ dropped is deleted, and the commit that drops it names its number.
 
 ## Now
 
-Nothing yet.
+### 13. Every phrase in a text, overlaps included
+
+**Serves:** word lists
+
+An `Overlap()` option for `FindAll`, as Raku's `:ov`: a match from each
+position where one starts, so a heading such as "in this role you will
+need" gives jdc-lab both "in this role you will" and "you will need",
+and can be weighed by both. The plan is in its
+[change record](docs/changes/2026-10-26-every-phrase-overlaps-included.md).
 
 ## Next
 
@@ -125,16 +133,5 @@ rest of a long text as it does for other grammars.
 Added 2026-10-25. Make a word's other forms when it's added, as
 `Plurals` does for regular plurals, so "visiting" matches a list that
 has "visit". English needs a real stemmer, such as Porter's.
-
-### 13. Every phrase in a text, overlaps included
-
-Added 2026-10-26. **Dogfooding:** suggested by jdc-lab's session, to
-remove friction met in real use, not a known gap. `FindAll` gives
-non-overlapping matches, as documented, but classifying text by the
-phrases in it needs every one: in "in this role you will need",
-jdc-lab's headings lose "you will need" (requirements) to "in this role
-you will" (responsibilities), and can't weigh the heading by both. It's
-one heading in 7,000 ads so far, so not urgent, but it will grow as the
-lab's word lists do.
 
 [gaps]: docs/REFERENCE.md#gaps-and-possible-additions
