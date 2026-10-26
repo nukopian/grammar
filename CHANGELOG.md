@@ -11,6 +11,15 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.3.0 (2026-10-26)
+
+On scalar v0.6.0
+
+Breaking, as scalar v0.6.0 is: grammar's matching and API don't change,
+but some values its matches hand back print or count differently.
+
 - Build: needs scalar v0.6.0, up from v0.5.9. grammar's matching doesn't
   change, but the scalar values it hands back do, as scalar's
   [v0.6.0 notes](https://github.com/nukopian/scalar/releases/tag/v0.6.0)
