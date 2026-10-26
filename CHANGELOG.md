@@ -11,7 +11,10 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- Build: needs scalar v0.5.9, up from v0.5.7. grammar's behaviour doesn't
+  change, but code of yours that calls scalar's `S` with a replacement
+  string such as `"$1"` runs about 1.6 times as fast, can use `$+` and
+  `$+{name}`, and gets nothing for a group that doesn't exist, as in Perl.
 
 ## v0.2.1 (2026-10-25)
 
