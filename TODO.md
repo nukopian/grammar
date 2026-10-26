@@ -21,7 +21,7 @@ handled differently; better found before the API is published.
 **Files:** `TODO.md` (this task, removed in the commit that does it),
 then the release's.
 
-**What jdc-lab found** (2026-10-26, on grammar 91301e4fa7e1b7ab6d3b57b5ee8cec3d1859a4a8 through
+**What jdc-lab found** (2026-10-26, on grammar 91301e43f3ee58d108141dc1c74fea01ec956a7b through
 `go.work`): **nothing to change before the release.** `sections.All`
 calls `finder.FindAll(key, grammar.Overlap())` and drops each match
 wholly inside a longer one, as the reference's Overlapping matches
