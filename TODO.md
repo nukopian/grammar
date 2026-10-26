@@ -3,7 +3,7 @@
 ## Release Overlap once jdc-lab has tried it
 
 **From:** grammar's session, 2026-10-26 (grammar da7bc9b9cdc732bbed40f74bf56f312d654d3c02)
-**Waiting on:** jdc-lab's session trying `Overlap` in `internal/sections`, through its `go.work` (its `TODO.md` task "Try grammar's Overlap in sections.All, before it's released")
+**Waiting on:** nothing: jdc-lab tried it on 2026-10-26 (below)
 
 **What:** release `Overlap()` (roadmap 13), shipped on `develop` and
 held at Iain's request so jdc-lab can test it first. When jdc-lab's
@@ -20,6 +20,30 @@ handled differently; better found before the API is published.
 
 **Files:** `TODO.md` (this task, removed in the commit that does it),
 then the release's.
+
+**What jdc-lab found** (2026-10-26, on grammar 91301e4fa7e1b7ab6d3b57b5ee8cec3d1859a4a8 through
+`go.work`): **nothing to change before the release.** `sections.All`
+calls `finder.FindAll(key, grammar.Overlap())` and drops each match
+wholly inside a longer one, as the reference's Overlapping matches
+suggests. Over both samples (6,167 distinct ads, 7,469 distinct
+headings), compared with a run without `Overlap`:
+
+- exactly 6 headings (22 uses) change kind, all rightly, from
+  responsibilities to requirements: "To succeed in this role, you will
+  need the following:" (14 uses), "To join us and be successful in this
+  role you will need:" (4), and four like them;
+- "Company Profile" stays company: the nested "profile" is dropped;
+- nothing else moves: no heading newly mapped or unmapped, and the only
+  new rows in `disagree.tsv` are those 6.
+
+**Dogfooding** (a suggestion from jdc-lab's session, to remove friction
+met in real use; it doesn't block this release): dropping nested matches
+took a dozen lines in the lab, and a direct import of scalar just to read
+`from` and `to` from each match, through `Items`, `Grep` and
+`Get("from").Int()`. Anyone classifying text by its phrases will want
+the same, so an option for it (say, `Outermost()` beside `Overlap()`, or
+a word-list setting) would save each of them writing it. Not urgent: the
+reference already says how, and the lab's version works.
 
 **How to check it's done:** jdc-lab's task is gone from its `TODO.md`,
 this one is gone from here, and v0.3.2 is tagged with the Overlap entry.
