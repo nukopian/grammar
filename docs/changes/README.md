@@ -35,8 +35,11 @@ having. Small fixes don't need one.
 # Title
 
 **Status:** in progress | shipped, unreleased | shipped in v0.2.4 | dropped
+
 **Origin:** roadmap 7 | a TODO task from scalar's session (scalar <commit>)
+
 **Started:** 2026-10-26, in <commit>
+
 **Finished:** 2026-10-27
 
 ## The plan
@@ -57,4 +60,5 @@ Why, What's known, Steps, Done when.
 
 Newest first.
 
-None yet.
+- [Limit errors that say where](2026-10-26-limit-errors-that-say-where.md)
+  (roadmap 2), shipped, unreleased

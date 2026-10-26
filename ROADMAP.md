@@ -35,56 +35,7 @@ dropped is deleted, and the commit that drops it names its number.
 
 ## Now
 
-### 2. Limit errors that say where
-
-**Serves:** debugging
-
-**From:** grammar's session, 2026-10-26 (grammar 3ba32030ba9caac31997111e43035a285d322fc1)
-**Waiting on:** nothing
-
-**What:** `StepLimitError` and `DepthLimitError` name the rule that was
-being matched when the limit was reached, and where in the text that
-rule's match started, such as "gave up after 10000000 steps, in amount
-from line 3, column 14".
-
-**Why:** they name only the grammar and the limit, so finding the rule
-that backtracks badly means guessing.
-
-**What's known:** both errors are made in `node.go`: `tick` and
-`deeper`, and `Quant.loop`'s own depth check. Matching passes
-continuations, so a rule's frame is still on Go's stack while what
-follows it runs; the innermost rule is the one whose body is matching,
-not the last one called. The failure tracker that `ParseErr` uses
-already keeps that right, leaving a rule before its continuation and
-re-entering after (`call.match`), and the state can do the same with
-one frame: a store or two per rule call. `ParseError`'s `Offset`, `Line`
-and `Column`, and `lineCol`, are the pattern for the position. Raku has
-no step or depth limit, so there's nothing to compare with Raku; the
-differential tests only show that nothing else changed.
-
-**Steps:**
-
-1. Record `BenchmarkParse`, `BenchmarkFindAll` and `BenchmarkLookbehind`
-   (`-count 10`) as the baseline.
-2. Tests first: each limit, reached through `Parse` (the panic),
-   `ParseErr` and `Find`, names the right rule and place, including a
-   rule that has matched and handed on (the error names its caller),
-   a proto's variant, and the fast paths on and off.
-3. Keep the innermost rule and where it started in `state`, set in
-   `call.match` and `matchProto` as the tracker does, and give both
-   errors `Rule`, `Offset`, `Line` and `Column`, with the message
-   above.
-4. Measure again. If it costs more than noise, record the rule only
-   while failures are tracked, so `ParseErr` and `SubparseErr` say where
-   and the rest wait for item 1's trace, and say so in the reference.
-5. The reference's StepLimit and DepthLimit sections, the two examples'
-   output, `docs/EXAMPLES.md` (`go test -run TestReference -update`),
-   and the gap removed. `FuzzMatch` for 60 seconds.
-
-**Done when** both errors carry the rule and position, the cost is
-measured (or the rule is recorded only while tracking failures), tests
-cover both limits, and this item has moved to the CHANGELOG as
-"(roadmap 2)".
+Nothing yet.
 
 ## Next
 

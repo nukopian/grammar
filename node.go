@@ -71,8 +71,29 @@ type state struct {
 func (st *state) deeper() {
 	st.depth++
 	if st.maxDepth > 0 && st.depth > st.maxDepth {
-		panic(&DepthLimitError{Grammar: st.g.name, Limit: st.maxDepth})
+		panic(st.depthLimitError())
 	}
+}
+
+func (st *state) depthLimitError() *DepthLimitError {
+	e := &DepthLimitError{Grammar: st.g.name, Limit: st.maxDepth}
+	e.Rule, e.Offset, e.Line, e.Column = st.limitPlace()
+	return e
+}
+
+// limitPlace is where a limit was reached, for its error: the rule whose
+// body was matching, and where that rule's match started. Only the tracker
+// knows, keeping its stack of rules right as matching passes
+// continuations; keeping one for every match costs Parse a few per cent
+// (measured 2026-10-26), so without it the place is left empty.
+func (st *state) limitPlace() (rule string, offset, line, column int) {
+	t := st.tr
+	if t == nil || len(t.calls) == 0 {
+		return "", 0, 0, 0
+	}
+	f := t.calls[len(t.calls)-1]
+	line, column = lineCol(st.in, f.pos)
+	return f.rule, f.pos, line, column
 }
 
 func (st *state) shallower() { st.depth-- }
@@ -86,7 +107,9 @@ func (st *state) shallower() { st.depth-- }
 func (st *state) tick() {
 	st.steps++
 	if st.limit > 0 && st.steps > st.limit {
-		panic(&StepLimitError{Grammar: st.g.name, Limit: st.limit})
+		e := &StepLimitError{Grammar: st.g.name, Limit: st.limit}
+		e.Rule, e.Offset, e.Line, e.Column = st.limitPlace()
+		panic(e)
 	}
 }
 
@@ -324,7 +347,7 @@ func (q *Quant) loop(st *state, pos int, c *capList, e env, k cont) bool {
 	reach := func(d int) {
 		st.depth = base + d
 		if st.maxDepth > 0 && st.depth > st.maxDepth {
-			panic(&DepthLimitError{Grammar: st.g.name, Limit: st.maxDepth})
+			panic(st.depthLimitError())
 		}
 	}
 	count := 0
@@ -1072,7 +1095,17 @@ func (n *call) matchProto(st *state, pos int, c *capList, e env, k cont, r *rule
 	var bestCaps *capList
 	end := -1
 	for _, v := range r.variants {
+		// The variant's frame is inside the proto's, so a failure report,
+		// which names the outermost rule, still names the proto; a limit
+		// error names the variant.
+		vf := frame{v.name, pos}
+		if t != nil {
+			t.enter(vf)
+		}
 		p, inner, ok := once(v.body, st, pos, nil, env{ratchet: v.ratchet, sc: v.sc})
+		if t != nil {
+			t.leave(vf)
+		}
 		if ok && p > end {
 			best, bestCaps, end = v, inner, p
 		}

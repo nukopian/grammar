@@ -283,7 +283,7 @@ func ExampleDepthLimitError_Error() {
 	_, err := g.ParseErr(strings.Repeat("a", 600))
 	fmt.Println(err)
 	// Output:
-	// grammar Long: match too deep: gave up after 1000 levels (see DepthLimit)
+	// grammar Long: match too deep: gave up after 1000 levels, in TOP from line 1, column 1 (see DepthLimit)
 }
 
 // Backref is $<name>: the text a capture matched, again. Here a pay range
@@ -346,18 +346,24 @@ func ExampleChunks() {
 }
 
 // StepLimit stops a match that backtracks badly. Nested repeats in a regex
-// rule, as here, try every way of sharing the a's out before giving up, so
-// each extra a doubles the time: 30 of them would take minutes. The
-// default limit stops it in about a second; this one is lower.
+// rule, as in amount here, try every way of sharing the digits out before
+// giving up, so each extra digit doubles the time: 30 of them would take
+// minutes. The default limit stops it in about a second; this one is
+// lower. ParseErr's error names the rule that was matching, and where its
+// match started.
 func ExampleStepLimit() {
-	g := grammar.MustCompile(`grammar Blowup { regex TOP { [ a+ ]+ $ } }`)
+	g := grammar.MustCompile(`
+grammar Pay {
+    token TOP { 'Salary: ' <amount> }
+    regex amount { [ \d+ ]+ ' per annum' }
+}`)
 	defer func(old int) { grammar.StepLimit = old }(grammar.StepLimit)
 	grammar.StepLimit = 100_000
 
-	_, err := g.ParseErr(strings.Repeat("a", 30) + "b")
+	_, err := g.ParseErr("Salary: " + strings.Repeat("9", 30) + " pa")
 	fmt.Println(err)
 	// Output:
-	// grammar Blowup: match too long: gave up after 100000 steps (see StepLimit)
+	// grammar Pay: match too long: gave up after 100000 steps, in amount from line 1, column 9 (see StepLimit)
 }
 
 // Parse, Find and the rest panic with a *StepLimitError, as scalar's regexes

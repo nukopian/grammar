@@ -11,6 +11,14 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+- From `ParseErr` and `SubparseErr`, `StepLimitError` and
+  `DepthLimitError` say where they stopped: the rule that was matching,
+  or a proto's variant, and the line and column where its match started,
+  as in "gave up after 100000 steps, in amount from line 1, column 9",
+  with new `Rule`, `Offset`, `Line` and `Column` fields. From `Parse`,
+  `Find` and the rest, the place is empty and the message as before, as
+  knowing it would cost every match a few per cent (roadmap 2;
+  [record](docs/changes/2026-10-26-limit-errors-that-say-where.md)).
 - Docs: each planned change keeps a record in
   [docs/changes/](docs/changes/README.md), opened when work starts: the
   plan as it was written, then what happened, with changes from the

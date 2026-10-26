@@ -74,6 +74,82 @@ func TestStepLimitStopsBacktracking(t *testing.T) {
 	})
 }
 
+// limitPlace is where a limit error says it was reached.
+type limitPlace struct {
+	Rule                 string
+	Offset, Line, Column int
+}
+
+// From ParseErr, a limit error names the rule being matched when it was
+// reached, and where that rule's match started. Matching passes
+// continuations, so a rule that has matched is still on Go's stack while
+// what follows it runs: the error must name the rule whose body is
+// matching, not the last one called. Parse and Find don't know, as keeping
+// track would cost every match, and leave the place empty.
+func TestLimitErrorsSayWhere(t *testing.T) {
+	near := strings.Repeat("a", 30) + "b"
+	steps := []struct {
+		name, src, text string
+		want            limitPlace
+	}{
+		{"top", `grammar T { regex TOP { [ a+ ]+ $ } }`, near, limitPlace{"TOP", 0, 1, 1}},
+		{"called", `grammar C { token TOP { 'pay: ' <amount> }; regex amount { [ a+ ]+ $ } }`,
+			"pay: " + near, limitPlace{"amount", 5, 1, 6}},
+		{"next line", `grammar L { token TOP { 'pay:' \n <amount> }; regex amount { [ a+ ]+ $ } }`,
+			"pay:\n" + near, limitPlace{"amount", 5, 2, 1}},
+		{"handed on", `grammar H { regex TOP { <lead> [ a+ ]+ $ }; token lead { x } }`,
+			"x" + near, limitPlace{"TOP", 0, 1, 1}},
+		{"proto", `grammar P { token TOP { <amount> }; proto token amount {*}; regex amount:sym<a> { [ a+ ]+ $ } }`,
+			near, limitPlace{"amount:sym<a>", 0, 1, 1}},
+	}
+	withStepLimit(t, 100_000, func() {
+		for _, c := range steps {
+			g := MustCompile(c.src)
+			check := func(how string, e *StepLimitError) {
+				t.Helper()
+				if e == nil {
+					t.Errorf("%s, %s: didn't stop", c.name, how)
+					return
+				}
+				if got := (limitPlace{e.Rule, e.Offset, e.Line, e.Column}); got != c.want {
+					t.Errorf("%s, %s: %+v, want %+v", c.name, how, got, c.want)
+				}
+			}
+			nowhere := func(how string, e *StepLimitError) {
+				t.Helper()
+				if e == nil {
+					t.Errorf("%s, %s: didn't stop", c.name, how)
+				} else if got := (limitPlace{e.Rule, e.Offset, e.Line, e.Column}); got != (limitPlace{}) {
+					t.Errorf("%s, %s: %+v, want no place", c.name, how, got)
+				}
+			}
+			nowhere("Parse", stepLimitPanic(t, func() { g.Parse(c.text) }))
+			nowhere("Find", stepLimitPanic(t, func() { g.Find(c.text) }))
+			_, err := g.ParseErr(c.text)
+			var e *StepLimitError
+			errors.As(err, &e)
+			check("ParseErr", e)
+		}
+	})
+
+	defer func(old int) { DepthLimit = old }(DepthLimit)
+	DepthLimit = 1_000
+	g := MustCompile(`grammar D { token TOP { 'x' <run> }; token run { a* } }`)
+	want := limitPlace{"run", 1, 1, 2}
+	text := "x" + strings.Repeat("a", 600)
+	if e := depthLimitPanic(t, func() { g.Parse(text) }); e == nil || e.Rule != "" {
+		t.Errorf("Parse: %+v, want a DepthLimitError with no place", e)
+	}
+	_, err := g.ParseErr(text)
+	var de *DepthLimitError
+	if !errors.As(err, &de) || (limitPlace{de.Rule, de.Offset, de.Line, de.Column}) != want {
+		t.Fatalf("ParseErr = %v, want a *DepthLimitError at %+v", err, want)
+	}
+	if want := "grammar D: match too deep: gave up after 1000 levels, in run from line 1, column 2 (see DepthLimit)"; de.Error() != want {
+		t.Errorf("%q, want %q", de.Error(), want)
+	}
+}
+
 // Find, FindAll and Split share one count across the positions they try,
 // so many short searches can't add up to a long one.
 func TestStepLimitCountsWholeCall(t *testing.T) {

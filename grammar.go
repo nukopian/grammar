@@ -487,24 +487,56 @@ var StepLimit = 10_000_000
 // debug.SetMaxStack can raise this too.
 var DepthLimit = 250_000
 
-// DepthLimitError says a match recursed past DepthLimit.
+// DepthLimitError says a match recursed past DepthLimit. From ParseErr
+// and SubparseErr, it also says where: the rule being matched, and where
+// in the text its match started.
 type DepthLimitError struct {
 	Grammar string
 	Limit   int
+
+	// Rule is the rule being matched, such as amount, or amount:sym<range>
+	// for a proto's variant. It's empty, and the place 0, except from
+	// ParseErr and SubparseErr: knowing it costs every match a little.
+	Rule   string
+	Offset int // characters (runes) from the start of the text
+	Line   int // from 1
+	Column int // from 1, in characters
 }
 
 func (e *DepthLimitError) Error() string {
-	return fmt.Sprintf("grammar %s: match too deep: gave up after %d levels (see DepthLimit)", e.Grammar, e.Limit)
+	return fmt.Sprintf("grammar %s: match too deep: gave up after %d levels%s (see DepthLimit)",
+		e.Grammar, e.Limit, limitWhere(e.Rule, e.Line, e.Column))
 }
 
-// StepLimitError says a match ran past StepLimit.
+// StepLimitError says a match ran past StepLimit. From ParseErr and
+// SubparseErr, it also says where: the rule being matched, and where in
+// the text its match started. That's the rule to look at first, but the
+// steps may have been spent anywhere since the match began.
 type StepLimitError struct {
 	Grammar string
 	Limit   int
+
+	// Rule is the rule being matched, such as amount, or amount:sym<range>
+	// for a proto's variant. It's empty, and the place 0, except from
+	// ParseErr and SubparseErr: knowing it costs every match a little.
+	Rule   string
+	Offset int // characters (runes) from the start of the text
+	Line   int // from 1
+	Column int // from 1, in characters
 }
 
 func (e *StepLimitError) Error() string {
-	return fmt.Sprintf("grammar %s: match too long: gave up after %d steps (see StepLimit)", e.Grammar, e.Limit)
+	return fmt.Sprintf("grammar %s: match too long: gave up after %d steps%s (see StepLimit)",
+		e.Grammar, e.Limit, limitWhere(e.Rule, e.Line, e.Column))
+}
+
+// limitWhere is where a limit error was reached, for its message, or
+// nothing when that isn't known.
+func limitWhere(rule string, line, column int) string {
+	if rule == "" {
+		return ""
+	}
+	return fmt.Sprintf(", in %s from line %d, column %d", rule, line, column)
 }
 
 // Option changes how Parse, Subparse, Find and FindAll match.

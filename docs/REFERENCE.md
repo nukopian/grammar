@@ -837,6 +837,16 @@ counts how deep it is, and past `grammar.DepthLimit` it panics with a
 `*DepthLimitError`, which can be recovered, and which `ParseErr` and
 `SubparseErr` return, as for `StepLimit`.
 
+From `ParseErr` and `SubparseErr`, both errors also say where: the rule
+that was matching when the limit was reached, and the line and column
+where that rule's match started, as in "gave up after 100000 steps, in
+amount from line 1, column 9". For a proto, it's the variant, such as
+`amount:sym<range>`. That's the rule to look at first, though the steps
+may have been spent anywhere since the match began. The other calls
+leave `Rule` empty and the place 0, as knowing it costs every match a
+little; when one stops at a limit, run the same text through `ParseErr`
+to see where.
+
 The default, 250,000 levels, comes from measuring how much stack a level
 takes, by running grammars of different shapes until they ran out:
 
@@ -1006,7 +1016,7 @@ Before changing anything, it helps to know how the package is put together:
 | **Word lists can't change while in use.** | Refreshing synonyms in a long-running service. | Build a new list and grammar, and swap them in with an `atomic.Pointer`. Needs no change here. | yes | 1 |
 | **The Raku-syntax parser is hand-written,** not built with the package's own builder as first planned. | Only if the syntax grows much larger. | Rewrite it as a grammar of Raku regex syntax, with actions building nodes. | yes | 3 |
 | **No trace of a parse.** When a grammar won't match, there's no way to watch it work: which rules it tried, where, and what each matched before something failed. `ParseErr` reports only the furthest failure. | Writing or debugging a grammar, and learning how grammars work: seeing the rules called, nested by depth, with what each matched, is the quickest way to understand both. Raku programmers use the `Grammar::Tracer` module from `Grammar::Debugger` for this. | A `Trace(w io.Writer)` option, printing in `Grammar::Tracer`'s style: each rule as it's entered, indented by depth, then `* MATCH "text"` or `* FAIL`. Hook it into the rule call in `call.match`, not `tick`, which fires on every repeat item and alternation and would bury the rules in noise. Off, it costs a nil check per rule call; measure with `BenchmarkParse` before keeping it. `FuzzMatch` would check that tracing changes no result. | yes | 1–2 |
-| **The limit errors don't say where.** A `StepLimitError` or `DepthLimitError` names the grammar and the limit, not the rule that was running or the place in the text. | Finding the rule that backtracks badly, when a long run stops at a limit. | Keep the current rule and position in `state` as rules are called, and put them in the error: "gave up after 10000000 steps, in <inline> at line 3, column 14". That's a store per rule call, so measure it; or record them only while tracing (above), and point the error at `Trace`. | yes | 1 |
+| **Only `ParseErr`'s limit errors say where.** From `Parse`, `Find` and the rest, a `StepLimitError` or `DepthLimitError` names the grammar and the limit, not the rule that was running or the place in the text; `ParseErr` and `SubparseErr` name both, from the failure tracker's stack of rules. | Finding the rule that backtracks badly in a long run of `Find` or `FindAll`, without running the text again through `ParseErr`. | Keep the innermost rule in `state` for every match: set it in `call.match`, and put the caller's back around the continuation and on return, as the tracker does. Tried and reverted (2026-10-26): it cost `BenchmarkParse` 2.3%, `BenchmarkFindAll` 1.2% and `BenchmarkLookbehind` 4.5–6.2%, with a deferred restore or explicit ones alike, for an error that's rarely seen. Better: record it only while tracing (above), and have the error point at `Trace`. [The change's record](changes/2026-10-26-limit-errors-that-say-where.md) has the measurements. | yes | 1 |
 
 ### Handing a grammar on
 
