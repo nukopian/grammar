@@ -26,7 +26,7 @@ Items come in four groups, the most useful first in each:
 Each item has a number, given when it's added, in whichever group. It
 keeps it as it moves between groups, and a number is never used again,
 so that 7 means the same item in a commit message months later. Next
-number: 12.
+number: 14.
 
 When an item ships, it moves from here to the CHANGELOG, whose line
 for it ends with its number, such as "(roadmap 7)", and links to its
@@ -125,5 +125,21 @@ rest of a long text as it does for other grammars.
 Added 2026-10-25. Make a word's other forms when it's added, as
 `Plurals` does for regular plurals, so "visiting" matches a list that
 has "visit". English needs a real stemmer, such as Porter's.
+
+### 12. Rules whose canonical isn't a phrase
+
+Added 2026-10-26. Let a rule file say a value isn't a phrase, as
+`AddAs` does in code: `a, b => c` makes `c` a phrase too, and
+`AddRule`'s doc doesn't say so. jdc-lab needed it for "legal", a
+section's name that in a heading usually names a job ("Legal
+Secretary"), and had to re-read its rules and rebuild them with
+`AddAs`.
+
+### 13. Every phrase in a text, overlaps included
+
+Added 2026-10-26. A way to find every phrase of a word list in a text,
+not only `FindAll`'s non-overlapping ones: in "in this role you will
+need", jdc-lab's headings lose "you will need" to "in this role you
+will", so the heading can't be weighed by both.
 
 [gaps]: docs/REFERENCE.md#gaps-and-possible-additions
