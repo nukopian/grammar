@@ -16,7 +16,8 @@ Each item in Now, Next and Later names what it serves:
 Items come in four groups, the most useful first in each:
 
 - **Now:** being worked on, each with a plan detailed enough to pick up
-  cold; never more than three, so that it stays a queue;
+  cold, in its [change record](docs/changes/README.md); never more than
+  three, so that it stays a queue;
 - **Next:** decided, but not started;
 - **Later:** meant to be done, but not yet planned;
 - **Ideas:** might be done, or never; kept so they aren't lost, in a
@@ -28,7 +29,8 @@ so that 7 means the same item in a commit message months later. Next
 number: 12.
 
 When an item ships, it moves from here to the CHANGELOG, whose line
-for it ends with its number, such as "(roadmap 7)". An idea that's
+for it ends with its number, such as "(roadmap 7)", and links to its
+record. An idea that's
 dropped is deleted, and the commit that drops it names its number.
 
 ## Now

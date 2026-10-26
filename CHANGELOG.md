@@ -11,6 +11,11 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+- Docs: each planned change keeps a record in
+  [docs/changes/](docs/changes/README.md), opened when work starts: the
+  plan as it was written, then what happened, with changes from the
+  plan, measurements, and what was tried and reverted. The CHANGELOG
+  links to it.
 - Docs: the [roadmap](ROADMAP.md)'s Later items (4 to 11) are now ideas:
   might be done, or never, rather than meant to be done. Code
   assertions (3) move from Next to Later.

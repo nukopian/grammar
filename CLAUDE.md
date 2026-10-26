@@ -99,9 +99,10 @@ A feature isn't done until its documentation is.
   `docs/RAKU.md` (a Raku → grammar → plain Go phrasebook, whose every row
   `TestMappingMatchesRaku` runs in all three and compares), as scalar's
   are laid out, with `CHANGELOG.md` (what each release changed),
-  `ROADMAP.md` (what grammar means to do next, and why) and
-  `docs/MAINTAINING.md` (branches, releases, and the git and GitHub work
-  done by hand) beside them. The how-to's code is compiled and run, with its
+  `ROADMAP.md` (what grammar means to do next, and why),
+  `docs/changes/` (a record of each planned change: the plan, and what
+  happened) and `docs/MAINTAINING.md` (branches, releases, and the git
+  and GitHub work done by hand) beside them. The how-to's code is compiled and run, with its
   output compared, whenever it changes.
 - Every exported function and method has an example in the right
   `example_*_test.go` file, which `TestEveryFeatureHasExample` enforces.
@@ -150,8 +151,9 @@ included, and gaps found by reading them have led to real features.
 
 - **`ROADMAP.md` holds what grammar means to do:** features and
   outcomes, not session tasks, each saying what it serves. **Now** is
-  what's being worked on, each item with a full plan in `TODO.md`'s
-  task format, and at most three items, so it stays a queue, not a
+  what's being worked on, each item a paragraph and a link to its
+  change record, which holds the full plan in `TODO.md`'s task format,
+  and at most three items, so it stays a queue, not a
   fire-hose (Iain, 2026-10-25): another starts only when one ships or
   goes back to Next; **Next** is decided but not started (what, why, done
   when); **Later** is meant to be done, but not yet planned, in a line
@@ -169,6 +171,15 @@ included, and gaps found by reading them have led to real features.
   (deleted; the commit message names its number). When Iain mentions an
   idea in passing, offer in one line to add it ("add as idea 12?"), and
   add it in a `docs:` commit.
+- **A planned change keeps a record** in `docs/changes/` (Iain,
+  2026-10-26): opened when work starts on a roadmap item or a `TODO.md`
+  task with steps, named `2026-10-26-short-title.md` for that day,
+  holding the plan word for word, then what happened: the outcome,
+  changes from the plan and why, measurements, what was tried and
+  reverted, and what's left. The plan isn't edited once work starts.
+  The record is finished in the commit that ships or drops the change,
+  the CHANGELOG line links to it, and a dropped change keeps its record.
+  `docs/changes/README.md` has the template.
 - **The roadmap is public, on `main`,** and in every release, so people
   following grammar can see what's coming. What's kept out of the README
   is kept out of it too. Its PDF is built with the others.
