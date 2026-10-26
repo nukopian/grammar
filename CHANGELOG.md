@@ -11,6 +11,14 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.3.1 (2026-10-26)
+
+Rules whose values aren't phrases, with MapOnly
+
+No breaking change: a new list option. Needs scalar v0.6.0, as before.
+
 - A `MapOnly()` list option: under it, a synonym rule written
   `phrases => values` adds the phrases meaning the values, as `AddAs`
   does, without making the values phrases too. So a rules file can map

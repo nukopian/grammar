@@ -1,6 +1,6 @@
 # Rules whose canonical isn't a phrase
 
-**Status:** shipped, unreleased
+**Status:** shipped in v0.3.1
 
 **Origin:** roadmap 12
 

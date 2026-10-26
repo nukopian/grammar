@@ -61,6 +61,6 @@ Why, What's known, Steps, Done when.
 Newest first.
 
 - [Rules whose canonical isn't a phrase](2026-10-26-rules-whose-canonical-isnt-a-phrase.md)
-  (roadmap 12), shipped, unreleased
+  (roadmap 12), shipped in v0.3.1
 - [Limit errors that say where](2026-10-26-limit-errors-that-say-where.md)
   (roadmap 2), shipped in v0.2.4
