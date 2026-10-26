@@ -11,6 +11,14 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.2.2 (2026-10-26)
+
+On scalar v0.5.9
+
+No change in behaviour or in the API. Needs scalar v0.5.9.
+
 - Build: needs scalar v0.5.9, up from v0.5.7. grammar's behaviour doesn't
   change, but code of yours that calls scalar's `S` with a replacement
   string such as `"$1"` runs about 1.6 times as fast, can use `$+` and
