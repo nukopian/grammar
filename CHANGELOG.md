@@ -11,12 +11,21 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-- The roadmap numbers its items, and has a fourth group, Ideas, after
-  Later, for what might be done, or never, kept so it isn't lost. A
-  number stays with its item as it moves between groups and is never
-  used again, so an item can be named by number, in pruning and in the
-  CHANGELOG ("(roadmap 7)"). Later now means meant to be done, but not
-  yet planned. Wash-ups prune the ideas.
+Nothing yet.
+
+## v0.2.3 (2026-10-26)
+
+Documentation only: a numbered roadmap, with Ideas
+
+No change in behaviour or in the API: no Go code changed. Needs scalar
+v0.5.9, as before.
+
+- Docs: the [roadmap](ROADMAP.md) numbers its items, and has a fourth
+  group, Ideas, after Later, for what might be done, or never, kept so
+  it isn't lost. A number stays with its item as it moves between
+  groups and is never used again, so an item can be named by number, in
+  pruning and in the CHANGELOG ("(roadmap 7)"). Later now means meant
+  to be done, but not yet planned. Wash-ups prune the ideas.
 
 ## v0.2.2 (2026-10-26)
 
