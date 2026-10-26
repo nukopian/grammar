@@ -115,8 +115,9 @@ A feature isn't done until its documentation is.
   future reader with only the package as context. Keep it current: add a
   gap when one's found, and remove it when it's closed.
 - `internal/docref` is a copy of scalar's, kept identical, byte for byte.
-  Change it in one repository and copy the change to the others (scalar
-  and job-meta) in the same session.
+  Change it in one repository and copy the change to the other in the
+  same session. job-meta has a copy too, but its code has been frozen
+  since 2026-10-26, so it's left as it is.
 - Compile Markdown snippets to check them, using a temporary test file
   that you delete afterwards.
 - Every link in the documents must resolve, including the `#anchor`s.
@@ -142,10 +143,13 @@ included, and gaps found by reading them have led to real features.
   changed. The wash-up before a release also checks `ROADMAP.md`: what
   shipped is out of it, Now is what's really being worked on, and the
   ideas are pruned.
-- **Dogfooding.** grammar is used in job-meta's programs (pay, hours,
-  titles, sections and occupation coding). Note where it fought you, and
-  fix the frequent friction. Check the fix by reworking those programs
-  with their output unchanged.
+- **Dogfooding.** grammar is used in jdc-lab's `internal/sections`, and
+  was in job-meta's programs (pay, hours, titles, sections and occupation
+  coding) until job-meta's code was frozen on 2026-10-26, at grammar
+  v0.3.0. Note where it fought you, and fix the frequent friction. Check
+  the fix by reworking jdc-lab's code with its output unchanged, against
+  this checkout, and leave jdc-lab a task to take it up after the
+  release.
 
 ## Planned work
 

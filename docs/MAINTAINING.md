@@ -9,11 +9,12 @@ grammar is kept as [scalar](https://github.com/nukopian/scalar) is, and
 this guide follows
 [scalar's](https://github.com/nukopian/scalar/blob/main/docs/MAINTAINING.md)
 step for step, with what's different for grammar: it depends on a tagged
-scalar, its differential tests need Rakudo, and a release can change
-what job-meta's programs print.
+scalar, its differential tests need Rakudo, and jdc-lab, which uses
+it, may have tasks waiting on a release.
 
-The repositories sit side by side. grammar uses scalar, job-meta uses
-both, and jdc-lab uses grammar:
+The repositories sit side by side. grammar uses scalar, and jdc-lab uses
+grammar. job-meta used both until its code was frozen on 2026-10-26, at
+grammar v0.3.0, so a release no longer bumps it:
 
 ```
 ~/Git/github.com/nukopian/scalar
@@ -133,14 +134,13 @@ That pipe only lists the results: judge pass or fail by the plain
 When a fuzz target finds a failure, it writes the input to
 `testdata/fuzz`. Commit it with the fix, so it's checked from then on.
 
-`internal/docref` is identical in scalar, grammar and job-meta. A change
-to it here is copied to the other two in the same session. To check the
-copies match:
+`internal/docref` is identical in scalar and grammar. A change to it
+here is copied to scalar in the same session. job-meta's copy is left as
+it is, as job-meta's code is frozen. To check the copies match:
 
 ```
 cd ~/Git/github.com/nukopian
 diff -r grammar/internal/docref scalar/internal/docref
-diff -r grammar/internal/docref job-meta/internal/docref
 ```
 
 Commits are signed, and use conventional prefixes (`feat:`, `fix:`,
@@ -172,8 +172,8 @@ GOWORK=off go test ./...
 
 Commit it as `build: scalar v0.5.2`, saying what grammar needed from it,
 with a line under Unreleased in the change log if users would notice. A
-scalar release that grammar doesn't need is left for job-meta alone;
-bumping grammar for it would only make an unreleased change.
+scalar release that grammar doesn't need is left alone: bumping grammar
+for it would only make an unreleased change.
 
 ## Making a release
 
@@ -291,48 +291,7 @@ patch (v0.1.2 to v0.1.3). Claude asks before tagging.
    GOPRIVATE= GOPROXY=https://proxy.golang.org go list -m "github.com/nukopian/grammar@$v"
    ```
 
-6. **Bump job-meta,** with `GOWORK=off`, so that the check is against the
-   published module and not the local checkout. A grammar release can
-   change what job-meta's programs find, so save their output before the
-   bump and compare it after. They read the postings in `data/in` and
-   `data/out`, which are local. Set the version on the first line:
-
-   ```
-   v=v0.1.3
-   cd ~/Git/github.com/nukopian/job-meta
-   mkdir -p "$TMPDIR/bump-$v/before" "$TMPDIR/bump-$v/after"
-   GOWORK=off go run ./cmd/grammarrules -out "$TMPDIR/bump-$v/sections" > "$TMPDIR/bump-$v/before/grammarrules.txt"
-   mv "$TMPDIR/bump-$v/sections" "$TMPDIR/bump-$v/before/sections"
-   GOWORK=off go run ./cmd/titleeval > "$TMPDIR/bump-$v/before/titleeval.txt"
-   GOWORK=off go run ./cmd/payeval > "$TMPDIR/bump-$v/before/payeval.txt"
-   GOWORK=off go get "github.com/nukopian/grammar@$v"
-   GOWORK=off go mod tidy
-   GOWORK=off go test ./...
-   ```
-
-   Then run the same three again into `after`, with the same version on
-   the first line, and compare:
-
-   ```
-   v=v0.1.3
-   cd ~/Git/github.com/nukopian/job-meta
-   GOWORK=off go run ./cmd/grammarrules -out "$TMPDIR/bump-$v/sections" > "$TMPDIR/bump-$v/after/grammarrules.txt"
-   mv "$TMPDIR/bump-$v/sections" "$TMPDIR/bump-$v/after/sections"
-   GOWORK=off go run ./cmd/titleeval > "$TMPDIR/bump-$v/after/titleeval.txt"
-   GOWORK=off go run ./cmd/payeval > "$TMPDIR/bump-$v/after/payeval.txt"
-   diff -r "$TMPDIR/bump-$v/before" "$TMPDIR/bump-$v/after"
-   ```
-
-   `grammarrules` writes into the same folder both times, and it's moved
-   aside after each run, because the path is printed on every line of
-   its table. The three programs print the same thing on every run, so
-   no difference is the usual result. A difference the release meant to
-   make goes in the commit message, with the numbers; one it didn't
-   mean to make is a bug in the release, fixed with a new one. Commit as
-   `build: grammar v0.1.3, ...`, with what the release brings after the
-   comma.
-
-7. **Tell the waiting tasks.** Look in scalar's and jdc-lab's `TODO.md`,
+6. **Tell the waiting tasks.** Look in scalar's and jdc-lab's `TODO.md`,
    both on `develop`, for tasks waiting on this release, and tell Iain
    which can now be done. Nothing else tells their sessions it has
    landed:
