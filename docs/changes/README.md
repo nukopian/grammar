@@ -61,7 +61,7 @@ Why, What's known, Steps, Done when.
 Newest first.
 
 - [Every phrase in a text, overlaps included](2026-10-26-every-phrase-overlaps-included.md)
-  (roadmap 13), in progress
+  (roadmap 13), shipped, unreleased
 - [Rules whose canonical isn't a phrase](2026-10-26-rules-whose-canonical-isnt-a-phrase.md)
   (roadmap 12), shipped in v0.3.1
 - [Limit errors that say where](2026-10-26-limit-errors-that-say-where.md)

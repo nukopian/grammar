@@ -1,12 +1,12 @@
 # Every phrase in a text, overlaps included
 
-**Status:** in progress
+**Status:** shipped, unreleased
 
 **Origin:** roadmap 13
 
 **Started:** 2026-10-26, in 675df5ba00d3828d4b37bbb6e439ba30e864b7e8
 
-**Finished:**
+**Finished:** 2026-10-26
 
 ## The plan
 
@@ -69,3 +69,42 @@ task to try it, and this item has moved to the CHANGELOG as
 "(roadmap 13)".
 
 ## What happened
+
+- **Outcome:** all of Done when. `FindAll(text, Overlap())` gives a
+  match from each position where one starts; `TestOverlap` has Raku's
+  answers for the heading, `a+` on "aaaa", empty matches and `Pos`, and
+  shows the other methods ignore it. The phrasebook's new task, "Every
+  match, overlaps included", gives the same answer in Raku (`:ov`),
+  grammar and plain Go. `ExampleOverlap` weighs a heading by both its
+  phrases, and the reference's Parsing section explains it.
+- **Changes from the plan:**
+  - Raku was asked about `:ex` for tokens and alternations as well as
+    word lists, before the reference said they're the same as `:ov`:
+    `[ a | ab | abc ]` under `:r`, and a grammar's token, give one match
+    per position with either.
+  - Step 6's trial found that `:ov`'s semantics, kept faithfully, aren't
+    quite what classifying headings wants. A phrase wholly inside a
+    longer one is found as well as one that reaches past its end. On
+    `data/ingestion/ads-20261024.jsonl` (1,890 ads), passing `Overlap()`
+    in jdc-lab's `sections.All` gave 9 more headings whose phrases
+    disagree (such as "What you'll get in return": benefits and
+    responsibilities), and changed the winning kind in 2 ads, both
+    "Company Profile", from company to requirements, as "profile" inside
+    "company profile" outranked it. Nothing else changed, and the lab's
+    tests passed. grammar keeps Raku's semantics; the reference now says
+    nested matches are found, and how to drop them (each match within
+    another's `from` and `to`), and jdc-lab's task says the same.
+- **Measurements:** none needed: `FindAll` without the option is
+  unchanged, and with it, the cost is a search at each position, which
+  is what's asked for.
+- **Checks:** `FuzzMatch` now checks that with `Overlap` the matches
+  start at increasing positions, each is what `Find` with `Pos` finds
+  there, `FindAll`'s matches are among them, and skipping start
+  positions changes nothing (`findBoth` and `TestStartsChangeNothing`
+  compare it too). A planted bug, stepping two positions on under
+  `Overlap`, failed the seeds ("Overlap's matches leave out FindAll's
+  from 1"). It ran for 60 seconds and found nothing. The Raku
+  differential tests ran against Rakudo 2025.11 and pass.
+- **What's left:** `:ex`, in the reference's gaps as "Exhaustive
+  matching"; jdc-lab trying `Overlap` in its sections, through its
+  `go.work`, before grammar releases it, as a task in each `TODO.md`.

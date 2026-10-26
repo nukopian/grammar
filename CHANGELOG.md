@@ -11,7 +11,15 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- An `Overlap()` option for `FindAll`, as Raku's `:ov`: a match from
+  each position where one starts, each the match `Find` would find
+  there, not only those after the last match's end. In "In this role
+  you will need", a list with "in this role you will" and "you will
+  need" finds both, so text can be classified by every phrase in it. A
+  phrase wholly inside a longer one is found too; the reference says how
+  to drop those. The phrasebook has it beside Raku's `:ov` and plain Go
+  (roadmap 13;
+  [record](docs/changes/2026-10-26-every-phrase-overlaps-included.md)).
 
 ## v0.3.1 (2026-10-26)
 

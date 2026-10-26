@@ -539,7 +539,7 @@ false
 
 #### `Grammar.FindAll`
 
-FindAll returns every match in text, left to right and not overlapping.
+FindAll returns every match in text, left to right and not overlapping, unless Overlap is given.
 
 FindAll finds every match, left to right, without overlapping.
 
@@ -586,6 +586,28 @@ fmt.Println(Pay.Subparse("Salary: £45k").Defined()) // from the start, there's 
 ```
 £45k 8
 false
+```
+
+#### `Overlap`
+
+Overlap has FindAll find a match from each position where one starts, as Raku's :ov (:overlap) does, rather than going on from the end of the last one: in "in this role you will need", a list with "in this role you will" and "you will need" finds both.
+
+Overlap finds a match from each place one starts, as Raku's :ov does, so a heading is weighed by every phrase in it, even one inside another.
+
+```go
+sections := grammar.NewWordList("sections", grammar.FoldCase(), grammar.WholeWords()).
+	AddAs("responsibilities", "in this role you will", "duties").
+	AddAs("requirements", "you will need", "skills")
+g := grammar.MustCompile(`grammar Heading { token TOP { @sections } }`, sections)
+heading := "In this role you will need"
+made := func(m *scalar.SV) any { return m.At("made") }
+fmt.Println(g.FindAll(heading).Map(made).Join(", "))
+fmt.Println(g.FindAll(heading, grammar.Overlap()).Map(made).Join(", "))
+```
+
+```
+responsibilities
+responsibilities, requirements
 ```
 
 #### `Actions`

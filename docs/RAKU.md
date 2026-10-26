@@ -23,6 +23,7 @@ regexes; for tasks in more depth, the [how-to guide](HOWTO.md).
 - [Synonyms and their canonical values](#synonyms-and-their-canonical-values)
 - [The longest alternative, or the first](#the-longest-alternative-or-the-first)
 - [Split, keeping the separators](#split-keeping-the-separators)
+- [Every match, overlaps included](#every-match-overlaps-included)
 - [Which to use](#which-to-use)
 
 ## The posting
@@ -262,6 +263,44 @@ for _, loc := range sepRe.FindAllStringIndex(text, -1) {
 }
 strings.Join(append(pieces, text[last:]), "|")
 ```
+
+## Every match, overlaps included
+
+Each phrase in a heading, even where one starts inside another: "you
+will need" starts inside "in this role you will". Answer:
+`in this role you will|you will need`.
+
+```raku
+my @headings = 'in this role you will', 'you will need';
+"in this role you will need".match(/ << @headings >> /, :ov).join("|")
+```
+
+```go
+// grammar: Overlap is :ov, a match from each place one starts
+headings := grammar.NewWordList("headings", grammar.WholeWords()).
+	Add("in this role you will").Add("you will need")
+heading := grammar.MustCompile(`grammar Heading { token TOP { @headings } }`, headings)
+heading.FindAll("in this role you will need", grammar.Overlap()).
+	Map(func(m *scalar.SV) any { return m.At("~") }).Join("|")
+```
+
+```go
+// plain Go: FindAll never overlaps, so try the regex at each word
+heading, phraseRe := "in this role you will need", regexp.MustCompile(`^(?:in this role you will|you will need)\b`)
+var found []string
+for i := range heading {
+	if i > 0 && heading[i-1] != ' ' {
+		continue // a phrase starts a word
+	}
+	if p := phraseRe.FindString(heading[i:]); p != "" {
+		found = append(found, p)
+	}
+}
+strings.Join(found, "|")
+```
+
+Without `:ov`, `Overlap()` and the loop, each gives only the first
+phrase, as a search goes on from the end of each match.
 
 ## Which to use
 

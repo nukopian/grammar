@@ -132,9 +132,35 @@ func FuzzMatch(f *testing.F) {
 		} else if first.Defined() {
 			t.Fatalf("Find found %v, FindAll nothing", first)
 		}
+		// With Overlap, a match from each place one starts: what Find
+		// finds from there, with FindAll's matches among them.
+		over := g.FindAll(text, Overlap())
+		last, i := -1, 0
+		for _, m := range over.All() {
+			from := int(m.At("from").Int())
+			if from <= last {
+				t.Fatalf("Overlap's matches start at %d after %d", from, last)
+			}
+			last = from
+			if d := m.Diff(g.Find(text, Pos(from))); d != "" {
+				t.Fatalf("Overlap's match at %d isn't Find's from there: %s", from, d)
+			}
+			if i < all.Length() && from == int(all.Get(i).At("from").Int()) {
+				if d := m.Diff(all.Get(i)); d != "" {
+					t.Fatalf("Overlap's match at %d isn't FindAll's: %s", from, d)
+				}
+				i++
+			}
+		}
+		if i != all.Length() {
+			t.Fatalf("Overlap's matches leave out FindAll's from %v", all.Get(i).At("from"))
+		}
 		_, without := findBoth(g, text) // restores skipStarts, even on a panic
 		if d := all.Diff(without[1].AV()); d != "" {
 			t.Fatalf("skipping start positions changed FindAll: %s", d)
+		}
+		if d := over.Diff(without[2].AV()); d != "" {
+			t.Fatalf("skipping start positions changed FindAll with Overlap: %s", d)
 		}
 		// Narrowing lookbehinds' starts changes nothing either.
 		var unbounded *scalar.AV

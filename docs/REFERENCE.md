@@ -633,7 +633,7 @@ it, and `ParseErr` and `SubparseErr` say why a parse failed.
 | `g.Parse(text)` | match all of text, as Raku's `.parse` |
 | `g.Subparse(text)` | match from the start of text, not necessarily to the end |
 | `g.Find(text)` | the first match anywhere in text |
-| `g.FindAll(text)` | every match in text, left to right, not overlapping |
+| `g.FindAll(text)` | every match in text, left to right, not overlapping unless given `Overlap()` |
 | `g.Split(text)` | the text between matches, with each match's text in place, as Raku's `split` with `:v` does |
 | `g.ParseErr(text)`, `g.SubparseErr(text)` | as `Parse` and `Subparse`, with a `*ParseError` saying why when the text doesn't match |
 
@@ -642,7 +642,8 @@ read-only, so reading through it leaves it undef (see
 [When text doesn't match](#when-text-doesnt-match)).
 Each takes
 options: `grammar.Rule("name")` to start somewhere other than `TOP`,
-`grammar.Pos(n)` to start n characters in, and `grammar.Actions(a)`.
+`grammar.Pos(n)` to start n characters in, `grammar.Actions(a)`, and
+for `FindAll`, `grammar.Overlap()`.
 
 **Starting part-way in.** `Pos(n)` is Raku's `:pos`: `Parse` and
 `Subparse` match from there (`Parse` still to the end), and `Find`,
@@ -651,6 +652,33 @@ text, what's before is still there: a lookbehind sees it, and `<<` won't
 match in the middle of a word. The match's positions are the whole
 text's. [job-meta](https://github.com/nukopian/job-meta)'s occupation
 coder uses it to try a word list at each word of a job title.
+
+**Overlapping matches.** `FindAll` goes on from the end of each match,
+so a match that starts inside another is never found: in "In this role
+you will need", a list with "in this role you will" and "you will need"
+gives only the first. `Overlap()` is Raku's `:ov` (`:overlap`): a match
+from each position where one starts, each the match `Find` would find
+there, so at most one per position. For a word list, that's every phrase
+in the text, except a shorter phrase starting where a longer one does,
+as a list is one atom. That's for classifying text by the phrases in
+it, where each one counts:
+
+```go
+g.FindAll("In this role you will need", grammar.Overlap())
+// "In this role you will", from 0; "you will need", from 13
+```
+
+A phrase wholly inside a longer one is found too, as it starts at a
+position of its own: with "role" in the list as well, it's found from 8,
+inside "In this role you will". That may not be what you want: tried on
+jdc-lab's section headings, "profile" inside "Company Profile" outvoted
+"company profile". To keep only the phrases that reach past another's
+end, drop each match whose `from` and `to` lie within another's.
+
+The other methods ignore it: Raku's `.parse`, `.subparse` and `.split`
+take no `:ov`, and `Find`'s first match is the same either way. Raku's
+`:ex` (`:exhaustive`), every way of matching at each position, isn't
+here; see [the gaps](#missing-raku-features).
 
 ### Into Go structs: `To`, `ToAll` and `Values`
 
@@ -1005,6 +1033,7 @@ Before changing anything, it helps to know how the package is put together:
 | **Code assertions**: `<?{ … }>`, `<!{ … }>` | Checks only code can make, in the middle of a parse: min ≤ max, a plausible year, a word that's in a list but isn't a stopword. Without them, wrong parses get through and need cleaning up afterwards. | Raku code can't run here, so: a builder node holding `func(m *scalar.SV) bool`, and a syntax such as `<?{name}>` naming a function passed to `Compile`. The function needs the captures so far, so build a provisional match of the current scope from the `capList`. | partly | 2–3 |
 | **Code blocks**: `{ make … }` | Making values in the grammar itself. | Actions do this. Not worth adding unless grammars are written by people who won't write Go. | by design | — |
 | **True longest-token matching** for `\|` | When `Alt`'s approximation (below) gives a different answer from Raku, which the Raku tests will show; and to speed up large alternations and protos. | Work out each branch's declarative prefix (the part before anything that could backtrack or run code), build an automaton (NFA, then DFA) from the prefixes, and try branches in order of how much of the text their prefix matches. This is what Rakudo does in NQP. | yes | 5 |
+| **Exhaustive matching**: `:ex` | Every way a pattern can match at each position, not only the first, as `Overlap` gives: "aaaa" with `regex { a+ }` gives "aaaa", "aaa", "aa" and "a" from the start. For a word list, or a token, which never gives anything back, Raku's `:ex` is the same as `:ov`, so word lists don't need it. | A `FindAll` option whose continuation records each match and returns false, so the matcher tries every other way; the state's failure tracking and step counting must cope with matches that are then thrown back. The Raku tests would need `:ex` cases. | yes | 2 |
 | **Rule parameters and dynamic variables**: `token amount($cur)`, `$*CURRENCY` | Parsing that depends on context, such as a currency that changes how amounts read. | Arguments in the syntax and on `call`, and a stack of dynamic variables in `state`, visible to called rules. Inheritance and roles usually do the job more simply. | yes | 3 |
 | **Interpolation**: `$var`, `<$regex>`, `<{ … }>` | Patterns chosen at run time. Backreferences, `$<name>` and `$0`, are supported. | Word lists cover literal phrases, pattern lists (`<@name>`) patterns from data, and `Re` regex strings. Variables would come with rule parameters (below). | partly | 2 |
 | **Failure reports from `Find` and `FindAll`** | Finding out why pay wasn't found in a posting, rather than why one string didn't parse. | Track failures across every start position and report the furthest. The noise is the hard part: most positions fail at once, for no interesting reason. | partly | 2 |

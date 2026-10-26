@@ -40,6 +40,7 @@ var mappingWant = map[string]string{
 	"canonical": "Year,Hour",
 	"longest":   "ab a",
 	"split":     "a|; |b|, |c",
+	"overlap":   "in this role you will|you will need",
 }
 
 // mappingRaku is each task in Raku, printing "task<TAB>answer".
@@ -73,6 +74,9 @@ grammar First   { token TOP { a || ab } }
 %out<longest> = Longest.subparse("ab") ~ " " ~ First.subparse("ab");
 
 %out<split> = "a; b, c".split(/ <[;,]> \s* /, :v).join("|");
+
+my @headings = 'in this role you will', 'you will need';
+%out<overlap> = "in this role you will need".match(/ << @headings >> /, :ov).join("|");
 
 say "$_\t%out{$_}" for %out.keys.sort;
 `
@@ -117,6 +121,12 @@ func mappingGrammar() map[string]string {
 
 	sep := grammar.MustCompile(`grammar Sep { token TOP { <[;,]> \s* } }`)
 	out["split"] = sep.Split("a; b, c").Join("|")
+
+	headings := grammar.NewWordList("headings", grammar.WholeWords()).
+		Add("in this role you will").Add("you will need")
+	heading := grammar.MustCompile(`grammar Heading { token TOP { @headings } }`, headings)
+	out["overlap"] = heading.FindAll("in this role you will need", grammar.Overlap()).
+		Map(func(m *scalar.SV) any { return m.At("~") }).Join("|")
 
 	return out
 }
@@ -172,6 +182,18 @@ func mappingPlain() map[string]string {
 		last = loc[1]
 	}
 	out["split"] = strings.Join(append(pieces, text[last:]), "|")
+
+	heading, phraseRe := "in this role you will need", regexp.MustCompile(`^(?:in this role you will|you will need)\b`)
+	var found []string
+	for i := range heading {
+		if i > 0 && heading[i-1] != ' ' {
+			continue // a phrase starts a word
+		}
+		if p := phraseRe.FindString(heading[i:]); p != "" {
+			found = append(found, p)
+		}
+	}
+	out["overlap"] = strings.Join(found, "|")
 
 	return out
 }

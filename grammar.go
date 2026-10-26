@@ -545,7 +545,8 @@ type Option func(*options)
 type options struct {
 	rule    string
 	actions *actions
-	pos     int // where to start, in runes of the NFC text
+	pos     int  // where to start, in runes of the NFC text
+	overlap bool // Overlap
 }
 
 // Pos starts matching n characters into the text (of its NFC form, as
@@ -555,6 +556,15 @@ type options struct {
 // to look at, and the match's positions are still the whole text's. A Pos
 // past the end matches nothing; one before the start panics.
 func Pos(n int) Option { return func(o *options) { o.pos = n } }
+
+// Overlap has FindAll find a match from each position where one starts, as
+// Raku's :ov (:overlap) does, rather than going on from the end of the last
+// one: in "in this role you will need", a list with "in this role you will"
+// and "you will need" finds both. Each is the match Find would find there,
+// so at most one starts at each position. The other methods ignore it, as
+// Raku's .parse, .subparse and .split take no :ov, and Find's first match
+// is the same either way.
+func Overlap() Option { return func(o *options) { o.overlap = true } }
 
 // Rule starts the match at the named rule instead of TOP, as :rule does.
 func Rule(name string) Option { return func(o *options) { o.rule = name } }
@@ -612,7 +622,8 @@ func (g *Grammar) Find(text string, opts ...Option) *scalar.SV {
 	return noMatch()
 }
 
-// FindAll returns every match in text, left to right and not overlapping.
+// FindAll returns every match in text, left to right and not overlapping,
+// unless Overlap is given.
 func (g *Grammar) FindAll(text string, opts ...Option) *scalar.AV {
 	o, in := g.prepare(opts), []rune(nfc(text))
 	all := scalar.Array()
@@ -629,7 +640,11 @@ func (g *Grammar) FindAll(text string, opts ...Option) *scalar.AV {
 			continue
 		}
 		all.Push(o.result(in, m))
-		from = max(m.to, from+1)
+		if o.overlap {
+			from++
+		} else {
+			from = max(m.to, from+1)
+		}
 	}
 	return all
 }

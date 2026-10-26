@@ -35,15 +35,7 @@ dropped is deleted, and the commit that drops it names its number.
 
 ## Now
 
-### 13. Every phrase in a text, overlaps included
-
-**Serves:** word lists
-
-An `Overlap()` option for `FindAll`, as Raku's `:ov`: a match from each
-position where one starts, so a heading such as "in this role you will
-need" gives jdc-lab both "in this role you will" and "you will need",
-and can be weighed by both. The plan is in its
-[change record](docs/changes/2026-10-26-every-phrase-overlaps-included.md).
+Nothing yet.
 
 ## Next
 

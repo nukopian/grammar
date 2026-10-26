@@ -86,6 +86,22 @@ func ExamplePos() {
 	// false
 }
 
+// Overlap finds a match from each place one starts, as Raku's :ov does, so
+// a heading is weighed by every phrase in it, even one inside another.
+func ExampleOverlap() {
+	sections := grammar.NewWordList("sections", grammar.FoldCase(), grammar.WholeWords()).
+		AddAs("responsibilities", "in this role you will", "duties").
+		AddAs("requirements", "you will need", "skills")
+	g := grammar.MustCompile(`grammar Heading { token TOP { @sections } }`, sections)
+	heading := "In this role you will need"
+	made := func(m *scalar.SV) any { return m.At("made") }
+	fmt.Println(g.FindAll(heading).Map(made).Join(", "))
+	fmt.Println(g.FindAll(heading, grammar.Overlap()).Map(made).Join(", "))
+	// Output:
+	// responsibilities
+	// responsibilities, requirements
+}
+
 // Actions turns matches into values. For each rule that matched, the method
 // named after it is called with its match, and what it returns is stored in
 // the match under "made". Actions run innermost first, so here Amount has
