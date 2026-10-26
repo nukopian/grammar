@@ -36,14 +36,8 @@ headings), compared with a run without `Overlap`:
 - nothing else moves: no heading newly mapped or unmapped, and the only
   new rows in `disagree.tsv` are those 6.
 
-**Dogfooding** (a suggestion from jdc-lab's session, to remove friction
-met in real use; it doesn't block this release): dropping nested matches
-took a dozen lines in the lab, and a direct import of scalar just to read
-`from` and `to` from each match, through `Items`, `Grep` and
-`Get("from").Int()`. Anyone classifying text by its phrases will want
-the same, so an option for it (say, `Outermost()` beside `Overlap()`, or
-a word-list setting) would save each of them writing it. Not urgent: the
-reference already says how, and the lab's version works.
+jdc-lab also suggested an option to drop the nested matches: roadmap
+idea 14, not blocking this release.
 
 **How to check it's done:** jdc-lab's task is gone from its `TODO.md`,
 this one is gone from here, and v0.3.2 is tagged with the Overlap entry.

@@ -26,7 +26,7 @@ Items come in four groups, the most useful first in each:
 Each item has a number, given when it's added, in whichever group. It
 keeps it as it moves between groups, and a number is never used again,
 so that 7 means the same item in a commit message months later. Next
-number: 14.
+number: 15.
 
 When an item ships, it moves from here to the CHANGELOG, whose line
 for it ends with its number, such as "(roadmap 7)", and links to its
@@ -125,5 +125,16 @@ rest of a long text as it does for other grammars.
 Added 2026-10-25. Make a word's other forms when it's added, as
 `Plurals` does for regular plurals, so "visiting" matches a list that
 has "visit". English needs a real stemmer, such as Porter's.
+
+### 14. Overlapping matches without the nested ones
+
+Added 2026-10-26. **Dogfooding:** suggested by jdc-lab's session, to
+remove friction met in real use, not a known gap. Classifying text by
+its phrases with `Overlap()` needs the matches that lie wholly inside a
+longer one dropped, or "profile" outranks the "company profile" it's
+part of. The lab wrote that itself: a dozen lines, and a direct import
+of scalar just to read each match's `from` and `to`. An option beside
+`Overlap()`, such as `Outermost()`, would save everyone who uses it so.
+Not urgent: the reference says how, and the lab's version works.
 
 [gaps]: docs/REFERENCE.md#gaps-and-possible-additions
