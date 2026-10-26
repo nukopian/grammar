@@ -12,8 +12,8 @@ release's entry when `main` is moved to it and tagged
 ## Unreleased
 
 - Docs: the [roadmap](ROADMAP.md)'s Later items (4 to 11) are now ideas:
-  might be done, or never, rather than meant to be done. Next is
-  unchanged.
+  might be done, or never, rather than meant to be done. Code
+  assertions (3) move from Next to Later.
 
 ## v0.2.3 (2026-10-26)
 

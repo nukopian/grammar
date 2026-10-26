@@ -72,29 +72,15 @@ that backtracks badly means guessing.
 been measured with `BenchmarkParse` (or they're recorded only while
 tracing), and tests cover both limits.
 
+## Later
+
 ### 3. Code assertions
 
 **Serves:** Raku
 
-**What:** `<?{name}>` and `<!{name}>` in a grammar, calling a Go
-`func(m *scalar.SV) bool` passed to `Compile` with the captures so far,
-and a builder node for the same.
-
-**Why:** some checks only code can make in the middle of a parse: that
-a pay range's minimum is below its maximum, that a year is plausible,
-or that a word in a list isn't a stopword. Without them, wrong parses
-get through and need cleaning up afterwards. Raku runs code in the
-braces; Go can't, so this names a function instead, a difference
-documented in the reference.
-
-**Done when** both forms work in the syntax and the builder, tests
-show the matches agree with Raku's for the same checks written in Raku,
-the difference is in the reference's Differences from Raku, and each new
-function has an example.
-
-## Later
-
-Nothing yet.
+`<?{name}>` and `<!{name}>`, calling a Go function passed to `Compile`
+with the captures so far, for checks only code can make mid-parse, such
+as a pay range's minimum being below its maximum.
 
 ## Ideas
 
