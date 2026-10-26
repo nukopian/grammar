@@ -210,8 +210,20 @@ patch (v0.1.2 to v0.1.3). Claude asks before tagging.
 2. **Turn Unreleased into the release** in [CHANGELOG.md](../CHANGELOG.md):
    rename the heading to the version and date, as in
    `## v0.1.3 (2026-10-22)`, start the entry with a sentence that sums it
-   up (it becomes the tag's title), and add an Unreleased above it saying
-   `Nothing yet.`. In each change record whose status is "shipped,
+   up (it becomes the tag's title), and above it add a new Unreleased
+   holding only `Nothing yet.`, never left blank:
+
+   ```markdown
+   ## Unreleased
+
+   Nothing yet.
+
+   ## v0.1.3 (2026-10-22)
+   ```
+
+   The first change after the release replaces `Nothing yet.` with its
+   entry. `TestChangelogUnreleased` fails if Unreleased is blank, or
+   holds both. In each change record whose status is "shipped,
    unreleased", and its line in the records' README, put the version in
    its place, as in "shipped in v0.1.3"; the `grep` lists both, and
    nothing once they're done. Commit (`docs: changes for v0.1.3`), push,
