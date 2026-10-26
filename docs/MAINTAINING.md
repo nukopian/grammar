@@ -32,12 +32,18 @@ both, and jdc-lab uses grammar:
   what `go get` installs.
 - There are no feature branches, for now: changes are made one at a time.
 - [ROADMAP.md](../ROADMAP.md) holds what grammar means to do: features
-  and outcomes, in Now, Next and Later, each saying what it serves. It's
-  public, on both branches, and in every release. Now holds three
-  items at most, so the roadmap stays a queue to pull from, not a list
-  pushing work; an item in Now has a plan written to be picked up
-  cold; one leaves when it ships, in the commit that adds it to the
-  CHANGELOG.
+  and outcomes, in Now, Next and Later, each saying what it serves, and
+  Ideas, kept so they aren't lost. It's public, on both branches, and
+  in every release. Now holds three items at most, so the roadmap stays
+  a queue to pull from, not a list pushing work; an item in Now has a
+  plan written to be picked up cold; one leaves when it ships, in the
+  commit that adds it to the CHANGELOG, whose line ends "(roadmap 7)".
+  Every item has a number, the next one when it's added (the roadmap's
+  opening says which), kept as it moves between groups and never used
+  again; a heading such as `### 7. Title` holds it, as a Markdown
+  numbered list would renumber itself. An idea is that heading, the
+  date it was added, and a line or two; ideas need no Serves line until
+  promoted, and are added in a `docs:` commit whenever one comes up.
 - `TODO.md`, when there is one, lists work planned for a later session,
   such as the concrete steps of a roadmap item being worked on. Its
   tasks come before the roadmap's items. It's committed on `develop` and
@@ -169,9 +175,12 @@ patch (v0.1.2 to v0.1.3). Claude asks before tagging.
 
 1. **Check `develop`:** CI is green on its last commit, there's no
    `TODO.md`, ROADMAP.md is current (what shipped is out of it, and Now
-   is what's really being worked on, three items at most), the tests
-   pass against the scalar `go.mod` asks for, and the history has no
-   secrets.
+   is what's really being worked on, three items at most), the Ideas
+   are pruned, the tests pass against the scalar `go.mod` asks for, and
+   the history has no secrets. To prune the Ideas, list them by number,
+   and the maintainer keeps, promotes or drops each. A promoted idea
+   keeps its number and gains a Serves line; a dropped one is deleted,
+   and the commit message names its number.
 
    ```
    cd ~/Git/github.com/nukopian/grammar

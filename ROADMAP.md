@@ -15,14 +15,23 @@ Each item names what it serves:
 - **speed:** parsing and searching at high volumes;
 - **handing on:** taking a grammar that has settled to other tools.
 
-Items come in three groups, the most useful first in each:
+Items come in four groups, the most useful first in each:
 
 - **Now:** being worked on, each with a plan detailed enough to pick up
   cold; never more than three, so that it stays a queue;
 - **Next:** decided, but not started;
-- **Later:** ideas worth keeping.
+- **Later:** meant to be done, but not yet planned;
+- **Ideas:** might be done, or never; kept so they aren't lost, in a
+  line or two, newest last.
 
-When an item ships, it moves from here to the CHANGELOG.
+Each item has a number, given when it's added, in whichever group. It
+keeps it as it moves between groups, and a number is never used again,
+so that 7 means the same item in a commit message months later. Next
+number: 12.
+
+When an item ships, it moves from here to the CHANGELOG, whose line
+for it ends with its number, such as "(roadmap 7)". An idea that's
+dropped is deleted, and the commit that drops it names its number.
 
 ## Now
 
@@ -30,7 +39,7 @@ Nothing yet.
 
 ## Next
 
-### A trace of a parse
+### 1. A trace of a parse
 
 **Serves:** debugging
 
@@ -50,7 +59,7 @@ would bury the rules), `BenchmarkParse` shows no real cost with it off,
 a place in the reference, and the README no longer says there's no
 trace.
 
-### Limit errors that say where
+### 2. Limit errors that say where
 
 **Serves:** debugging
 
@@ -65,7 +74,7 @@ that backtracks badly means guessing.
 been measured with `BenchmarkParse` (or they're recorded only while
 tracing), and tests cover both limits.
 
-### Code assertions
+### 3. Code assertions
 
 **Serves:** Raku
 
@@ -87,7 +96,7 @@ function has an example.
 
 ## Later
 
-### Failure reports from Find and FindAll
+### 4. Failure reports from Find and FindAll
 
 **Serves:** debugging
 
@@ -95,7 +104,7 @@ Say why pay wasn't found anywhere in a posting, not just why one string
 didn't parse: the furthest failure across every start position, with
 the noise of positions that fail at once kept out.
 
-### A picture of a grammar
+### 5. A picture of a grammar
 
 **Serves:** debugging, handing on
 
@@ -103,7 +112,7 @@ Print a grammar as EBNF, with a note wherever a Raku feature has no
 EBNF form, and draw railroad diagrams from it with an existing tool, for
 documenting, reviewing and learning a grammar.
 
-### Handing a settled grammar to Participle
+### 6. Handing a settled grammar to Participle
 
 **Serves:** handing on, speed
 
@@ -113,7 +122,7 @@ only what the phrasebook covers; and a generator that writes Participle
 structs and a lexer from a dialect grammar, checked by running both on
 the same inputs.
 
-### True longest-token matching
+### 7. True longest-token matching
 
 **Serves:** Raku, speed
 
@@ -122,14 +131,14 @@ Rakudo does, rather than by matching every branch in full. It would
 close the cases where `Alt`'s approximation differs from Raku, and speed
 up large alternations and protos.
 
-### Rule parameters and dynamic variables
+### 8. Rule parameters and dynamic variables
 
 **Serves:** Raku
 
 `token amount($cur)` and `$*CURRENCY`, for parsing that depends on
 context, such as a currency that changes how amounts read.
 
-### Fewer closures in the matcher
+### 9. Fewer closures in the matcher
 
 **Serves:** speed
 
@@ -137,7 +146,7 @@ Commit to a rule body or a group without making a closure, taking a
 pay parse closer to Participle's 6 µs from about 9 µs, with each new
 fast path checked on and off as the existing ones are.
 
-### Find skipping positions for regex terminals
+### 10. Find skipping positions for regex terminals
 
 **Serves:** speed
 
@@ -145,10 +154,16 @@ Work out where a grammar starting with `Re` can begin, from the
 pattern's first characters or a hint, so `Find` can skip the rest of a
 long text as it does for other grammars.
 
-### Stemming in word lists
+### 11. Stemming in word lists
 
 **Serves:** word lists
 
 Make a word's other forms when it's added, as `Plurals` does for
 regular plurals, so "visiting" matches a list that has "visit". English
 needs a real stemmer, such as Porter's.
+
+## Ideas
+
+None yet. An idea is a numbered heading, the date it was added, and a
+line or two on what and why. Each wash-up prunes them: each is kept,
+promoted to Later or Next with its number, or dropped.

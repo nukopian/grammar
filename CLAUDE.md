@@ -139,7 +139,8 @@ included, and gaps found by reading them have led to real features.
   finding before reporting it, rank the findings, and write failing tests
   before fixes. Re-run the Raku differential tests to show nothing else
   changed. The wash-up before a release also checks `ROADMAP.md`: what
-  shipped is out of it, and Now is what's really being worked on.
+  shipped is out of it, Now is what's really being worked on, and the
+  ideas are pruned.
 - **Dogfooding.** grammar is used in job-meta's programs (pay, hours,
   titles, sections and occupation coding). Note where it fought you, and
   fix the frequent friction. Check the fix by reworking those programs
@@ -153,9 +154,21 @@ included, and gaps found by reading them have led to real features.
   task format, and at most three items, so it stays a queue, not a
   fire-hose (Iain, 2026-10-25): another starts only when one ships or
   goes back to Next; **Next** is decided but not started (what, why, done
-  when); **Later** is ideas worth keeping, in a line or two. Most useful
-  first in each. The CHANGELOG is the past, the README the present, and
-  the roadmap the future.
+  when); **Later** is meant to be done, but not yet planned, in a line
+  or two; **Ideas** might be done, or never, kept so they aren't lost
+  (Iain, 2026-10-26): a numbered heading, the date it was added, and a
+  line or two, no Serves line until promoted, newest last. Most useful
+  first in the others. The CHANGELOG is the past, the README the
+  present, and the roadmap the future.
+- **Every roadmap item has a number,** in its heading (`### 7. Title`,
+  never a Markdown numbered list, which renumbers itself): the next one
+  when it's added, in whichever group, kept as it moves, and never used
+  again. The opening says which comes next. A shipped item's CHANGELOG
+  line ends "(roadmap 7)". Each wash-up lists the ideas by number, and
+  Iain keeps, promotes (number kept, Serves added) or drops each
+  (deleted; the commit message names its number). When Iain mentions an
+  idea in passing, offer in one line to add it ("add as idea 12?"), and
+  add it in a `docs:` commit.
 - **The roadmap is public, on `main`,** and in every release, so people
   following grammar can see what's coming. What's kept out of the README
   is kept out of it too. Its PDF is built with the others.
