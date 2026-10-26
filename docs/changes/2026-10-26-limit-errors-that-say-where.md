@@ -1,6 +1,6 @@
 # Limit errors that say where
 
-**Status:** shipped, unreleased
+**Status:** shipped in v0.2.4
 
 **Origin:** roadmap 2
 

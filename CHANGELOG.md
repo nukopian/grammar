@@ -11,6 +11,15 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.2.4 (2026-10-26)
+
+Limit errors from ParseErr say where they stopped
+
+No breaking change: two errors gain fields. Needs scalar v0.5.9, as
+before.
+
 - From `ParseErr` and `SubparseErr`, `StepLimitError` and
   `DepthLimitError` say where they stopped: the rule that was matching,
   or a proto's variant, and the line and column where its match started,

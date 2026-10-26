@@ -212,12 +212,14 @@ patch (v0.1.2 to v0.1.3). Claude asks before tagging.
    `## v0.1.3 (2026-10-22)`, start the entry with a sentence that sums it
    up (it becomes the tag's title), and add an Unreleased above it saying
    `Nothing yet.`. In each change record whose status is "shipped,
-   unreleased", put the version in its place, as in "shipped in
-   v0.1.3". Commit (`docs: changes for v0.1.3`), push, and wait for CI.
+   unreleased", and its line in the records' README, put the version in
+   its place, as in "shipped in v0.1.3"; the `grep` lists both, and
+   nothing once they're done. Commit (`docs: changes for v0.1.3`), push,
+   and wait for CI.
 
    ```
    cd ~/Git/github.com/nukopian/grammar
-   grep -l 'shipped, unreleased' docs/changes/*.md
+   grep -n 'shipped, unreleased$' docs/changes/*.md
    ```
 
 3. **Write the tag message from the entry,** and read it. The entry is

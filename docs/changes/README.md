@@ -61,4 +61,4 @@ Why, What's known, Steps, Done when.
 Newest first.
 
 - [Limit errors that say where](2026-10-26-limit-errors-that-say-where.md)
-  (roadmap 2), shipped, unreleased
+  (roadmap 2), shipped in v0.2.4
