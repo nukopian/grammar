@@ -128,9 +128,13 @@ has "visit". English needs a real stemmer, such as Porter's.
 
 ### 13. Every phrase in a text, overlaps included
 
-Added 2026-10-26. A way to find every phrase of a word list in a text,
-not only `FindAll`'s non-overlapping ones: in "in this role you will
-need", jdc-lab's headings lose "you will need" to "in this role you
-will", so the heading can't be weighed by both.
+Added 2026-10-26. **Dogfooding:** suggested by jdc-lab's session, to
+remove friction met in real use, not a known gap. `FindAll` gives
+non-overlapping matches, as documented, but classifying text by the
+phrases in it needs every one: in "in this role you will need",
+jdc-lab's headings lose "you will need" (requirements) to "in this role
+you will" (responsibilities), and can't weigh the heading by both. It's
+one heading in 7,000 ads so far, so not urgent, but it will grow as the
+lab's word lists do.
 
 [gaps]: docs/REFERENCE.md#gaps-and-possible-additions
