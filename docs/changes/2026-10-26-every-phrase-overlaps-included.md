@@ -1,6 +1,6 @@
 # Every phrase in a text, overlaps included
 
-**Status:** shipped, unreleased
+**Status:** shipped in v0.3.2
 
 **Origin:** roadmap 13
 
@@ -108,3 +108,13 @@ task to try it, and this item has moved to the CHANGELOG as
 - **What's left:** `:ex`, in the reference's gaps as "Exhaustive
   matching"; jdc-lab trying `Overlap` in its sections, through its
   `go.work`, before grammar releases it, as a task in each `TODO.md`.
+- **jdc-lab's trial,** before the release, as Iain asked (on grammar
+  91301e43f3ee58d108141dc1c74fea01ec956a7b, through `go.work`): nothing
+  to change. With `Overlap()` and each match wholly inside a longer one
+  dropped, over both samples (6,167 distinct ads, 7,469 distinct
+  headings), exactly 6 headings (22 uses) changed kind, all rightly,
+  from responsibilities to requirements, such as "To succeed in this
+  role, you will need the following:" (14 uses); "Company Profile"
+  stayed company; nothing else moved. The lab's idea for dropping the
+  nested matches in grammar became roadmap 14, released with this in
+  v0.3.2.

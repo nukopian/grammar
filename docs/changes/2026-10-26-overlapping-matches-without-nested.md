@@ -1,6 +1,6 @@
 # Overlapping matches without the nested ones
 
-**Status:** shipped, unreleased
+**Status:** shipped in v0.3.2
 
 **Origin:** roadmap 14
 
@@ -96,3 +96,8 @@ give the same output, and this item has moved to the CHANGELOG as
   and the lab's tests passed; its working tree was put back exactly.
 - **What's left:** nothing here. jdc-lab drops its helper when it
   takes up the release, which its `TODO.md` will say.
+- **jdc-lab's trial,** before the release (on grammar
+  a15a10ad1ed91a097b9764b402190cc8e914d688, through `go.work`): with
+  `Outermost()` in place of its helper, the lab's tests passed, and over
+  both samples every section file was byte for byte the same as with
+  the helper. Released with roadmap 13 in v0.3.2.

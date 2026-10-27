@@ -11,6 +11,15 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.3.2 (2026-10-26)
+
+Every phrase in a text, with Overlap and Outermost
+
+No breaking change: two new options for `FindAll`. Needs scalar v0.6.0,
+as before.
+
 - An `Overlap()` option for `FindAll`, as Raku's `:ov`: a match from
   each position where one starts, each the match `Find` would find
   there, not only those after the last match's end. In "In this role
