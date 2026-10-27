@@ -1,6 +1,6 @@
 # Match paths checked against the grammar
 
-**Status:** shipped, unreleased
+**Status:** shipped in v0.4.0
 
 **Origin:** roadmap 16
 

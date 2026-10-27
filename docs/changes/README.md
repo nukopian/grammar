@@ -20,7 +20,7 @@ having. Small fixes don't need one.
   What happened, so the record shows how the plan held up.
 - **What happened is added as the work goes,** and finished when the
   change ships or is dropped, in the same commit. When it ships, the
-  status says "shipped, unreleased", and the release names its version.
+  status says "shipped in v0.4.0", and the release names its version.
 - **It's named for the day work started and the change,** such as
   `2026-10-26-limit-errors-that-say-where.md`: dates never collide
   between sessions and sort in order. A roadmap item keeps its number
@@ -34,7 +34,7 @@ having. Small fixes don't need one.
 ```markdown
 # Title
 
-**Status:** in progress | shipped, unreleased | shipped in v0.2.4 | dropped
+**Status:** in progress | shipped in v0.4.0 | shipped in v0.2.4 | dropped
 
 **Origin:** roadmap 7 | a TODO task from scalar's session (scalar <commit>)
 
@@ -61,9 +61,9 @@ Why, What's known, Steps, Done when.
 Newest first.
 
 - [Name the quantified group in $<k>=( … )?, as Raku does](2026-10-27-named-quantified-groups.md),
-  shipped, unreleased
+  shipped in v0.4.0
 - [Match paths checked against the grammar](2026-10-27-match-paths-checked-against-the-grammar.md)
-  (roadmap 16), shipped, unreleased
+  (roadmap 16), shipped in v0.4.0
 - [Overlapping matches without the nested ones](2026-10-26-overlapping-matches-without-nested.md)
   (roadmap 14), shipped in v0.3.2
 - [Every phrase in a text, overlaps included](2026-10-26-every-phrase-overlaps-included.md)

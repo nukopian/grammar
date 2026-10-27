@@ -1,6 +1,6 @@
 # Name the quantified group in $<k>=( … )?, as Raku does
 
-**Status:** shipped, unreleased
+**Status:** shipped in v0.4.0
 
 **Origin:** a TODO task from grammar's session (grammar 05622cf99c8552c7a47c295587ec897f4ba764b4), found building roadmap 16
 

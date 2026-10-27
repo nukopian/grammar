@@ -11,6 +11,17 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.4.0 (2026-10-27)
+
+Match paths checked against the grammar, and named quantified captures as in Raku
+
+Breaking change: `$<k>=( … )`, `$<k>=<name>`, `$<k>=@list` and
+`$<k>=<@list>` with a quantifier after them now capture as Raku does
+(below), so a grammar that read `k`'s text, or the positional numbers
+after it, needs changing. Needs scalar v0.6.1.
+
 - The CHANGELOG and change records no longer get PDFs: they're read as
   Markdown, on GitHub or in an editor. `scripts/readme-pdf.sh` builds
   the other documents' PDFs, and refuses these.
