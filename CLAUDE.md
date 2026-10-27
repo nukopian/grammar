@@ -123,7 +123,9 @@ A feature isn't done until its documentation is.
 - Every link in the documents must resolve, including the `#anchor`s.
 - PDFs of the documents are for reading offline, and git-ignored:
   `scripts/readme-pdf.sh` builds them (pandoc and Prince). Don't commit
-  them; module downloads would carry them.
+  them; module downloads would carry them. The CHANGELOG and change
+  records have none, and the script refuses them: they're read as
+  Markdown.
 
 Why: the documents are how people learn the package, its author
 included, and gaps found by reading them have led to real features.

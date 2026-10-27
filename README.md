@@ -169,7 +169,8 @@ a working example of every function and method, see the
   and the git and GitHub work done by hand.
 
 PDFs of the documents, for reading offline, are built on demand by
-`scripts/readme-pdf.sh`.
+`scripts/readme-pdf.sh`. The CHANGELOG and change records have none:
+they're read as Markdown.
 
 ## Status
 

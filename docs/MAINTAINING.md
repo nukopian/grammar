@@ -436,4 +436,6 @@ before each tag.
 
 `go` (the version `go.mod` asks for, or newer), `gh`, `gitleaks`,
 Rakudo 2025.11 (as `raku`) for the differential tests, `git-filter-repo`,
-and for the PDFs (`scripts/readme-pdf.sh`), `pandoc` and Prince.
+and for the PDFs (`scripts/readme-pdf.sh`), `pandoc` and Prince. The
+CHANGELOG and change records have no PDF, and the script refuses them:
+they're read as Markdown, on GitHub or in an editor.
