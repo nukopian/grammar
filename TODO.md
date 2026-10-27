@@ -1,32 +1,49 @@
 # TODO
 
-## Check match paths against the grammar (roadmap 16)
+## Name the quantified group in $<k>=( … )?, as Raku does
 
-**From:** grammar's session, 2026-10-27 (grammar cec0be91c537ee2f4def239fea83cc06b24471e2)
-**Waiting on:** nothing: scalar v0.6.1 exports the parser (scalar's
-session, 2026-10-27, scalar 823987d8c02d4d73ec56952160d6efa86cd582d2)
+**From:** grammar's session, 2026-10-27 (grammar 05622cf99c8552c7a47c295587ec897f4ba764b4, work uncommitted)
+**Waiting on:** nothing
 
-**What scalar shipped:** not the plan's `ParsePath`, but
-`scalar.AtSteps(path string) ([]scalar.AtStep, error)`. An `AtStep` has
-`Kind`, `Key` and `Index`, and nothing else. `Kind` is `scalar.StepKey`
-(a name, `{key}` or `["key"]`, with its `Key`), `scalar.StepIndex`
-(`[0]` or `[-1]`, with its `Index`) or `scalar.StepEither` (a number
-after a dot, as in `content.0`, with both: `Key` is the digits as
-written, so `007`, and `Index` is 7). It is `At`'s own parser, which
-`At`, `AtOK`, `DeleteAt`, `CheckPath` and templates share. A malformed
-path gives exactly `scalar.CheckPath`'s error, offset and all. The
-steps are a fresh slice each call. scalar's
-`docs/changes/2026-10-27-export-the-path-parser.md` has the record, and
-its reference documents it beside `CheckPath`.
+**What:** make `$<k>=( … )` followed by a quantifier capture as Raku
+does: the quantifier applies to the group, and `k` names what it
+captures. With `?`, `k` is a match with captures of its own, or missing;
+with `*`, `+` or `**`, a list of such matches. Today grammar reads
+`$<e>=( a (\d) )?` as `$<e>=[ ( a (\d) )? ]`: `e` is text only, and the
+group becomes a positional capture of the rule, shifting the numbers of
+the `( … )`s after it.
 
-**What:** build `(*Grammar).CheckPath`, steps 1 to 6 of the plan in
-[its change record](docs/changes/2026-10-27-match-paths-checked-against-the-grammar.md):
-bump scalar to the release (checked with `GOWORK=off`), tests first,
-then the walk, the differential check, the documents, and dogfooding
-in jdc-lab.
+**Why:** Raku is the baseline, and this isn't a listed difference. Found
+while building `CheckPath` (roadmap 16):
 
-**Why:** a misspelt capture in a path reads undef and fails silently;
-the grammar knows its captures, so it can say so.
+```
+raku -e 'grammar G { token TOP { <min=m> <max=m> $<e>=( a (\d) )? (x) }; token m { m } }; my $m = G.parse("mma1x"); say $m<e>; say $m[0]'
+｢a1｣
+ 0 => ｢1｣
+｢x｣
+```
 
-**Done when** the change record's Done when holds, and its What
-happened is written.
+grammar gives `e.0.~` "", `0.~` "a1" and `1.~` "x" for the same.
+
+**What's known:** `$<k>=[ … ]?` puts the quantifier inside the capture,
+as the reference says and Raku agrees, so only the `( … )` form differs.
+`Named` (`node.go`) turns `Named(name, Capture(x))` into a named group,
+but the syntax hands it `Named(name, Quant(Capture(x)))`, which becomes
+`named`, text only; look at where `syntax.go` parses `$<k>=` and the
+atom's quantifier. Raku with `*`, `+` and `** 2` gives a list of matches,
+each with its own captures, and positional numbering in the rule skips
+the named group. Check `$<k>=<name>?` too. It changes what a match holds
+for anyone writing `$<k>=( … )?`, so it's a fix with a CHANGELOG line
+saying so.
+
+**Steps:**
+
+1. Raku cases in `rakuCases` for `$<e>=( a (\d) )` with `?`, `*`, `+`
+   and `** 2`, matching and not, with a `( … )` after it; they fail.
+2. Fix the parse, so the quantifier wraps the named group.
+3. `TestCheckPath` cases for the shape (`e.0`, `e[0].0`), and the
+   differential checks still pass; `FuzzMatch` 60 seconds.
+4. The reference's capture table says it; the CHANGELOG.
+
+**Done when** the Raku cases pass and `CheckPath` agrees with the new
+shape.

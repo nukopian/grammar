@@ -61,7 +61,7 @@ Why, What's known, Steps, Done when.
 Newest first.
 
 - [Match paths checked against the grammar](2026-10-27-match-paths-checked-against-the-grammar.md)
-  (roadmap 16), in progress
+  (roadmap 16), shipped, unreleased
 - [Overlapping matches without the nested ones](2026-10-26-overlapping-matches-without-nested.md)
   (roadmap 14), shipped in v0.3.2
 - [Every phrase in a text, overlaps included](2026-10-26-every-phrase-overlaps-included.md)

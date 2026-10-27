@@ -35,17 +35,7 @@ dropped is deleted, and the commit that drops it names its number.
 
 ## Now
 
-### 16. Match paths checked against the grammar
-
-**Serves:** debugging
-
-A `CheckPath` method that says whether a path, such as
-`m.At("per.weak")`, can ever be defined in a match of the grammar, and
-if not, which step can't be and what could come there. A misspelt
-capture otherwise reads undef, as an optional one that didn't match
-does, so it fails silently (from jdc-lab). It waits on scalar exporting
-its path parser, so the two read paths alike. The plan is in its
-[change record](docs/changes/2026-10-27-match-paths-checked-against-the-grammar.md).
+Nothing yet.
 
 ## Next
 

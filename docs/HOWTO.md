@@ -266,6 +266,18 @@ Then:
   g := grammar.New("G").Token("TOP", grammar.Call("money"))
   fmt.Println(g.Check()) // grammar G: rule TOP calls <money>, which doesn't exist
   ```
+- **Check the paths.** A misspelt capture reads undef, as one that
+  didn't match does. `CheckPath` says whether a path can ever be
+  defined, and if not, why; a test can check every path the program
+  reads:
+  ```go
+  for _, path := range []string{"min.amount.num.~", "max.amount.num.~", "period.~"} {
+      if err := Pay.CheckPath(path); err != nil {
+          t.Error(err)
+      }
+  }
+  fmt.Println(Pay.CheckPath("min.amont")) // grammar Pay: path "min.amont": rule money has no capture "amont" (it has: amount)
+  ```
 - **A match that runs away** stops at `StepLimit` or `DepthLimit`, which
   `ParseErr` returns as an error. See
   [Runaway matches](REFERENCE.md#runaway-matches).

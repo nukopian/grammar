@@ -526,6 +526,34 @@ each match has its `Autovivify(false)`, after Perl's `no autovivification`.
 A write still works, but there's no need to write into a match: `Values`
 and `To` build new values from it.
 
+### Checking paths: `CheckPath`
+
+A misspelt capture reads as undef too, so `m.At("min.amont")` fails as
+silently as a capture that didn't match. `CheckPath` says whether a path
+can ever be defined in a match of the grammar, working from the grammar
+alone, and if not, which step can't be there and what could:
+
+```go
+Pay.CheckPath("min.amount.num.~") // nil
+Pay.CheckPath("min.amont")        // grammar Pay: path "min.amont": rule money has no capture "amont" (it has: amount)
+Pay.CheckPath("money.amount")     // … money is a list of matches, as it can capture more than once: index it, as money[0]
+```
+
+It follows the match's shape, as above: a capture that can match more
+than once is a list, to index, and every other one a single match; `~`,
+`from` and `to` have nothing inside; a capture inside `$<k>=[ … ]` is
+beside `k`, so it suggests the path that reads it; and a proto's capture
+may be any variant's match. Any rule's match may have `made`, as an
+action may make one, and what an action makes may be anything, so any
+steps after `made` are taken. A path starts at `TOP`, or at the rule
+`Rule(name)` names. A path it takes can still be undef for a given text,
+as when an optional capture didn't match: it says only that some text
+could define it. A malformed path is `scalar.CheckPath`'s error.
+
+It's for tests, mostly: put the paths a program reads in a list, and
+check each, so a typo, or a capture moved in the grammar, fails a test
+rather than reading undef in production. Raku has nothing like it.
+
 ### Reading the text: `~`
 
 To get the text a capture matched, add `.~` to its path:
@@ -946,6 +974,7 @@ with when each matters. *Fixable* and *Effort* are as in the
 | **`<alias=name>` captures under both names,** as Raku does. | When you expect only the alias. | Nothing to fix: use `<alias=.name>`. | by design | — |
 | **`Re` takes Perl-style regex syntax.** | Only that it isn't Raku syntax. It's for patterns you already have. | — | by design | — |
 | **`Outermost()` adds to Raku's `:ov`:** `Overlap()`'s matches, less each one wholly inside another. | Never without it: `FindAll` and `Overlap()` match as Raku's `:g` and `:ov` do. | — | by design | — |
+| **`CheckPath` adds to Raku:** it says whether a path can ever be defined in a match, from the grammar alone. | Never: matching is the same without it. | — | by design | — |
 | **Word lists add to Raku's `@list`:** canonical values, `FoldCase`, `LooseSpacing`, `JoinedSpacing`, `Plurals`, `WholeWords`, `ExactAcronyms` and `MapOnly`. | Never for Raku-compatible lists: without the options, a list matches as Raku's does. | — | by design | — |
 
 ## Testing against Raku
@@ -974,7 +1003,7 @@ whatever the grammar or text:
 | Test | Checks |
 |---|---|
 | `FuzzCompile` | `Compile` never panics, however mangled the source |
-| `FuzzMatch` | for grammars built around a fuzzed rule, with a proto and a pattern list to call: no panics; `Parse` and `ParseErr` agree; a parse matches all of the text; `Find` finds what `FindAll` finds first; skipping start positions changes nothing; the matcher's fast paths change nothing |
+| `FuzzMatch` | for grammars built around a fuzzed rule, with a proto and a pattern list to call: no panics; `Parse` and `ParseErr` agree; a parse matches all of the text; `Find` finds what `FindAll` finds first; skipping start positions changes nothing; the matcher's fast paths change nothing; `CheckPath` takes every path a match has |
 | `FuzzWords` | synonym rules never panic, and every phrase in a list matches itself; with `JoinedSpacing`, run together too, and with `Plurals`, its plural |
 
 `go test` runs them on their seeds and on the inputs that once failed, kept

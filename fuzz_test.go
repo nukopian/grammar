@@ -37,7 +37,7 @@ func fuzzList() *WordList {
 // Whatever grammar and text, matching keeps its promises: no panics; Parse
 // and ParseErr agree; a parse matches all of the text; Find finds what
 // FindAll finds first; skipping start positions changes nothing; and Values
-// takes any match.
+// takes any match, and CheckPath every path in one.
 // fuzzPatterns is a pattern list for FuzzMatch's grammars, <@pats>.
 var fuzzPatterns = MustPatternList("pats", `x+`, `<c> y`, `'z z'`, `(a) $0?`)
 
@@ -122,6 +122,9 @@ func FuzzMatch(f *testing.F) {
 				t.Fatalf("Parse matched %q of %q", m.At("~").Str(), read)
 			}
 			Values(m)
+			if m.Defined() {
+				checkRealPaths(t, g, m) // CheckPath takes every path a match has
+			}
 		}
 		all := g.FindAll(text)
 		first := g.Find(text)

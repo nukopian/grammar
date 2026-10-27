@@ -857,6 +857,26 @@ if errors.As(err, &pe) {
 grammar Pay: line 2, column 1: expected <money>, found "55k"
 ```
 
+#### `Grammar.CheckPath`
+
+CheckPath returns an error if path, as scalar's At takes it, can never be defined in a match of g, and nil if some text could define it.
+
+CheckPath says whether a path can ever be defined in a match. A misspelt capture reads undef, as one that didn't match does, so a typo fails silently; CheckPath names the step that can't be there, and what could. It's for tests: check each path the program reads.
+
+```go
+for _, path := range []string{"min.amount.num.~", "period.~", "min.amont", "money.amount", "max.amount.k.made"} {
+	fmt.Println(Pay.CheckPath(path))
+}
+```
+
+```
+<nil>
+<nil>
+grammar Pay: path "min.amont": rule money has no capture "amont" (it has: amount)
+grammar Pay: path "money.amount": money is a list of matches, as it can capture more than once: index it, as money[0]
+grammar Pay: path "max.amount.k.made": max.amount.k never has a made value: only a rule's match, or a word list's, has one
+```
+
 #### `DepthLimitError.Error`
 
 Matching recurses as it goes, a level or so for each item matched, and past DepthLimit it stops with a \*DepthLimitError, which can be recovered, rather than running out of stack, which can't: Go would end the program. ParseErr returns it. Here the limit is low, to show it.

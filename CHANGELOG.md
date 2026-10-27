@@ -19,6 +19,14 @@ release's entry when `main` is moved to it and tagged
   `$<title>=[ … ]` is read as `level.made`, not `title.level.made`.
   `ExampleNamed_captureInside` shows it, and a Raku case checks it
   (roadmap 15).
+- `CheckPath`, which says whether a path, such as `m.At("per.weak")`,
+  can ever be defined in a match of the grammar, and if not, which step
+  can't be there and what could: `rule per has no capture "weak" (it
+  has: day, week)`. A misspelt capture otherwise reads undef, as one
+  that didn't match does, so it fails silently. For a capture read from
+  inside `$<k>=[ … ]`, it gives the path that reads it. Needs scalar
+  v0.6.1, for its path parser (roadmap 16;
+  [record](docs/changes/2026-10-27-match-paths-checked-against-the-grammar.md)).
 
 ## v0.3.2 (2026-10-27)
 
