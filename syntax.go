@@ -594,6 +594,8 @@ func (p *parser) quantified() (Node, bool) {
 		p.single = true
 	}
 	var atom Node
+	p.ws()
+	bracket := p.peek("[") // [ @list ] is the list, but captures as a group
 	if capName != "" && p.peek("$<") {
 		// $<r>=$<q>: a backreference, captured.
 		p.eat("$<")
@@ -603,11 +605,33 @@ func (p *parser) quantified() (Node, bool) {
 	} else {
 		atom = p.atom()
 	}
+	if capName != "" && !bracket && namesEach(atom) {
+		// As in Raku, $<k>=( … )*, $<k>=<name>*, $<k>=@list* and
+		// $<k>=<@list>* name each match, and the quantifier repeats the
+		// named capture; on anything else, as $<k>=[ … ]*, the quantifier
+		// is inside the capture.
+		atom, capName = Named(capName, atom), ""
+	}
 	n, spaced := p.quantifier(atom)
 	if capName != "" {
 		n = Named(capName, n)
 	}
 	return n, spaced
+}
+
+// namesEach reports whether $<k>= before atom names each of its matches,
+// with a quantifier after it repeating the named capture, as it does in
+// Raku for a ( … ) group, a call, a word list or a pattern list.
+func namesEach(atom Node) bool {
+	switch atom := atom.(type) {
+	case *group:
+		return atom.name == ""
+	case *call:
+		return atom.alias == ""
+	case words, patterns:
+		return true
+	}
+	return false
 }
 
 // quantifier reads any quantifier after atom, and reports whether

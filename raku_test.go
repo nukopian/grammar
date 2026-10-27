@@ -84,6 +84,17 @@ var rakuCases = []struct {
 	{Src: `grammar Named3 { token TOP { <x=.d> <d> }; token d { \d } }`, Inputs: []string{"12"}},
 	// A named capture inside $<k>=[ ... ] belongs to TOP, not to k.
 	{Src: `grammar Named4 { token TOP { $<k>=[ [ \d+ \s+ ]? $<u>=@units ] } }`, Lists: units, Inputs: []string{"3 yr", "wk"}},
+	// $<k>= on a ( ... ), a rule, a word list or a pattern list names each
+	// match, and a quantifier after it repeats the named capture; on
+	// anything else, the quantifier is inside the capture, text only.
+	{Src: `grammar NamedQ1 { token TOP { $<e>=( a (\d) )? (x) } }`, Inputs: []string{"a1x", "x"}},
+	{Src: `grammar NamedQ2 { token TOP { $<e>=( a (\d) )* (x) } }`, Inputs: []string{"a1a2x", "x"}},
+	{Src: `grammar NamedQ3 { token TOP { $<e>=( a (\d) )+ % ',' (x) } }`, Inputs: []string{"a1,a2x", "x"}},
+	{Src: `grammar NamedQ4 { token TOP { $<e>=( a (\d) ) ** 2 (x) } }`, Inputs: []string{"a1a2x", "a1x"}},
+	{Src: `grammar NamedQ5 { token TOP { $<e>=<d>? $<f>=<.d>* (x) }; token d { (\d) } }`, Inputs: []string{"12x", "1x", "x"}},
+	{Src: `grammar NamedQ6 { token TOP { $<e>=@units* % ',' $<f>=<@pu>? (x) } }`, Lists: units,
+		Patterns: map[string][]string{"pu": {"yr", "wk"}}, Inputs: []string{"yr,wkyrx", "x"}},
+	{Src: `grammar NamedQ7 { token TOP { $<e>=[ a (\d) ]* $<f>=<[ab]>+ $<g>='c'? $<h>=\d+ (x) } }`, Inputs: []string{"a1a2abc12x", "b3x"}},
 	// Backtracking through alternations, and switching ratchet off.
 	{Src: `grammar RxAlt1 { regex TOP { [ a | ab ] c } }`, Inputs: []string{"abc", "ac"}},
 	{Src: `grammar RxAlt2 { regex TOP { [ ab | a ] bc } }`, Inputs: []string{"abc", "abbc"}},

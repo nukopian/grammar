@@ -146,6 +146,33 @@ func TestCheckPathRakuCases(t *testing.T) {
 	}
 }
 
+// $<k>= before a ( ... ) or a call names each match, so with a quantifier
+// after it, k is a list, or a single match that may be missing, with
+// captures of its own; before [ ... ], k is text.
+func TestCheckPathNamedQuantified(t *testing.T) {
+	g := MustCompile(`grammar Q { token TOP { $<one>=( a (\d) )? $<many>=( b (\d) )* $<ds>=<d>+ $<t>=[ c (\d) ]? (x) }; token d { (\d) } }`)
+	for _, path := range []string{"one.0.~", "many[0].0", "ds[1].0", "d[0].0", "t.~", "0", "1"} {
+		if err := g.CheckPath(path); err != nil {
+			t.Error(err)
+		}
+	}
+	for path, want := range map[string]string{
+		"one[0]":  "one is a single match, not a list",
+		"many.0x": "many is a list of matches",
+		"t.0":     `t is text only: a capture inside $<t>=[ … ] is beside it, so read "0"`,
+		"2":       `rule TOP has no capture "2" (it has: 0, 1, d, ds, many, one, t)`,
+	} {
+		if err := g.CheckPath(path); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%q: %v, want %s", path, err, want)
+		}
+	}
+	m := g.Parse("a1b2b3456c7x")
+	if !m.Defined() {
+		t.Fatal("no match")
+	}
+	checkRealPaths(t, g, m)
+}
+
 func TestCheckPathRoles(t *testing.T) {
 	g := MustCompile(`
 role Money { token money { '£' $<amount>=[ \d+ ] } }

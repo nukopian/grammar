@@ -1,6 +1,14 @@
-# TODO
+# Name the quantified group in $<k>=( … )?, as Raku does
 
-## Name the quantified group in $<k>=( … )?, as Raku does
+**Status:** shipped, unreleased
+
+**Origin:** a TODO task from grammar's session (grammar 05622cf99c8552c7a47c295587ec897f4ba764b4), found building roadmap 16
+
+**Started:** 2026-10-27, in fe34207b5d6bfbd3b10ff6b2eea0416fb8a5cfec
+
+**Finished:** 2026-10-27
+
+## The plan
 
 **From:** grammar's session, 2026-10-27 (grammar 05622cf99c8552c7a47c295587ec897f4ba764b4, work uncommitted)
 **Waiting on:** nothing
@@ -47,3 +55,27 @@ saying so.
 
 **Done when** the Raku cases pass and `CheckPath` agrees with the new
 shape.
+
+## What happened
+
+- **Outcome:** the Raku cases NamedQ1 to NamedQ7 pass: `$<k>=` before
+  a `( … )`, a call (`<name>` or `<.name>`), a word list or a pattern
+  list names each match, and a quantifier after it repeats the named
+  capture, so `k` is a list under `*`, `+` and `**`, and a match or
+  missing under `?`, with the rule's next `( … )` numbered from `0`.
+  `[ … ]` and plain atoms keep the quantifier inside the capture. The
+  fix is in `quantified` (`syntax.go`): `namesEach` says which atoms,
+  and a bracket is told apart, as `[ @list ]` is the list itself once
+  parsed. `TestCheckPathNamedQuantified` checks `CheckPath` follows,
+  and the differential checks pass; `FuzzCompile` and `FuzzMatch` ran
+  60 seconds each.
+- **Changes from the plan:** Raku showed it wasn't only `( … )`: a
+  call, a word list and a pattern list behave the same, and
+  `$<k>=<name>?` was wrong in the same way. The existing case List9
+  (`$<j>=[ @units ]+ % ','`, text only) caught a first version that
+  took `[ @units ]` for `@units`.
+- **Found on the way:** NamedQ7 showed `Chunks` left out the text
+  between captures inside another, where Raku's `.chunks` gives it, as
+  it measures each gap from the end of the capture before, not the
+  furthest end. Fixed in the same change (`caps.go`), one line.
+- **What's left:** nothing.

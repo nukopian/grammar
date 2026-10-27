@@ -60,6 +60,8 @@ Why, What's known, Steps, Done when.
 
 Newest first.
 
+- [Name the quantified group in $<k>=( … )?, as Raku does](2026-10-27-named-quantified-groups.md),
+  shipped, unreleased
 - [Match paths checked against the grammar](2026-10-27-match-paths-checked-against-the-grammar.md)
   (roadmap 16), shipped, unreleased
 - [Overlapping matches without the nested ones](2026-10-26-overlapping-matches-without-nested.md)

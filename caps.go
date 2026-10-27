@@ -37,9 +37,12 @@ func Caps(m *scalar.SV) iter.Seq2[string, *scalar.SV] {
 // Chunks iterates over m in pieces, as Raku's .chunks does: its captures,
 // in Caps' order, with the text between them under "~", as a string. Text
 // before the first capture and after the last is a chunk too, and with no
-// captures, the whole of m's text is one. Where captures overlap, as an
-// alias and its rule's name do, there's no text between them. So the
-// chunks' text, joined, is m's text, plus each overlapping capture's again.
+// captures, the whole of m's text is one. As in Raku, the text before a
+// capture is what's between it and the end of the capture before, so
+// where captures overlap, as an alias and its rule's name do, there's none
+// between them, and inside a capture, as for the captures within
+// $<k>=[ … ], the text between the ones within it comes again. So the
+// chunks' text, joined, is m's text, plus each overlapping part again.
 //
 // Chunks on undef gives nothing.
 func Chunks(m *scalar.SV) iter.Seq2[string, *scalar.SV] {
@@ -60,7 +63,7 @@ func Chunks(m *scalar.SV) iter.Seq2[string, *scalar.SV] {
 			if !gap(c.from) || !yield(c.key, c.m) {
 				return
 			}
-			pos = max(pos, c.to)
+			pos = c.to
 		}
 		gap(from + len(text))
 	}

@@ -27,6 +27,19 @@ release's entry when `main` is moved to it and tagged
   inside `$<k>=[ … ]`, it gives the path that reads it. Needs scalar
   v0.6.1, for its path parser (roadmap 16;
   [record](docs/changes/2026-10-27-match-paths-checked-against-the-grammar.md)).
+- Fixed: `$<k>=` before a `( … )`, a rule, a word list or a pattern
+  list, with a quantifier after it, names each match, as in Raku. So
+  `$<e>=( a (\d) )?` is a match with captures of its own, `e.0`, or
+  missing; `$<e>=<d>*` is a list of `d`'s matches; and a `( … )` after
+  them is numbered from `0`. Before, the quantifier went inside the
+  capture, as it does for `$<k>=[ … ]?`, so `e` was text only, and the
+  group inside it took a positional number from the rule. A grammar
+  that read those numbers, or `e`'s text, needs changing
+  ([record](docs/changes/2026-10-27-named-quantified-groups.md)).
+- Fixed: `Chunks` gives the text between captures that lie inside
+  another, as Raku's `.chunks` does: for `$<e>=[ a (\d) ]*` on "a1a2",
+  `e`, `0`, the "a" between, then `0` again. Before, that text was left
+  out.
 
 ## v0.3.2 (2026-10-27)
 

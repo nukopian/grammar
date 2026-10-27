@@ -154,6 +154,7 @@ In Go there's no sigspace: put `grammar.Silent("ws")` where the spaces go.
 | `$<k>=[ … ]`, `$<k>=\d+` | `Named("k", x)` | `k`, the text only. A capture inside it belongs to the enclosing rule, as in Raku: in `$<title>=[ $<level>=@levels \s+ \w+ ]`, read `level.made`, beside `title`; `title.level.made` is undef. To keep it inside, use `$<k>=( … )` |
 | `$<k>=[ … ]?` | | `k`, always: an empty match when the group didn't match, as in Raku, for the quantifier is inside the capture. For `k` to be there only when it matched, put the capture inside: `[ $<k>=[ … ] ]?` |
 | `$<k>=( … )` | `Named("k", Capture(x))` | `k`, with captures of its own |
+| `$<k>=( … )*`, `$<k>=<name>?`, `$<k>=@list+`, `$<k>=<@list>**2` | `Star(Named("k", Capture(x)))` and the like | `k`, each match of the group, rule or list, as in Raku: the quantifier repeats the named capture, so `k` is a list under `*`, `+` or `**`, and under `?` a match, or missing. Only `[ … ]` and plain atoms, as `\d+`, have the quantifier inside the capture |
 | `$<k>`, `$0` | `Backref("k")`, `Backref("0")` | the text the capture last matched, again, exactly: `$<q>=<['"]> \w+ $<q>` closes a quote with the same mark |
 
 Raku's built-in rules are there too: `<ws>` (optional whitespace, but not
@@ -641,7 +642,10 @@ so the captures of a repeat come out interleaved. A match under two names
 comes under both. `grammar.Chunks(m)` is the same, with the text between
 captures under `~`, as Raku's `.chunks` does, so the chunks rebuild the
 text: useful for marking up the parts of a title, or for checking what a
-grammar left uncaptured.
+grammar left uncaptured. As in Raku, the text before a capture is what
+lies between it and the end of the capture before, so inside a longer
+capture, as with the captures within `$<k>=[ … ]`, the text between the
+ones within it comes again.
 
 Captures come by where they start, then where they end, so an empty
 capture comes before a longer one at the same place, as it was made first.
