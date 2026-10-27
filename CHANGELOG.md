@@ -14,7 +14,6 @@ release's entry when `main` is moved to it and tagged
 - The CHANGELOG and change records no longer get PDFs: they're read as
   Markdown, on GitHub or in an editor. `scripts/readme-pdf.sh` builds
   the other documents' PDFs, and refuses these.
-
 - The reference says where a capture inside `$<k>=[ … ]` goes: to the
   enclosing rule, beside `k`, as in Raku, so `$<level>=@levels` inside
   `$<title>=[ … ]` is read as `level.made`, not `title.level.made`.
