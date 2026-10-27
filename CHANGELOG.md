@@ -13,7 +13,7 @@ release's entry when `main` is moved to it and tagged
 
 Nothing yet.
 
-## v0.3.2 (2026-10-26)
+## v0.3.2 (2026-10-27)
 
 Every phrase in a text, with Overlap and Outermost
 
