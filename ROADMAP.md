@@ -26,7 +26,7 @@ Items come in four groups, the most useful first in each:
 Each item has a number, given when it's added, in whichever group. It
 keeps it as it moves between groups, and a number is never used again,
 so that 7 means the same item in a commit message months later. Next
-number: 16.
+number: 17.
 
 When an item ships, it moves from here to the CHANGELOG, whose line
 for it ends with its number, such as "(roadmap 7)", and links to its
@@ -125,5 +125,13 @@ rest of a long text as it does for other grammars.
 Added 2026-10-25. Make a word's other forms when it's added, as
 `Plurals` does for regular plurals, so "visiting" matches a list that
 has "visit". English needs a real stemmer, such as Porter's.
+
+### 16. Match paths checked against the grammar
+
+Added 2026-10-27, from jdc-lab. A misspelt capture in a path, such as
+`m.At("per.weak")`, reads undef, as an optional capture that didn't
+match does, so the typo fails silently. The grammar knows every
+capture its rules can make: a `CheckPath`, or a check in tests, could
+say a path can never be defined.
 
 [gaps]: docs/REFERENCE.md#gaps-and-possible-additions
