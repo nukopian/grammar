@@ -35,7 +35,17 @@ dropped is deleted, and the commit that drops it names its number.
 
 ## Now
 
-Nothing yet.
+### 16. Match paths checked against the grammar
+
+**Serves:** debugging
+
+A `CheckPath` method that says whether a path, such as
+`m.At("per.weak")`, can ever be defined in a match of the grammar, and
+if not, which step can't be and what could come there. A misspelt
+capture otherwise reads undef, as an optional one that didn't match
+does, so it fails silently (from jdc-lab). It waits on scalar exporting
+its path parser, so the two read paths alike. The plan is in its
+[change record](docs/changes/2026-10-27-match-paths-checked-against-the-grammar.md).
 
 ## Next
 
@@ -125,13 +135,5 @@ rest of a long text as it does for other grammars.
 Added 2026-10-25. Make a word's other forms when it's added, as
 `Plurals` does for regular plurals, so "visiting" matches a list that
 has "visit". English needs a real stemmer, such as Porter's.
-
-### 16. Match paths checked against the grammar
-
-Added 2026-10-27, from jdc-lab. A misspelt capture in a path, such as
-`m.At("per.weak")`, reads undef, as an optional capture that didn't
-match does, so the typo fails silently. The grammar knows every
-capture its rules can make: a `CheckPath`, or a check in tests, could
-say a path can never be defined.
 
 [gaps]: docs/REFERENCE.md#gaps-and-possible-additions
