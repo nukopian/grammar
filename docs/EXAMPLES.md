@@ -2066,6 +2066,26 @@ for _, title := range []string{"Snr Software Engineer", "Software Engineer"} {
 {Level: Role:Software Engineer}
 ```
 
+#### `Named.captureInside`
+
+\$\<name>=\[ ... ] keeps only the text, so a capture inside it belongs to the enclosing rule, as in Raku: here level is beside title, not in it, and title.level reads undef. For the capture inside it, use \$\<name>=( ... ).
+
+```go
+levels := grammar.NewWordList("levels", grammar.FoldCase()).Add("Senior", "snr", "sr")
+g := grammar.MustCompile(`grammar T { token TOP { $<title>=[ $<level>=@levels \s+ \w+ ] } }`, levels)
+
+m := g.Parse("Snr Engineer")
+fmt.Println(m.At("title.~"))
+fmt.Println(m.At("level.made"))
+fmt.Println(m.At("title.level.made").Or("undef"))
+```
+
+```
+Snr Engineer
+Senior
+undef
+```
+
 #### `NewPatternList`
 
 NewPatternList compiles patterns into a list called name, which is how Raku syntax refers to it: <@name>.

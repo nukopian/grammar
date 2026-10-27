@@ -360,6 +360,23 @@ func ExampleNamed_wordList() {
 	// {Level: Role:Software Engineer}
 }
 
+// $<name>=[ ... ] keeps only the text, so a capture inside it belongs to the
+// enclosing rule, as in Raku: here level is beside title, not in it, and
+// title.level reads undef. For the capture inside it, use $<name>=( ... ).
+func ExampleNamed_captureInside() {
+	levels := grammar.NewWordList("levels", grammar.FoldCase()).Add("Senior", "snr", "sr")
+	g := grammar.MustCompile(`grammar T { token TOP { $<title>=[ $<level>=@levels \s+ \w+ ] } }`, levels)
+
+	m := g.Parse("Snr Engineer")
+	fmt.Println(m.At("title.~"))
+	fmt.Println(m.At("level.made"))
+	fmt.Println(m.At("title.level.made").Or("undef"))
+	// Output:
+	// Snr Engineer
+	// Senior
+	// undef
+}
+
 // A pattern list holds patterns as data, each a regex in Raku syntax, for
 // <@name> to match, as Raku's <@array> does: the longest match wins. Here,
 // the ways a period is written, matched with their spacing and case.

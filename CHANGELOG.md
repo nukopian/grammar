@@ -15,6 +15,12 @@ release's entry when `main` is moved to it and tagged
   Markdown, on GitHub or in an editor. `scripts/readme-pdf.sh` builds
   the other documents' PDFs, and refuses these.
 
+- The reference says where a capture inside `$<k>=[ … ]` goes: to the
+  enclosing rule, beside `k`, as in Raku, so `$<level>=@levels` inside
+  `$<title>=[ … ]` is read as `level.made`, not `title.level.made`.
+  `ExampleNamed_captureInside` shows it, and a Raku case checks it
+  (roadmap 15).
+
 ## v0.3.2 (2026-10-27)
 
 Every phrase in a text, with Overlap and Outermost

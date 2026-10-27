@@ -126,14 +126,4 @@ Added 2026-10-25. Make a word's other forms when it's added, as
 `Plurals` does for regular plurals, so "visiting" matches a list that
 has "visit". English needs a real stemmer, such as Porter's.
 
-### 15. Say where captures inside a text capture go
-
-Added 2026-10-27, from jdc-lab's use (jdc-lab 67eecbab405c9d4c694e7c5c2710f3cc70bac5c2, work
-uncommitted). The reference's row for `$<k>=[ … ]` says "`k`, the text
-only", but not that a capture inside it, such as `$<open>=@list` in
-`$<phrase>=[ [ \d+ \s+ ]? $<open>=@list ]`, belongs to the enclosing
-rule: it's `At("open.made")`, not `At("phrase.open.made")`, which
-reads undef. That's Raku's way too, but it took two tries to find; a
-line in the table, and an example, would save them.
-
 [gaps]: docs/REFERENCE.md#gaps-and-possible-additions

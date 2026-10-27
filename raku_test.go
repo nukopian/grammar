@@ -82,6 +82,8 @@ var rakuCases = []struct {
 	{Src: `grammar Named1 { token TOP { $<k>=<d> }; token d { (\d) } }`, Inputs: []string{"5"}},
 	{Src: `grammar Named2 { token TOP { $<k>=\d+ $<j>=( (\w) ) } }`, Inputs: []string{"12a"}},
 	{Src: `grammar Named3 { token TOP { <x=.d> <d> }; token d { \d } }`, Inputs: []string{"12"}},
+	// A named capture inside $<k>=[ ... ] belongs to TOP, not to k.
+	{Src: `grammar Named4 { token TOP { $<k>=[ [ \d+ \s+ ]? $<u>=@units ] } }`, Lists: units, Inputs: []string{"3 yr", "wk"}},
 	// Backtracking through alternations, and switching ratchet off.
 	{Src: `grammar RxAlt1 { regex TOP { [ a | ab ] c } }`, Inputs: []string{"abc", "ac"}},
 	{Src: `grammar RxAlt2 { regex TOP { [ ab | a ] bc } }`, Inputs: []string{"abc", "abbc"}},
