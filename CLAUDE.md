@@ -1,11 +1,15 @@
 # Working on grammar
 
-These are the working rules for this repository. grammar is developed by
-Iain Campbell with Claude (see the README's Acknowledgements), and they
-follow scalar's (`../scalar/CLAUDE.md`) as far as they apply, so that the
-repositories read alike and work moves between them easily. Each rule
-comes with the reason for it, and the why behind them all is Iain's essay,
-[The process](https://github.com/nukopian/scalar/blob/main/docs/PROCESS.md).
+@../claude-practice/PRACTICE.md
+
+The shared practice above, from
+[nukopian/claude-practice](https://github.com/nukopian/claude-practice),
+covers planned work, the roadmap, change records, branches, commits,
+releases, wash-ups, documents and secrets. These are grammar's own rules
+on top of it; where they differ, these win. grammar is developed by Iain
+Campbell with Claude (see the README's Acknowledgements), and keeps in
+step with scalar (`../scalar/CLAUDE.md`), so the repositories read alike
+and work moves between them easily.
 
 ## What grammar is for
 
@@ -18,7 +22,6 @@ work on them, and `To` hands them on to typed Go.
 
 Prefer clear, forgiving APIs and good error messages over speed, unless a
 measurement shows a real cost.
-
 ## Raku is the baseline
 
 - **Where Raku has a feature, match Raku's behaviour.** When the Go and
@@ -42,7 +45,6 @@ measurement shows a real cost.
 Why: grammar brings Raku's grammars to Go. Faithfulness to Raku makes it
 predictable for anyone who knows Raku, and the documented differences
 make it honest for everyone else.
-
 ## Tests
 
 - `TestMatchesRaku` and `TestCapsMatchRaku` run the same cases through
@@ -81,15 +83,8 @@ make it honest for everyone else.
   push protection are on. The README's Security section tells users
   this: keep it true when any of these change.
   [MAINTAINING.md](docs/MAINTAINING.md#security-checks) has the commands.
-- gitleaks scans the whole history for secrets: in CI on every push, and
-  by hand (`gitleaks git --redact .`) before a repository goes public,
-  before a tag, and after any history rewrite, before it's pushed. A leak
-  stops the work like a failing test: once history is published, it
-  can't be taken back.
 
-## Documentation keeps up with the code
-
-A feature isn't done until its documentation is.
+## Documents
 
 - The documents: `README.md` (what grammar is, a synopsis, why it exists,
   what's in it and when not to use it), `docs/HOWTO.md` (a quick start,
@@ -120,149 +115,24 @@ A feature isn't done until its documentation is.
   since 2026-10-26, so it's left as it is.
 - Compile Markdown snippets to check them, using a temporary test file
   that you delete afterwards.
-- Every link in the documents must resolve, including the `#anchor`s.
-- PDFs of the documents are for reading offline, and git-ignored:
-  `scripts/readme-pdf.sh` builds them (pandoc and Prince). Don't commit
-  them; module downloads would carry them. The CHANGELOG and change
-  records have none, and the script refuses them: they're read as
-  Markdown.
+- The PDFs (see the practice) are never committed here: module
+  downloads would carry them.
 
 Why: the documents are how people learn the package, its author
 included, and gaps found by reading them have led to real features.
 
-## How changes are made
+## How changes are made here
 
-- **Measure, don't predict.** For a speculative performance change:
-  record baseline benchmarks (`BenchmarkParse`, `BenchmarkFindAll` and the
-  others), and profile first, because the profile's share sets a ceiling
-  on the gain. Keep what pays, revert what doesn't, and record reverted
-  ideas and their numbers in the reference's gaps so they aren't retried
-  blind.
-- **Wash-ups.** After a run of features, review them together for
-  crashes, memory, correctness, inefficiency and slop. Reproduce each
-  finding before reporting it, rank the findings, and write failing tests
-  before fixes. Re-run the Raku differential tests to show nothing else
-  changed. The wash-up before a release also checks `ROADMAP.md`: what
-  shipped is out of it, Now is what's really being worked on, and the
-  ideas are pruned.
-- **Dogfooding.** grammar is used in jdc-lab's `internal/sections`, and
-  was in job-meta's programs (pay, hours, titles, sections and occupation
-  coding) until job-meta's code was frozen on 2026-10-26, at grammar
-  v0.3.0. Note where it fought you, and fix the frequent friction. Check
-  the fix by reworking jdc-lab's code with its output unchanged, against
-  this checkout, and leave jdc-lab a task to take it up after the
-  release.
-
-## Planned work
-
-- **`ROADMAP.md` holds what grammar means to do:** features and
-  outcomes, not session tasks, each saying what it serves. **Now** is
-  what's being worked on, each item a paragraph and a link to its
-  change record, which holds the full plan in `TODO.md`'s task format,
-  and at most three items, so it stays a queue, not a
-  fire-hose (Iain, 2026-10-25): another starts only when one ships or
-  goes back to Next; **Next** is decided but not started (what, why, done
-  when); **Later** is meant to be done, but not yet planned, in a line
-  or two; **Ideas** might be done, or never, kept so they aren't lost
-  (Iain, 2026-10-26): a numbered heading, the date it was added, and a
-  line or two, no Serves line until promoted, newest last. Most useful
-  first in the others. The CHANGELOG is the past, the README the
-  present, and the roadmap the future.
-- **Every roadmap item has a number,** in its heading (`### 7. Title`,
-  never a Markdown numbered list, which renumbers itself): the next one
-  when it's added, in whichever group, kept as it moves, and never used
-  again. The opening says which comes next. A shipped item's CHANGELOG
-  line ends "(roadmap 7)". Each wash-up lists the ideas by number, and
-  Iain keeps, promotes (number kept, Serves added) or drops each
-  (deleted; the commit message names its number). When Iain mentions an
-  idea in passing, offer in one line to add it ("add as idea 12?"), and
-  add it in a `docs:` commit.
-- **A planned change keeps a record** in `docs/changes/` (Iain,
-  2026-10-26): opened when work starts on a roadmap item or a `TODO.md`
-  task with steps, named `2026-10-26-short-title.md` for that day,
-  holding the plan word for word, then what happened: the outcome,
-  changes from the plan and why, measurements, what was tried and
-  reverted, and what's left. The plan isn't edited once work starts.
-  The record is finished in the commit that ships or drops the change,
-  the CHANGELOG line links to it, and a dropped change keeps its record.
-  `docs/changes/README.md` has the template.
-- **The roadmap is public, on `main`,** and in every release, so people
-  following grammar can see what's coming. What's kept out of the README
-  is kept out of it too. Its PDF is built with the others.
-- **The roadmap is kept current:** an item leaves when it ships, in the
-  commit that adds it to the CHANGELOG, and a change that ships, starts
-  or drops a feature updates it in the same commit.
-- **`TODO.md` comes first:** its tasks take priority over the roadmap's
-  items. When a session takes up an item, its next steps go into
-  `TODO.md`, or are done at once.
-- **At the start of a session, check for `TODO.md`** at the top of the
-  repository, on `develop`. If it's there, read it, ask Iain whether each
-  task should still be done, and do the ones he confirms. Remove each
-  task in the commit that completes it, so the history shows which
-  commit did which, and delete the file with the last one. A task he
-  drops is removed too, saying why in the commit message.
-- **Before each commit, `git pull --ff-only` and re-read `TODO.md`.**
-  Sessions in the other repositories add tasks here, mid-session too, and
-  a commit that completes a task must remove it.
-- **Work planned for a later session goes into `TODO.md`,** committed on
-  `develop`, with enough to do it cold: what, why, the files involved,
-  and how to check it's done. Not only in Claude's memory or the chat,
-  which Iain can't review and a fresh session may not have.
-- **Each task opens with where it came from and what it waits on,** so
-  a session can see at a glance which tasks it can do now, and whom to
-  tell when one is done:
-
-  ```markdown
-  ## Mark each match with scalar's Autovivify(false)
-
-  **From:** scalar's session, 2026-10-25 (scalar 5fd3f0dd76c34de50c011d0389719abf85dcc0f2)
-  **Waiting on:** a scalar release with Autovivify
-  ```
-
-  `From` names the repository whose session added it, the date, and the
-  commit that prompted it. If that work isn't committed yet, it gives the
-  last commit and adds "work uncommitted". `Waiting on` is "nothing" when
-  the task can be done now.
-- **A task added to another repository's `TODO.md`** (scalar's and
-  jdc-lab's, both on `develop`) **is committed and pushed there at
-  once,** after a `git pull --ff-only`, as its own `docs:` commit (Iain,
-  2026-10-25). `TODO.md` changes only through commits: an uncommitted
-  task blocks that repository's pulls when incoming commits touch the
-  file, and is invisible to the session that finishes it. A code fix
-  made there to get past a bug may still stay uncommitted.
-- **A release's last step** is to look in the other repositories'
-  `TODO.md` for tasks waiting on it, and tell Iain which can now be done.
-  Nothing else tells their sessions it has landed.
-- **`TODO.md` never reaches `main`.** `main` is a fast-forward of
-  `develop`, so a release waits until the file is gone: each task done,
-  or, to outlast the release, a feature moved word for word into
-  `ROADMAP.md`, or a decision awaiting Iain to a Claude Doc. There are
-  no GitHub issues for planned work (Iain, 2026-10-25). The release steps in
-  [MAINTAINING.md](docs/MAINTAINING.md) check for it.
-
-Why: planned work survives between sessions in the open, where Iain
-reviews it like any other change, and a release never carries an
-unfinished list, while the roadmap shows anyone following grammar what's
-planned. scalar's CLAUDE.md has the same rule.
-
-## Commits
-
-- Conventional commits, such as `feat: ...`, `fix: ...`, `docs: ...`,
-  `test: ...` or `ci: ...`. Say why as well as what.
-- Claude commits and pushes changes once they're done and checked, and
-  Iain reviews them. Commits are signed.
-- Work is committed and pushed to `develop`. `main` is the latest release
-  and moves only at a release, by a fast-forward to `develop`, with the
-  tag on it; it's protected, so a push to it needs CI passing. Add what
-  changed for users to `CHANGELOG.md` under Unreleased in the same
-  commit, and update `ROADMAP.md` there if it ships, starts or drops a
-  feature. Unreleased is never blank: a release leaves `Nothing yet.`
-  under it, and the first change after replaces that line;
-  `TestChangelogUnreleased` checks both.
-  [MAINTAINING.md](docs/MAINTAINING.md) has the release steps and the git
-  and GitHub work done by hand.
-- Every commit ends with a `Co-Authored-By` trailer for the Claude model
-  that worked on it, currently
-  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
-- Keep the README's Acknowledgements accurate: credit goes where the work
-  was done.
+- **Benchmarks:** `BenchmarkParse`, `BenchmarkFindAll` and the others.
+  Reverted ideas and their numbers go in the reference's gaps.
+- **Wash-ups** re-run the Raku differential tests to show nothing else
+  changed.
+- **Dogfooding:** grammar is used in jdc-lab's `internal/sections`, and
+  was in job-meta's programs until job-meta's code was frozen on
+  2026-10-26, at grammar v0.3.0. A fix is checked by reworking jdc-lab's
+  code against this checkout, its output unchanged.
+- **The other repositories** whose `TODO.md` this one hands tasks to,
+  and checks at a release, are scalar's and jdc-lab's, both on `develop`.
+- **`TestChangelogUnreleased`** checks the CHANGELOG's Unreleased
+  section. [MAINTAINING.md](docs/MAINTAINING.md) has the release steps
+  and the git and GitHub work done by hand.
