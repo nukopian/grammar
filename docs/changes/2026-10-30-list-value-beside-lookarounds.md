@@ -1,6 +1,6 @@
 # A word list's value in a rule with more in it than the list
 
-**Status:** unreleased
+**Status:** shipped in v0.4.1
 
 **Origin:** a TODO task from jdc-lab's session (jdc-lab 996d9e8a5b9430221f35ad3e4cfd7ea0bd8f7258)
 

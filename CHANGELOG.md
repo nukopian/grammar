@@ -11,6 +11,12 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.4.1 (2026-10-30)
+
+A word list's value for a rule with lookarounds beside the list
+
 - A word list beside lookarounds and anchors in a rule gives the rule its
   canonical value as `made`, as a rule that's only the list does:
   `token pattern { @patterns <!before ':'> }` gets "temp to perm" for
@@ -20,6 +26,9 @@ release's entry when `main` is moved to it and tagged
   match took in the space after. `$<k>=[ @list <!before ':'> ]` works
   the same way, and `CheckPath` accepts `k.made` for it
   ([record](docs/changes/2026-10-30-list-value-beside-lookarounds.md)).
+- A roadmap item's change record is named with "r" and its number after
+  the date, as `docs/changes/2026-10-27-r16-match-paths-checked-against-the-grammar.md`,
+  so a search for `r16` finds it.
 
 ## v0.4.0 (2026-10-27)
 
