@@ -61,19 +61,19 @@ trace.
 
 ## Later
 
-### 3. Code assertions
-
-**Serves:** Raku
-
-`<?{name}>` and `<!{name}>`, calling a Go function passed to `Compile`
-with the captures so far, for checks only code can make mid-parse, such
-as a pay range's minimum being below its maximum.
+Nothing yet.
 
 ## Ideas
 
 An idea is a numbered heading, the date it was added, and a line or two
 on what and why. Each wash-up prunes them: each is kept, promoted to
 Later or Next with its number, or dropped.
+
+### 3. Code assertions
+
+Added 2026-10-25. `<?{name}>` and `<!{name}>`, calling a Go function
+passed to `Compile` with the captures so far, for checks only code can
+make mid-parse, such as a pay range's minimum being below its maximum.
 
 ### 4. Failure reports from Find and FindAll
 
