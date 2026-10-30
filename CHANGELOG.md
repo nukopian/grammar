@@ -11,7 +11,15 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- A word list beside lookarounds and anchors in a rule gives the rule its
+  canonical value as `made`, as a rule that's only the list does:
+  `token pattern { @patterns <!before ':'> }` gets "temp to perm" for
+  "Temp to Perm". Before, adding the lookahead left `made` empty, with
+  nothing to say why. A `rule`'s whitespace after the list no longer
+  loses the value either: `rule title { @titles }` had none, as its
+  match took in the space after. `$<k>=[ @list <!before ':'> ]` works
+  the same way, and `CheckPath` accepts `k.made` for it
+  ([record](docs/changes/2026-10-30-list-value-beside-lookarounds.md)).
 
 ## v0.4.0 (2026-10-27)
 

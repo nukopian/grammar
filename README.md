@@ -113,7 +113,7 @@ Two more things set it apart:
 | Capturing | `<name>`, `<alias=name>`, `( … )`, `$<name>=[ … ]`; `Call`, `Alias`, `Capture`, `Named` | the same |
 | Repeats and alternatives | `*`, `+`, `?`, `** m..n`, separators with `%` and `%%`, frugal `*?`; `\|` for the longest alternative, `\|\|` for the first; `Star`, `Plus`, `Repeat`, `Alt`, `First` | the same |
 | Looking around, matching again | `<?before …>`, `<!after …>`, `$<name>`, `$0`; `Before`, `NotAfter`, `Backref` | the same |
-| Synonyms | `NewWordList`, with `Add` or `AddRules` in the synonym format Elasticsearch and Solr use, and `FoldCase`, `LooseSpacing`, `JoinedSpacing`, `Plurals`, `WholeWords`, `ExactAcronyms` and `MapOnly`; `@list` in a rule, its canonical value as `made` | `@list`, without canonical values |
+| Synonyms | `NewWordList`, with `Add` or `AddRules` in the synonym format Elasticsearch and Solr use, and `FoldCase`, `LooseSpacing`, `JoinedSpacing`, `Plurals`, `WholeWords`, `ExactAcronyms` and `MapOnly`; `@list` as a rule's body, alone or beside lookarounds, its canonical value as `made` | `@list`, without canonical values |
 | Patterns from data | `NewPatternList`, `<@name>` | `<@array>` |
 | Sharing rules | roles with `NewRole` and `Does`, inheritance with `Extend`, protos with `Proto` and `:sym<…>` | `role`, `does`, `is`, `proto token` |
 | Parsing and searching | `Parse`, `Subparse`, `Find`, `FindAll`, `Split`; `Pos` and `Rule` to start elsewhere; `Overlap` for every match, overlaps included, and `Outermost` for those not inside another | `.parse`, `.subparse`, `m:g//`, `split(:v)`, `:ov` |

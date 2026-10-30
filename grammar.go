@@ -253,7 +253,8 @@ func (g *Grammar) add(name string, body Node, ratchet bool) *Grammar {
 			}
 		})
 	}
-	g.rules[name] = &rule{name: name, body: body, ratchet: ratchet, sc: newScope(body), words: wordsBody(body),
+	list, body := wordsIn(body)
+	g.rules[name] = &rule{name: name, body: body, ratchet: ratchet, sc: newScope(body), words: list,
 		base: base, sym: sym, seq: ruleSeq.Add(1)}
 	delete(g.fromRole, name)
 	generation.Add(1)
@@ -592,8 +593,8 @@ func Rule(name string) Option { return func(o *options) { o.rule = name } }
 //
 // Actions run once the whole match has succeeded, innermost first, so a
 // method can read its subrules' made values. For a rule whose body is a word
-// list, made already holds the canonical value when its action runs, and
-// the action may replace it. Raku runs them as each rule
+// list, perhaps beside lookarounds (see WordList), made already holds the
+// canonical value when its action runs, and the action may replace it. Raku runs them as each rule
 // matches, even for matches it later backtracks out of; that's only
 // visible to actions with side effects.
 func Actions(a any) Option { return func(o *options) { o.actions = newActions(a) } }
@@ -892,7 +893,12 @@ func (b *builder) build(m *mnode) *scalar.SV {
 		h.Set(k, scalar.Array())
 	}
 	var caps []*capList
+	from, to := m.from, m.to // the text a word list's value is looked up from
 	for c := m.caps; c != nil; c = c.next {
+		if c.key == listSpan {
+			from, to = c.m.from, c.m.to
+			continue
+		}
 		caps = append(caps, c)
 	}
 	for _, c := range slices.Backward(caps) {
@@ -905,7 +911,7 @@ func (b *builder) build(m *mnode) *scalar.SV {
 	}
 	sv := scalar.Value(h)
 	if m.words != nil {
-		if values := m.words.Canonical(string(in[m.from:m.to])); len(values) > 0 {
+		if values := m.words.Canonical(string(in[from:to])); len(values) > 0 {
 			h.Set("made", values[0])
 		}
 	}

@@ -107,6 +107,58 @@ func TestWordsAction(t *testing.T) {
 	}
 }
 
+// A rule or $<k>=[ … ] whose only part matching text of its own is one
+// list, beside lookarounds, anchors and :sigspace's <.ws>, has the list's
+// canonical value as made, looked up in what the list matched alone. Any
+// other part, or a second list, means no value.
+func TestWordsBesideZeroWidth(t *testing.T) {
+	l := NewWordList("patterns", FoldCase(), WholeWords())
+	if err := l.AddRules("permanent, perm\ntemp to perm, temp-to-perm\n"); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct{ src, path, want string }{
+		{`token TOP { @patterns }`, "made", "permanent"},
+		{`token TOP { @patterns <!before ':'> }`, "made", "permanent"},
+		{`token TOP { @patterns <?before \s> }`, "made", "permanent"},
+		{`token TOP { <!before :i contract> @patterns }`, "made", "permanent"},
+		{`token TOP { :i @patterns <!before ':'> }`, "made", "permanent"},
+		{`regex TOP { ^^ @patterns >> }`, "made", "permanent"},
+		{`rule TOP { @patterns }`, "made", "permanent"},
+		{`rule TOP { <?before \w> @patterns <!before ':'> }`, "made", "permanent"},
+		{`token TOP { $<w>=[ @patterns <!before ':'> ] }`, "w.made", "permanent"},
+		{`token TOP { $<w>=@patterns <!before ':'> }`, "w.made", "permanent"},
+		{`token TOP { <w> <!before ':'> }; token w { @patterns }`, "w.made", "permanent"},
+		{`token TOP { @patterns \s* }`, "made", ""},
+		{`token TOP { @patterns ' ' @patterns }`, "made", ""},
+		{`token TOP { $<w>=[ @patterns \s* ] }`, "w.made", ""},
+	} {
+		g := MustCompile("grammar G { "+c.src+" }", l)
+		m := g.Find("Perm role")
+		if got := m.At(c.path).Str(); got != c.want {
+			t.Errorf("%s: %s %q, want %q", c.src, c.path, got, c.want)
+		}
+		for k := range m.HV().All() {
+			if strings.Contains(k, "\x00") {
+				t.Errorf("%s: the list's span shows, as %q", c.src, k)
+			}
+		}
+	}
+	// The builder's Seq is the same, and an action sees the value.
+	g := New("T").Token("TOP", Seq(NotBefore(Lit("x")), Words(l), NotBefore(Lit(":"))))
+	m := g.Find("x perm", Actions(map[string]func(*scalar.SV) any{
+		"TOP": func(m *scalar.SV) any { return "pattern:" + m.At("made").Str() },
+	}))
+	if got := m.At("made").Str(); got != "pattern:permanent" {
+		t.Errorf("builder: made %q", got)
+	}
+	// A temp-to-perm role, in a rule that backtracks, takes the list's last
+	// way of matching.
+	g = MustCompile(`grammar R { regex TOP { @patterns <?before ' role'> } }`, l)
+	if got := g.Find("Temp to Perm role").At("made").Str(); got != "temp to perm" {
+		t.Errorf("regex: made %q", got)
+	}
+}
+
 func TestWordsBuilder(t *testing.T) {
 	l := titleList()
 	g := New("T").Token("TOP", Seq(Call("title"), Star(AnyChar))).Token("title", Words(l))

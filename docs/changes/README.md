@@ -64,6 +64,8 @@ Why, What's known, Steps, Done when.
 
 Newest first.
 
+- [A word list's value in a rule with more in it than the list](2026-10-30-list-value-beside-lookarounds.md),
+  unreleased
 - [Name the quantified group in $<k>=( … )?, as Raku does](2026-10-27-named-quantified-groups.md),
   shipped in v0.4.0
 - [Match paths checked against the grammar](2026-10-27-r16-match-paths-checked-against-the-grammar.md)

@@ -126,6 +126,12 @@ var rakuCases = []struct {
 	{Src: `grammar List8 { token TOP { <title> .* }; token title { @titles } }`,
 		Lists:  map[string][]string{"titles": {"software", "software engineer", "senior software engineer"}},
 		Inputs: []string{"senior software engineers", "software engineer", "softwar"}},
+	// A list beside lookarounds, anchors and :sigspace's <.ws>, whose made
+	// value grammar takes from the list alone, matches as Raku's does.
+	{Src: `grammar List10 { token TOP { <!before :i wk> @units <!before ':'> } }`, Sub: true, Lists: units,
+		Inputs: []string{"yr role", "yr: x", "wk", "years"}},
+	{Src: `grammar List11 { rule TOP { <?before \w> @units } }`, Lists: units, Inputs: []string{"yr ", "years  ", " yr"}},
+	{Src: `grammar List12 { regex TOP { ^^ $<k>=[ @units >> ] } }`, Sub: true, Lists: units, Inputs: []string{"yr x", "years", "a.bc"}},
 	// Roles: composed rules call the grammar's, the grammar's own win, and
 	// an extension overrides a composed rule.
 	{Src: `role Rl1 { token TOP { <x> <y> }; token y { y } }; grammar Rg1 does Rl1 { token x { x } }`, Inputs: []string{"xy"}},

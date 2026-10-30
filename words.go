@@ -15,7 +15,9 @@ import (
 // synonyms "Software Developer" and "SWE" can both mean "Software
 // Engineer". A grammar matches it with Words, or @name in Raku syntax,
 // and a rule whose whole body is a word list has the canonical value of
-// what it matched as its made value.
+// what it matched as its made value. So does a rule whose only part that
+// matches text of its own is one list, beside lookarounds, anchors and the
+// whitespace of a rule, as in token pattern { @patterns <!before ':'> }.
 //
 // Build a list fully before parsing with it; it isn't safe to change while
 // a parse is using it. To refresh a list, build a new one and a grammar
@@ -559,11 +561,14 @@ func (l *WordList) normalise(phrase string) string {
 	return phrase
 }
 
-type words struct{ l *WordList }
+type words struct {
+	l    *WordList
+	span bool // it keeps where it matched, under listSpan; see wordsIn
+}
 
 // Words matches the longest phrase in l, as @name does. Like Raku's, it's
 // one atom: it never gives back part of what it matched, even in a regex.
-func Words(l *WordList) Node { return words{l} }
+func Words(l *WordList) Node { return words{l: l} }
 
 // width is the least and most text the list can match, in characters, for
 // a lookbehind to narrow its starts by: up to its longest phrase, plurals
@@ -586,6 +591,12 @@ func (l *WordList) width() (lo, hi int) {
 
 func (n words) match(st *state, pos int, c *capList, e env, k cont) bool {
 	in, l := st.in, n.l
+	if n.span {
+		then := k
+		k = func(p int, cc *capList) bool {
+			return then(p, &capList{listSpan, &mnode{from: pos, to: p}, cc})
+		}
+	}
 	fold := l.fold || e.ci
 	if l.joined || l.acro && fold {
 		// The search that branches: past spacing the text leaves out, or
@@ -718,6 +729,63 @@ func (l *WordList) longest(in []rune, pos int, fold bool, st *state) (int, *trie
 func midWord(in []rune, at int) bool {
 	return at > 0 && at < len(in) && isWord(in[at-1]) && isWord(in[at])
 }
+
+// wordsIn returns the list a rule body or named capture has its made
+// value from, if any, and the body to match. A body that is the list, as
+// wordsBody finds it, is matched as it is, and what it matched is looked
+// up. So is one whose only part that matches text of its own is one list,
+// beside lookarounds, anchors and the <.ws> of :sigspace, as in
+// @patterns <!before ':'>; but there what the rest matched isn't the
+// list's, so the list is marked to keep where it matched, under listSpan,
+// and only that is looked up.
+func wordsIn(n Node) (*WordList, Node) {
+	if l := wordsBody(n); l != nil {
+		return l, n
+	}
+	var l *WordList
+	var mark func(Node) Node // nil: n isn't such a body
+	mark = func(n Node) Node {
+		switch n := n.(type) {
+		case seq:
+			out := make(seq, len(n))
+			for i, kid := range n {
+				if out[i] = mark(kid); out[i] == nil {
+					return nil
+				}
+			}
+			return out
+		case *mode:
+			inner := mark(n.inner)
+			if inner == nil {
+				return nil
+			}
+			m := *n
+			m.inner = inner
+			return &m
+		case words:
+			if l != nil {
+				return nil
+			}
+			l = n.l
+			return words{l: n.l, span: true}
+		case *look, anchor:
+			return n
+		case *call:
+			if n.name == "ws" && !n.capture && n.alias == "" {
+				return n
+			}
+		}
+		return nil
+	}
+	if body := mark(n); body != nil && l != nil {
+		return l, body
+	}
+	return nil, n
+}
+
+// listSpan keys where a list marked by wordsIn matched, kept with the
+// captures but never shown as one. Raku syntax can't name a capture so.
+const listSpan = "\x00list"
 
 // wordsBody returns the list a rule body or named capture is, if it's
 // nothing else: the list itself, under an adverb, or quantified, as in

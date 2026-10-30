@@ -2067,6 +2067,28 @@ fmt.Println(m.At("level.made"), m.At("unit.made"))
 Senior Year
 ```
 
+#### `WordList.besideLookaround`
+
+A rule that's a list beside lookarounds and anchors still gets the list's canonical value, looked up in what the list alone matched. Here "Contract:" is a label, not a pattern, so the rule won't take a pattern with a colon after it. The whitespace a rule matches after the list, as after "Temp to Perm", is in the match but left out of the lookup.
+
+```go
+patterns := grammar.NewWordList("patterns", grammar.FoldCase(), grammar.WholeWords())
+patterns.Add("contract", "fixed term")
+patterns.Add("temp to perm", "temp-to-perm")
+g := grammar.MustCompile(`grammar Pattern {
+    rule TOP { @patterns <!before ':'> }
+}`, patterns)
+
+for _, m := range g.FindAll("Contract: Temp to Perm / Fixed term").All() {
+	fmt.Printf("%q: %s\n", m.At("~"), m.At("made"))
+}
+```
+
+```
+"Temp to Perm ": temp to perm
+"Fixed term": contract
+```
+
 #### `Named.wordList`
 
 A named capture of a word list, \$\<name>=@list, has the canonical value as its made value, so a list inside a bigger rule needs no rule of its own, and grammar.To can read it straight into a struct.

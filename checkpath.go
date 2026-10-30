@@ -134,7 +134,7 @@ func (pc *pathCheck) collect(n Node, sc *scope, out map[string][]*place) {
 		out[key] = append(out[key], &place{kind: aMatch, what: what, sc: n.sc, body: n.inner})
 	case *named:
 		pc.collect(n.inner, sc, out) // a capture inside stays in this scope
-		out[n.name] = append(out[n.name], &place{kind: aText, what: "$<" + n.name + ">=[ … ]", made: wordsBody(n.inner) != nil})
+		out[n.name] = append(out[n.name], &place{kind: aText, what: "$<" + n.name + ">=[ … ]", made: n.words != nil})
 	case *call:
 		if n.capture {
 			out[n.name] = append(out[n.name], pc.rule(n.name)...)

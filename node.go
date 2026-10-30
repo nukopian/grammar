@@ -1173,13 +1173,15 @@ func (n *group) match(st *state, pos int, c *capList, e env, k cont) bool {
 type named struct {
 	name  string
 	inner Node
+	words *WordList // the list it has its made value from; see wordsIn
 }
 
 // Named is $<name>=n. Named(name, Capture(n)) captures with a scope of its
 // own, as $<name>=( ... ) does, and Named(name, Call(rule)) is
 // Alias(name, rule), as $<name>=<rule> is <name=rule>. Named(name,
 // Words(list)), $<name>=@list, has the canonical value of what it matched
-// as its made value, as a rule that's only a list does.
+// as its made value, as a rule that's only a list does; so does
+// $<name>=[ @list <!before ':'> ], with lookarounds or anchors beside it.
 func Named(name string, n Node) Node {
 	switch n := n.(type) {
 	case *group:
@@ -1191,14 +1193,20 @@ func Named(name string, n Node) Node {
 			return &call{name: n.name, capture: n.capture, alias: name}
 		}
 	}
-	return &named{name, n}
+	l, n := wordsIn(n)
+	return &named{name, n, l}
 }
 
 func (n *named) match(st *state, pos int, c *capList, e env, k cont) bool {
 	st.deeper()
 	defer st.shallower()
 	return n.inner.match(st, pos, c, e, func(p int, cc *capList) bool {
-		return k(p, &capList{n.name, &mnode{from: pos, to: p, sc: emptyScope, words: wordsBody(n.inner)}, cc})
+		m := &mnode{from: pos, to: p, sc: emptyScope, words: n.words}
+		if cc != nil && cc.key == listSpan {
+			// The inner list's, which is the capture's; see wordsIn.
+			m.caps, cc = &capList{listSpan, cc.m, nil}, cc.next
+		}
+		return k(p, &capList{n.name, m, cc})
 	})
 }
 
@@ -1386,7 +1394,7 @@ func distinct(n Node, seen map[*group]bool, sym string) (Node, bool) {
 		}
 		return &q, true
 	case *named:
-		return &named{n.name, copied[0]}, true
+		return &named{n.name, copied[0], n.words}, true
 	case *look:
 		l := *n
 		l.inner = copied[0]

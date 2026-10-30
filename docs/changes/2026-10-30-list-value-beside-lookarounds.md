@@ -1,9 +1,14 @@
-# To do
+# A word list's value in a rule with more in it than the list
 
-## A word list's value in a rule with more in it than the list
+**Status:** unreleased
 
-**From:** jdc-lab's session, 2026-10-30 (jdc-lab 996d9e8a5b9430221f35ad3e4cfd7ea0bd8f7258)
-**Waiting on:** nothing
+**Origin:** a TODO task from jdc-lab's session (jdc-lab 996d9e8a5b9430221f35ad3e4cfd7ea0bd8f7258)
+
+**Started:** 2026-10-30, in fa339e22fa1456a041ff4c471dfc316876dc61ba
+
+**Finished:** 2026-10-30
+
+## The plan
 
 **What:** decide how a word list's canonical value should be had when
 the list isn't a rule's whole body, and either make it so or document
@@ -83,3 +88,11 @@ get a list's value in a rule with more in it, the cases above are tested
 to behave as documented, and a release has it. Then jdc-lab can keep its
 `word` rule, or move to `$<word>=@patterns` or a bare `@patterns`, as
 the release allows: a task for jdc-lab's next session after it.
+
+## What happened
+
+- **Outcome:** (b), as Iain chose, with `rule` declarations covered too: a rule or `$<k>=[ … ]` whose only part matching text of its own is one list, beside lookarounds, anchors and `<.ws>`, takes the list's value as `made`. The list is marked to keep where it matched, and only that is looked up, so a `rule`'s trailing whitespace, which had lost the value even for `rule TOP { @patterns }`, no longer does. `CheckPath` needed no change for rules, which it always lets have `made`; for `$<k>=[ … ]` it follows the new form. Every case in the plan's table gives "permanent" where `made` or `w.made` applies.
+- **Changes from the plan:** step 2's `CheckPath` question resolved as above. The fix stays uncommitted until jdc-lab has tested it, at Iain's request (jdc-lab eb01b6493aaa3716ad3e03070ba3b06bbdcb7009 has the task).
+- **Raku:** Raku matches these shapes as grammar does, and its `made` is Nil; three cases (List10–12) were added to `rakuCases` to show the match trees are unchanged.
+- **Dogfooding:** jdc-lab tested the fix before it was committed (jdc-lab 955dcf044964eb55bc99ad4f5db5020b6e5c872b). As jdc-lab stood, nothing moved: its tests passed, every pipeline output was byte for byte the same, and so were the 100,501 facts read from its three samples. With `Pattern` rewritten as `token TOP { <!before …> @patterns }`, reading `made`, the same again; against v0.4.0, that form's value was empty.
+- **What's left:** the release (step 4); jdc-lab has a task waiting on it.

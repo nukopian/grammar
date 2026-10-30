@@ -173,6 +173,28 @@ func TestCheckPathNamedQuantified(t *testing.T) {
 	checkRealPaths(t, g, m)
 }
 
+// $<k>=[ … ] around a list beside lookarounds has a made value, and around
+// a list with more text, none; the capture names stay as they were.
+func TestCheckPathListBesideLookaround(t *testing.T) {
+	l := NewWordList("patterns", FoldCase())
+	l.Add("permanent", "perm")
+	g := MustCompile(`grammar W { token TOP { $<w>=[ @patterns <!before ':'> ] \s* $<v>=[ @patterns \s* ] } }`, l)
+	if err := g.CheckPath("w.made"); err != nil {
+		t.Error(err)
+	}
+	if err := g.CheckPath("v.made"); err == nil || !strings.Contains(err.Error(), "v never has a made value") {
+		t.Errorf("v.made: %v", err)
+	}
+	if err := g.CheckPath("x"); err == nil || !strings.Contains(err.Error(), "(it has: v, w)") {
+		t.Errorf("x: %v", err)
+	}
+	m := g.Parse("perm perm ")
+	if !m.Defined() {
+		t.Fatal("no match")
+	}
+	checkRealPaths(t, g, m)
+}
+
 func TestCheckPathRoles(t *testing.T) {
 	g := MustCompile(`
 role Money { token money { '£' $<amount>=[ \d+ ] } }

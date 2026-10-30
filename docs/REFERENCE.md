@@ -235,6 +235,16 @@ no rule of its own: in `token TOP { $<level>=@levels? \s* $<role>=[ \N+ ] }`,
 straight into a struct. A quantified list (`@levels?`) has a canonical value
 when what it matched is one of its phrases.
 
+The list may have lookarounds, anchors and the whitespace a `rule` matches
+beside it, in the rule or the named capture, as nothing else there matches
+text of its own: `token pattern { @patterns <!before ':'> }` won't take
+"Contract:", and gets "temp to perm" for "Temp to Perm". The value is
+looked up in what the list matched, not in the whole match, so
+`rule pattern { @patterns }` gets it too, though its match takes in the
+whitespace after. A rule with anything else that matches text, as in
+`@patterns \s*`, or with two lists, has no value from them: give the list
+a rule of its own, or a named capture.
+
 **Loading synonyms.** `Add(canonical, synonyms...)` adds phrases one group
 at a time, the canonical value among them. `AddAs(value, phrases...)` adds
 phrases meaning value without adding value itself, for a value that's a
@@ -979,7 +989,7 @@ with when each matters. *Fixable* and *Effort* are as in the
 | **`Re` takes Perl-style regex syntax.** | Only that it isn't Raku syntax. It's for patterns you already have. | — | by design | — |
 | **`Outermost()` adds to Raku's `:ov`:** `Overlap()`'s matches, less each one wholly inside another. | Never without it: `FindAll` and `Overlap()` match as Raku's `:g` and `:ov` do. | — | by design | — |
 | **`CheckPath` adds to Raku:** it says whether a path can ever be defined in a match, from the grammar alone. | Never: matching is the same without it. | — | by design | — |
-| **Word lists add to Raku's `@list`:** canonical values, `FoldCase`, `LooseSpacing`, `JoinedSpacing`, `Plurals`, `WholeWords`, `ExactAcronyms` and `MapOnly`. | Never for Raku-compatible lists: without the options, a list matches as Raku's does. | — | by design | — |
+| **Word lists add to Raku's `@list`:** canonical values (a rule's `made`, when the rule is a list, alone or beside lookarounds and anchors, where Raku's `made` is `Nil`), `FoldCase`, `LooseSpacing`, `JoinedSpacing`, `Plurals`, `WholeWords`, `ExactAcronyms` and `MapOnly`. | Never for Raku-compatible lists: without the options, a list matches as Raku's does. | — | by design | — |
 
 ## Testing against Raku
 
