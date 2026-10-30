@@ -37,7 +37,7 @@ after it, needs changing. Needs scalar v0.6.1.
   that didn't match does, so it fails silently. For a capture read from
   inside `$<k>=[ … ]`, it gives the path that reads it. Needs scalar
   v0.6.1, for its path parser (roadmap 16;
-  [record](docs/changes/2026-10-27-match-paths-checked-against-the-grammar.md)).
+  [record](docs/changes/2026-10-27-r16-match-paths-checked-against-the-grammar.md)).
 - Fixed: `$<k>=` before a `( … )`, a rule, a word list or a pattern
   list, with a quantifier after it, names each match, as in Raku. So
   `$<e>=( a (\d) )?` is a match with captures of its own, `e.0`, or
@@ -67,13 +67,13 @@ as before.
   phrase wholly inside a longer one is found too; `Outermost()`, below,
   drops those. The phrasebook has it beside Raku's `:ov` and plain Go
   (roadmap 13;
-  [record](docs/changes/2026-10-26-every-phrase-overlaps-included.md)).
+  [record](docs/changes/2026-10-26-r13-every-phrase-overlaps-included.md)).
 - An `Outermost()` option for `FindAll`: `Overlap()`'s matches, less
   each one wholly inside another, so "you will need" in "in this role
   you will need" counts, but "profile" in "Company Profile" doesn't
   outweigh the "company profile" it's part of. It implies `Overlap()`.
   Raku has no such adverb (roadmap 14;
-  [record](docs/changes/2026-10-26-overlapping-matches-without-nested.md)).
+  [record](docs/changes/2026-10-26-r14-overlapping-matches-without-nested.md)).
 
 ## v0.3.1 (2026-10-26)
 
@@ -87,7 +87,7 @@ No breaking change: a new list option. Needs scalar v0.6.0, as before.
   "legal notice, the legal bit => legal" without "Legal Secretary"
   becoming a legal section. Without it, nothing changes, and
   `AddRule`'s doc now says that the values are phrases too (roadmap 12;
-  [record](docs/changes/2026-10-26-rules-whose-canonical-isnt-a-phrase.md)).
+  [record](docs/changes/2026-10-26-r12-rules-whose-canonical-isnt-a-phrase.md)).
 
 ## v0.3.0 (2026-10-26)
 
@@ -119,7 +119,7 @@ before.
   with new `Rule`, `Offset`, `Line` and `Column` fields. From `Parse`,
   `Find` and the rest, the place is empty and the message as before, as
   knowing it would cost every match a few per cent (roadmap 2;
-  [record](docs/changes/2026-10-26-limit-errors-that-say-where.md)).
+  [record](docs/changes/2026-10-26-r2-limit-errors-that-say-where.md)).
 - Docs: each planned change keeps a record in
   [docs/changes/](docs/changes/README.md), opened when work starts: the
   plan as it was written, then what happened, with changes from the

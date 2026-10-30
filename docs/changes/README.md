@@ -21,11 +21,15 @@ having. Small fixes don't need one.
 - **What happened is added as the work goes,** and finished when the
   change ships or is dropped, in the same commit. When it ships, the
   status says "shipped in v0.4.0", and the release names its version.
-- **It's named for the day work started and the change,** such as
-  `2026-10-26-limit-errors-that-say-where.md`: dates never collide
-  between sessions and sort in order. A roadmap item keeps its number
-  as its name in commits and the CHANGELOG, and the record gives it in
-  its header.
+- **It's named for the day work started, then, for a roadmap item,
+  "r" and its number, then the change,** such as
+  `2026-10-26-r2-limit-errors-that-say-where.md` for roadmap 2: dates
+  never collide between sessions and sort in order, and a search for
+  `r2` finds the record, where a bare 2 would match every date and
+  figure. A record for a `TODO.md` task has no number, such as
+  `2026-10-27-named-quantified-groups.md`. A roadmap item keeps its
+  number as its name in commits and the CHANGELOG, and the record gives
+  it in its header too.
 - **It's public,** on `main` and in every release, like the rest of
   `docs/`, so nothing personal goes in it.
 
@@ -62,13 +66,13 @@ Newest first.
 
 - [Name the quantified group in $<k>=( … )?, as Raku does](2026-10-27-named-quantified-groups.md),
   shipped in v0.4.0
-- [Match paths checked against the grammar](2026-10-27-match-paths-checked-against-the-grammar.md)
+- [Match paths checked against the grammar](2026-10-27-r16-match-paths-checked-against-the-grammar.md)
   (roadmap 16), shipped in v0.4.0
-- [Overlapping matches without the nested ones](2026-10-26-overlapping-matches-without-nested.md)
+- [Overlapping matches without the nested ones](2026-10-26-r14-overlapping-matches-without-nested.md)
   (roadmap 14), shipped in v0.3.2
-- [Every phrase in a text, overlaps included](2026-10-26-every-phrase-overlaps-included.md)
+- [Every phrase in a text, overlaps included](2026-10-26-r13-every-phrase-overlaps-included.md)
   (roadmap 13), shipped in v0.3.2
-- [Rules whose canonical isn't a phrase](2026-10-26-rules-whose-canonical-isnt-a-phrase.md)
+- [Rules whose canonical isn't a phrase](2026-10-26-r12-rules-whose-canonical-isnt-a-phrase.md)
   (roadmap 12), shipped in v0.3.1
-- [Limit errors that say where](2026-10-26-limit-errors-that-say-where.md)
+- [Limit errors that say where](2026-10-26-r2-limit-errors-that-say-where.md)
   (roadmap 2), shipped in v0.2.4
