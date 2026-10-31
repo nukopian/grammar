@@ -26,7 +26,15 @@ Items come in four groups, the most useful first in each:
 Each item has a number, given when it's added, in whichever group. It
 keeps it as it moves between groups, and a number is never used again,
 so that 7 means the same item in a commit message months later. Next
-number: 17.
+number: 23.
+
+Each item has a size too, a guess at how much work it is, as a T-shirt
+size and its story points: XS 1, S 2, M 3 and L 5. The reference's
+Effort for the gap behind an item guides it: about a day is S, a few
+days M, and a week or two L. An item bigger than L is broken into items
+that aren't, each saying what it was split from. Items that can't be
+done one without another say so ("Moves with:"), and move between
+groups together.
 
 When an item ships, it moves from here to the CHANGELOG, whose line
 for it ends with its number, such as "(roadmap 7)", and links to its
@@ -42,6 +50,8 @@ Nothing yet.
 ### 1. A trace of a parse
 
 **Serves:** debugging
+
+**Size:** S (2)
 
 **What:** a `Trace(w io.Writer)` option that prints each rule as it's
 entered, indented by depth, then `* MATCH "text"` or `* FAIL`, in the
@@ -65,65 +75,95 @@ Nothing yet.
 
 ## Ideas
 
-An idea is a numbered heading, the date it was added, and a line or two
-on what and why. Each wash-up prunes them: each is kept, promoted to
-Later or Next with its number, or dropped.
+An idea is a numbered heading, the date it was added, its size, and a
+line or two on what and why. Each wash-up prunes them: each is kept,
+promoted to Later or Next with its number, or dropped.
 
 ### 3. Code assertions
 
-Added 2026-10-25. `<?{name}>` and `<!{name}>`, calling a Go function
-passed to `Compile` with the captures so far, for checks only code can
-make mid-parse, such as a pay range's minimum being below its maximum.
+Added 2026-10-25. **Size:** M (3). `<?{name}>` and `<!{name}>`, calling
+a Go function passed to `Compile` with the captures so far, for checks
+only code can make mid-parse, such as a pay range's minimum being below
+its maximum.
 
 ### 4. Failure reports from Find and FindAll
 
-Added 2026-10-25. Say why pay wasn't found anywhere in a posting, not
-just why one string didn't parse: the furthest failure across every
-start position, with the noise of positions that fail at once kept out.
+Added 2026-10-25. **Size:** S (2). Say why pay wasn't found anywhere in
+a posting, not just why one string didn't parse: the furthest failure
+across every start position, with the noise of positions that fail at
+once kept out.
 
 ### 5. A picture of a grammar
 
-Added 2026-10-25. Print a grammar as EBNF, with a note wherever a Raku
-feature has no EBNF form, and draw railroad diagrams from it with an
-existing tool, for documenting, reviewing and learning a grammar.
-
-### 6. Handing a settled grammar to Participle
-
-Added 2026-10-25. Three steps, each building on the one before: a
-phrasebook from Raku to Participle, with every row run in both; a
-Raku-like dialect that accepts only what the phrasebook covers; and a
-generator that writes Participle structs and a lexer from a dialect
-grammar, checked by running both on the same inputs.
-
-### 7. True longest-token matching
-
-Added 2026-10-25. Decide `|` from each branch's declarative prefix with
-an automaton, as Rakudo does, rather than by matching every branch in
-full. It would close the cases where `Alt`'s approximation differs from
-Raku, and speed up large alternations and protos.
+Added 2026-10-25. **Size:** S (2). Print a grammar as EBNF, with a note
+wherever a Raku feature has no EBNF form, and draw railroad diagrams
+from it with an existing tool, for documenting, reviewing and learning a
+grammar.
 
 ### 8. Rule parameters and dynamic variables
 
-Added 2026-10-25. `token amount($cur)` and `$*CURRENCY`, for parsing
-that depends on context, such as a currency that changes how amounts
-read.
+Added 2026-10-25. **Size:** M (3). `token amount($cur)` and
+`$*CURRENCY`, for parsing that depends on context, such as a currency
+that changes how amounts read.
 
 ### 9. Fewer closures in the matcher
 
-Added 2026-10-25. Commit to a rule body or a group without making a
-closure, taking a pay parse closer to Participle's 6 µs from about 9 µs,
-with each new fast path checked on and off as the existing ones are.
+Added 2026-10-25. **Size:** S (2). Commit to a rule body or a group
+without making a closure, taking a pay parse closer to Participle's 6 µs
+from about 9 µs, with each new fast path checked on and off as the
+existing ones are.
 
 ### 10. Find skipping positions for regex terminals
 
-Added 2026-10-25. Work out where a grammar starting with `Re` can begin,
-from the pattern's first characters or a hint, so `Find` can skip the
-rest of a long text as it does for other grammars.
+Added 2026-10-25. **Size:** S (2). Work out where a grammar starting
+with `Re` can begin, from the pattern's first characters or a hint, so
+`Find` can skip the rest of a long text as it does for other grammars.
 
 ### 11. Stemming in word lists
 
-Added 2026-10-25. Make a word's other forms when it's added, as
-`Plurals` does for regular plurals, so "visiting" matches a list that
-has "visit". English needs a real stemmer, such as Porter's.
+Added 2026-10-25. **Size:** M (3). Make a word's other forms when it's
+added, as `Plurals` does for regular plurals, so "visiting" matches a
+list that has "visit". English needs a real stemmer, such as Porter's.
+
+### 17. A phrasebook from Raku to Participle
+
+Added 2026-10-31, split from 6 (handing a settled grammar to
+Participle, added 2026-10-25). **Size:** S (2). Each Raku grammar
+construct beside the same thing in Participle, and what Participle
+can't do, with every row run in both on the same inputs, as the Raku
+phrasebook's rows are. It's useful alone, and the specification for 18.
+
+### 18. A Participle dialect
+
+Added 2026-10-31, split from 6. **Size:** M (3). A Raku-like syntax
+that accepts only what the phrasebook (17) covers, failing at compile
+time, saying why, on anything else. Needs 17.
+
+### 19. A generator for Participle
+
+Added 2026-10-31, split from 6. **Size:** M (3). Write Participle
+structs and a lexer from a dialect grammar (18) with `go generate`,
+checked by running both on the same inputs. Needs 18.
+
+### 20. Each branch's declarative prefix
+
+Added 2026-10-31, split from 7 (true longest-token matching, added
+2026-10-25). **Size:** M (3). **Moves with:** 21 and 22. Work out the
+part of each `|` branch and proto candidate before anything that could
+backtrack or run code, as Rakudo does in NQP.
+
+### 21. An automaton from the prefixes
+
+Added 2026-10-31, split from 7. **Size:** L (5). **Moves with:** 20 and
+22. Build an NFA, then a DFA, from the branches' declarative prefixes,
+that says how much of the text each prefix matches.
+
+### 22. Alternation decided by the automaton
+
+Added 2026-10-31, split from 7. **Size:** M (3). **Moves with:** 20 and
+21. Try `|` branches and protos in the order the automaton gives,
+rather than matching every branch in full. It would close the cases
+where `Alt`'s approximation differs from Raku, and speed up large
+alternations, protos and nested alternations in a `regex`.
 
 [gaps]: docs/REFERENCE.md#gaps-and-possible-additions
