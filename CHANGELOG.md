@@ -23,9 +23,8 @@ A matcher that allocates far less, measured on jdc-lab's fact grammars
   classes and anchors in a loop. jdc-lab's fact grammars, searching
   each line of 2,000 job ads, run 39% faster with 74% fewer
   allocations, every fact unchanged; a pay parse takes 8.3 µs rather
-  than 10.5 µs. No
-  match, failure report or limit changes, which tests check with the
-  fast paths on and off (roadmap 9;
+  than 10.5 µs. No match, failure report or limit changes, which tests
+  check with the fast paths on and off (roadmap 9;
   [record](docs/changes/2026-10-31-r9-fewer-closures-in-the-matcher.md)).
 
 ## v0.4.2 (2026-10-31)
