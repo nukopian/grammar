@@ -52,6 +52,25 @@ func TestTrace(t *testing.T) {
 |  * MATCH "aaa"
 * MATCH "aaab"
 `, false},
+		// Backtracking into a rule that tries again: the rules it calls are
+		// traced at its own depth, as Raku's tracer, whose depth is back to
+		// the caller's, traces them; found by the wash-up for v0.4.2.
+		{"retry", `grammar B {
+			regex TOP { <a> 'y' }
+			regex a { <x> <y> || <x> }
+			token x { 'x' }
+			token y { 'y' }
+		}`, "xy", `TOP
+|  a
+|  |  x
+|  |  * MATCH "x"
+|  |  y
+|  |  * MATCH "y"
+|  * MATCH "xy"
+|  x
+|  * MATCH "x"
+* MATCH "xy"
+`, false},
 		// Built-in rules aren't traced; a grammar's own ws is.
 		{"builtins", `grammar Bi { token TOP { <alpha> <digit> <alnum>+ } }`,
 			"a1bc", "TOP\n* MATCH \"a1bc\"\n", false},

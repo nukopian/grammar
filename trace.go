@@ -22,24 +22,31 @@ import (
 // It traces what the grammar does, so a rule tried by more than one
 // branch of an alternation, or by each variant of a proto, is traced each
 // time. As in Grammar::Tracer, a rule is traced once each time it's
-// called: backtracking into a rule that has matched prints nothing more,
-// and built-in rules, such as <ws> and <alpha>, aren't traced unless the
-// grammar defines its own. Find, FindAll and Split trace each position
-// they try, which leaves out those where no match can start. Tracing
-// changes no result. A match stopped by StepLimit or DepthLimit leaves the
-// rule it was in open at the end of the trace, and while tracing, the
-// error names that rule and where its match started, as ParseErr's does.
+// called: backtracking into a rule that has matched prints nothing more
+// for it, though the rules it calls as it tries again are traced, beside
+// it; and built-in rules, such as <ws> and <alpha>, aren't traced unless
+// the grammar defines its own. Find, FindAll and Split trace each
+// position they try, which leaves out those where no match can start.
+// Tracing changes no result. A match stopped by StepLimit or DepthLimit
+// leaves the rule it was in open at the end of the trace, and while
+// tracing, the error names the innermost traced rule and where its match
+// started, as ParseErr's names the innermost rule; ParseErr's can be
+// <ws>, which isn't traced.
 // What w returns is ignored, so an error writing the trace doesn't stop
 // the parse.
 func Trace(w io.Writer) Option { return func(o *options) { o.trace = w } }
 
 // tracer writes a trace; see Trace. calls are the traced rules matching,
 // outermost first, kept as the failure tracker keeps its own: a rule is
-// off the stack while its caller goes on. Their number is the trace's
-// depth, and the last is where a limit error says it was reached.
+// off the stack while its caller goes on. The last is where a limit error
+// says it was reached. depth is how far the trace is indented: the rules
+// that haven't matched yet. A rule that has matched stays at its caller's
+// depth when matching backtracks into it, so the rules it calls as it
+// tries again are traced beside it, as Raku's tracer traces them.
 type tracer struct {
 	w     io.Writer
 	calls []frame
+	depth int
 	b     strings.Builder
 }
 
@@ -48,7 +55,7 @@ func (t *tracer) leave()        { t.calls = t.calls[:len(t.calls)-1] }
 
 func (t *tracer) line(s string) {
 	t.b.Reset()
-	t.b.WriteString(strings.Repeat("|  ", len(t.calls)))
+	t.b.WriteString(strings.Repeat("|  ", t.depth))
 	t.b.WriteString(s)
 	t.b.WriteByte('\n')
 	io.WriteString(t.w, t.b.String())
@@ -57,7 +64,7 @@ func (t *tracer) line(s string) {
 // matched prints a rule's match of text, cut, as Grammar::Tracer cuts it,
 // to fit 60 characters less three for each level of depth.
 func (t *tracer) matched(text []rune) {
-	n := 60 - 3*len(t.calls)
+	n := 60 - 3*t.depth
 	if n <= 0 {
 		t.line("* MATCH")
 		return
@@ -79,11 +86,13 @@ func (n *call) matchTraced(st *state, pos int, c *capList, e env, k cont, r *rul
 	f := frame{r.name, pos}
 	t.line(r.name)
 	t.enter(f)
+	t.depth++
 	done := false
 	ok := n.run(st, pos, c, e, func(p int, cc *capList) bool {
 		t.leave()
 		if !done {
 			done = true
+			t.depth--
 			t.matched(st.in[pos:p])
 		}
 		res := k(p, cc)
@@ -92,6 +101,7 @@ func (n *call) matchTraced(st *state, pos int, c *capList, e env, k cont, r *rul
 	}, r)
 	t.leave()
 	if !done {
+		t.depth--
 		t.line("* FAIL")
 	}
 	return ok

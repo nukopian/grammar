@@ -916,8 +916,12 @@ and `Split`, which trace each position they try, leaving out those
 where no match can start. As in `Grammar::Tracer`:
 
 - **Each call is traced once.** When matching backtracks into a rule
-  that has matched, to try a shorter match, nothing more is printed for
-  it, and the rules after it are traced again as they're retried.
+  that has matched, to try another way, nothing more is printed for it.
+  The rules it calls as it tries again are traced beside it, at its own
+  depth, and the rules after it are traced again as they're retried.
+- **The last line is TOP's,** which can be `* MATCH` though `Parse`
+  fails: TOP matched, but not to the end of the text, as in
+  `ExampleTrace_failure`.
 - **Built-in rules aren't traced,** such as `<ws>`, which every `rule`
   calls between its parts, and `<alpha>`, unless the grammar defines its
   own. Word lists, pattern lists and `Re` aren't rules, so they aren't

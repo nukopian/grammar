@@ -1123,10 +1123,12 @@ func (n *call) matchProto(st *state, pos int, c *capList, e env, k cont, r *rule
 		if tr != nil {
 			tr.line(v.name)
 			tr.enter(vf)
+			tr.depth++
 		}
 		p, inner, ok := once(v.body, st, pos, nil, env{ratchet: v.ratchet, sc: v.sc})
 		if tr != nil {
 			tr.leave()
+			tr.depth--
 			if ok {
 				tr.matched(st.in[pos:p])
 			} else {

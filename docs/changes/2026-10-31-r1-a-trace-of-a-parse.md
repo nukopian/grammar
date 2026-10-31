@@ -148,6 +148,17 @@ trace.
   Rakudo 2025.11 and pass, the tests pass with `GOWORK=off`, and
   `FuzzMatch` ran for 60 seconds twice, before and after the stack, and
   found nothing; staticcheck is clean.
+- **Found by the wash-up for the release,** by a review of the diff:
+  backtracking into a `regex` rule that had matched, so that it tried
+  again, traced the rules it called one level too deep, inside a rule
+  already closed, leaving the trace unbalanced. Raku's tracer, through
+  the same copy, traces them beside the rule, at its depth, which is
+  back to the caller's. The tracer now keeps that depth apart from its
+  stack of rules, which a limit error still reads. `FuzzMatch` hadn't
+  found it, as its grammar's rules were all tokens, which never
+  backtrack into a rule: it now has a `regex` that backtracks into
+  another, and a seed for it, which failed before the fix. `TestTrace`
+  has Raku's trace as the case "retry".
 - **What's left:** limit errors from untraced calls, in the reference's
   gap
   [Untraced, only `ParseErr`'s limit errors say where](../REFERENCE.md#gaps-and-possible-additions).

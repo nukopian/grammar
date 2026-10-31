@@ -224,7 +224,9 @@ The ideas here aren't new. `grammar` follows Raku's grammars, and is
 tested against Rakudo to keep its behaviour faithful to theirs; the match
 values it builds come from `scalar`, which borrows Perl's way with data.
 Thanks to the Raku and Perl communities for decades of thought about
-parsing text well.
+parsing text well. `Trace` prints as Jonathan Worthington's
+`Grammar::Tracer`, from
+[Grammar::Debugger](https://github.com/jnthn/grammar-debugger), does.
 
 `grammar` was conceived and directed by Iain Campbell (nukopian). He set
 its rules, which are in [CLAUDE.md](CLAUDE.md): Raku as the baseline, checked against Rakudo itself; tests
