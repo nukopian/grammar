@@ -1,6 +1,6 @@
 # A trace of a parse
 
-**Status:** unreleased
+**Status:** shipped in v0.4.2
 
 **Origin:** roadmap 1
 

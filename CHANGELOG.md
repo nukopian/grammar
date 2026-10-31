@@ -11,6 +11,12 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.4.2 (2026-10-31)
+
+A trace of a parse, as Raku's Grammar::Tracer prints one
+
 - `Trace(w)` writes a trace of a parse to `w`, in the style of Raku's
   `Grammar::Tracer`: each rule as it's entered, indented by depth, then
   `* MATCH` and the text it matched, or `* FAIL`. It works with every
@@ -23,6 +29,10 @@ release's entry when `main` is moved to it and tagged
   `DepthLimitError` was reached, the rule and its place, as `ParseErr`
   does; untraced, they still leave the place empty, as knowing it costs
   every match.
+- The roadmap gives each item a size, as a T-shirt size and story
+  points, splits those bigger than L (ideas 6 and 7, now 17 to 22), and
+  puts the cheap and most useful first: failure reports from `Find`,
+  code assertions and a picture of a grammar are next.
 
 ## v0.4.1 (2026-10-30)
 
