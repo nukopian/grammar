@@ -3,10 +3,8 @@
 ## Fewer allocations in the matcher, measured on jdc-lab's facts
 
 **From:** jdc-lab's session, 2026-10-31 (jdc-lab 8c9df97c5d9ab378637b3c95a2bb75b2d8193823)
-**Waiting on:** jdc-lab's roadmap 43, which reads facts only in lines
-that can hold them, and so changes the lab's figures below; it will
-re-measure them, with a facts benchmark of its own, as this task's
-baseline
+**Waiting on:** nothing: jdc-lab's roadmap 43 has shipped, and its
+benchmarks are this task's baseline (below)
 
 **What:** take up roadmap 9 (Fewer closures in the matcher) as an
 experiment, with jdc-lab's fact grammars as the measure: stop `once`
@@ -24,10 +22,22 @@ is the matcher allocating. The lab expects five times as many ads soon.
 This is dogfooding at work: the lab found the cost, and the fix belongs
 here.
 
-**What's known:** measured by jdc-lab at grammar
-53ae7fc3a4e171c19b83c430b02e33920dc953f4 (v0.4.2), running the fact
-grammars over every line of 2,000 job ads (a lab benchmark; the ads
-aren't public, so grammar needs a benchmark of its own, step 1):
+**What's known:** jdc-lab's roadmap 43 (jdc-lab
+d4c7c75) made its own side cheaper first: a grammar is no longer run
+over a line that can't hold a match (62% of lines hold no fact at all),
+and each line is read once per ad. Chunking went from 9.3 s to 2.2 s
+for 2,000 ads. What's left is the matcher, with grammar v0.4.2, on the
+lab's benchmarks over 2,000 job ads (median of five, `-benchtime 3x`):
+
+| jdc-lab benchmark | Time | Allocated | Allocations |
+|---|---:|---:|---:|
+| `internal/facts` `BenchmarkFindSamples` | 1.76 s | 1.76 GB | 64.8 million |
+| `internal/chunk` `BenchmarkAdOfSamples` | 2.16 s | 2.20 GB | 74.6 million |
+
+The ads aren't public, so grammar needs a benchmark of its own (step 1).
+Before roadmap 43, when every grammar ran over every line, the lab
+measured the following, and the matcher's share should be much the
+same in the lines that are still read:
 
 | Measure | Per pass |
 |---|---:|
@@ -97,8 +107,9 @@ anything, as the practice says.
      every stage unchanged;
    - every ad of the run through `cmd/chunk -json` with each, and the
      output identical, byte for byte: every fact the same;
-   - its facts benchmark and the time to chunk every ad, before and
-     after.
+   - `go test ./internal/facts ./internal/chunk -run '^$' -bench
+     'Samples$' -benchtime 3x -count 5`, before and after, and the time
+     to chunk every ad.
    It reports to Iain, who gives the go-ahead for a release.
 7. Release, then look in jdc-lab's `TODO.md` for the task waiting on it.
 
