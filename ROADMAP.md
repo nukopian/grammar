@@ -43,7 +43,18 @@ dropped is deleted, and the commit that drops it names its number.
 
 ## Now
 
-Nothing yet.
+### 9. Fewer closures in the matcher
+
+**Serves:** speed
+
+**Size:** S (2)
+
+Commit to a rule body or a group without making a closure, so that the
+matcher allocates far less, measured on jdc-lab's fact grammars, where
+chunking an ad is mostly the matcher allocating. Each fast path is
+checked on and off, as the existing ones are. Its
+[change record](docs/changes/2026-10-31-r9-fewer-closures-in-the-matcher.md)
+has the plan and the measurements.
 
 ## Next
 
@@ -123,16 +134,6 @@ regular plurals, so "visiting" matches a list that has "visit". English
 needs a real stemmer, such as Porter's. Synonym data rarely lists every
 form, and jdc-lab's word lists, which already lean on `Plurals`, would
 gain from it.
-
-### 9. Fewer closures in the matcher
-
-**Serves:** speed
-
-**Size:** S (2)
-
-Commit to a rule body or a group without making a closure, taking a pay
-parse closer to Participle's 6 µs from about 9 µs, with each new fast
-path checked on and off as the existing ones are.
 
 ### 10. Find skipping positions for regex terminals
 

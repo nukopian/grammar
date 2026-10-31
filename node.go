@@ -61,6 +61,11 @@ type state struct {
 	// afterStarts are, for each lookbehind, the positions in the text its
 	// pattern can start at, listed once; see lookbehind.go.
 	afterStarts map[*lookInfo][]int
+
+	// slots are once's results, a stack as deep as once has nested yet,
+	// of which the first used are taken; see once.
+	slots []*onceSlot
+	used  int
 }
 
 // deeper counts one more level of the matcher's recursion: every node that
@@ -278,14 +283,48 @@ type mnode struct {
 }
 
 // once matches n and keeps only its first way of matching.
+//
+// With the fast paths on, it takes a slot from the state for the result,
+// with the continuation that fills it made when the slot was, instead of a
+// new closure and two escaping variables at every call, which were most of
+// what the matcher allocated. That's safe because calls to once nest
+// strictly: nothing keeps a continuation after the match it was passed to
+// returns, so the slot is free again when once returns. A limit's panic
+// leaves slots taken, but ends the state's use.
 func once(n Node, st *state, pos int, c *capList, e env) (int, *capList, bool) {
-	var end int
-	var caps *capList
-	ok := n.match(st, pos, c, e, func(p int, cc *capList) bool {
-		end, caps = p, cc
-		return true
-	})
+	if !fastPaths {
+		var end int
+		var caps *capList
+		ok := n.match(st, pos, c, e, func(p int, cc *capList) bool {
+			end, caps = p, cc
+			return true
+		})
+		return end, caps, ok
+	}
+	if st.used == len(st.slots) {
+		s := &onceSlot{}
+		s.k = func(p int, cc *capList) bool {
+			s.end, s.caps = p, cc
+			return true
+		}
+		st.slots = append(st.slots, s)
+	}
+	s := st.slots[st.used]
+	st.used++
+	ok := n.match(st, pos, c, e, s.k)
+	st.used--
+	end, caps := s.end, s.caps
+	// Cleared, so a failed match gives what the closure's would, and the
+	// slot doesn't keep a finished match alive.
+	s.end, s.caps = 0, nil
 	return end, caps, ok
+}
+
+// onceSlot is where once keeps a result, filled by k.
+type onceSlot struct {
+	end  int
+	caps *capList
+	k    cont
 }
 
 // step matches n as one atom: under ratchet, it commits to n's first way of
@@ -312,7 +351,8 @@ func step(n Node, st *state, pos int, c *capList, e env, k cont) bool {
 
 // fastPaths turns on the matcher's fast paths, which skip machinery that
 // can't change the result: committing to an atom that matches only one way
-// (oneWay). Tests turn it off to check that the fast paths change nothing,
+// (oneWay), a greedy repeat as a loop (loop), once's results in slots on
+// the state, and seq stepping over atoms in a loop. Tests turn it off to check that the fast paths change nothing,
 // as skipStarts does for Find.
 var fastPaths = true
 
@@ -675,6 +715,11 @@ var (
 )
 
 func (n anchor) match(st *state, pos int, c *capList, e env, k cont) bool {
+	return n.at(st, pos, e) && k(pos, c)
+}
+
+// at reports whether the anchor holds at pos.
+func (n anchor) at(st *state, pos int, e env) bool {
 	in := st.in
 	wordBefore := pos > 0 && isWord(in[pos-1])
 	wordAfter := pos < len(in) && isWord(in[pos])
@@ -697,9 +742,8 @@ func (n anchor) match(st *state, pos int, c *capList, e env, k cont) bool {
 	}
 	if !ok {
 		st.fail(pos, n, e)
-		return false
 	}
-	return k(pos, c)
+	return ok
 }
 
 // Sequences and alternations.
@@ -719,12 +763,52 @@ func (n seq) match(st *state, pos int, c *capList, e env, k cont) bool {
 }
 
 func (n seq) from(i int, st *state, pos int, c *capList, e env, k cont) bool {
-	if i == len(n) {
-		return k(pos, c)
+	// With the fast paths on, a run of literals, classes and anchors is
+	// stepped over in a loop, without a closure for each. Each raises the
+	// depth before it matches and holds it while the rest of the sequence
+	// does, as step would, so DepthLimit is reached where it would be.
+	stepped := 0
+	for ; fastPaths && i < len(n) && atom(n[i]); i++ {
+		st.deeper()
+		stepped++
+		p, ok := atomAt(n[i], st, pos, e)
+		if !ok {
+			st.depth -= stepped
+			return false
+		}
+		pos = p
 	}
-	return step(n[i], st, pos, c, e, func(p int, cc *capList) bool {
-		return n.from(i+1, st, p, cc, e, k)
-	})
+	var ok bool
+	if i == len(n) {
+		ok = k(pos, c)
+	} else {
+		ok = step(n[i], st, pos, c, e, func(p int, cc *capList) bool {
+			return n.from(i+1, st, p, cc, e, k)
+		})
+	}
+	st.depth -= stepped
+	return ok
+}
+
+// atom reports whether n is a literal, a class or an anchor, which match
+// in one way, without a continuation; see atomAt.
+func atom(n Node) bool {
+	switch n.(type) {
+	case lit, class, anchor:
+		return true
+	}
+	return false
+}
+
+// atomAt matches an atom at pos, giving the position after it.
+func atomAt(n Node, st *state, pos int, e env) (int, bool) {
+	switch n := n.(type) {
+	case lit:
+		return n.at(st, pos, e)
+	case class:
+		return n.at(st, pos, e)
+	}
+	return pos, n.(anchor).at(st, pos, e)
 }
 
 type alt []Node

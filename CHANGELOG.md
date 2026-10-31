@@ -11,7 +11,15 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- The matcher allocates far less: committing to a rule's body or a
+  branch's first match reuses a slot on the match's state rather than
+  making a closure each time, and a sequence steps over literals,
+  classes and anchors in a loop. Searching each line of a posting for
+  facts, as jdc-lab does, is 40% faster, with two thirds fewer
+  allocations, and a pay parse takes 8.3 µs rather than 10.5 µs. No
+  match, failure report or limit changes, which tests check with the
+  fast paths on and off (roadmap 9;
+  [record](docs/changes/2026-10-31-r9-fewer-closures-in-the-matcher.md)).
 
 ## v0.4.2 (2026-10-31)
 

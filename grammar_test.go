@@ -246,6 +246,43 @@ func BenchmarkParse(b *testing.B) {
 	}
 }
 
+// BenchmarkFindLines is FindAll as jdc-lab's fact grammars use it: each
+// line of a posting searched on its own with Outermost, most lines with
+// nothing to find, through alternations, ratchet rules and a word list.
+// Its cost is mostly the matcher allocating.
+func BenchmarkFindLines(b *testing.B) {
+	pattern := NewWordList("pattern", FoldCase(), WholeWords(), Plurals()).
+		Add("full time", "full-time", "permanent full time").Add("part time", "part-time").
+		Add("shifts", "shift work", "night shifts").Add("flexible hours", "flexitime")
+	facts := MustCompile(`
+grammar Facts {
+    token TOP     { <pay> | <hours> | <pattern> }
+    token pay     { <money> [ \s* [ '-' | to ] \s* <money> ]? <period>? }
+    token money   { '£' \s? \d ** 1..3 [ ',' \d ** 3 ]* [ '.' \d+ ]? [ :i k ]? }
+    token period  { :i \s* [ 'p.a.' | pa | per \s+ [ annum | year | hour | day ] ] }
+    token hours   { \d+ [ '.' \d+ ]? \s* [ :i hours | hrs ] [ \s+ [ :i per | a ] \s+ :i week ]? }
+    token pattern { @pattern }
+}`, pattern)
+	lines := strings.Split(strings.Repeat(`We are looking for an experienced care assistant to join our friendly team.
+You will support residents with their daily needs and help them live well.
+Previous experience is desirable but full training will be given.
+Salary: £24,500 - £26,000 per annum
+The role is full time, 37.5 hours per week, with some weekend shifts.
+Benefits include a pension, free parking and 28 days' holiday.
+Apply today with your CV and a short covering letter.
+`, 20), "\n")
+	b.ReportAllocs()
+	for b.Loop() {
+		found := 0
+		for _, line := range lines {
+			found += facts.FindAll(line, Outermost()).Length()
+		}
+		if found != 20*4 {
+			b.Fatalf("found %d", found)
+		}
+	}
+}
+
 // BenchmarkLookbehind searches a posting-sized text with lookbehinds: a
 // bounded one, which needs try only one start, and the sections grammar's
 // unbounded one, a sentence's end then spaces, whose first character

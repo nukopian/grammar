@@ -103,6 +103,10 @@ func TestFastPathsKeepLimits(t *testing.T) {
 		MustCompile(`grammar S { token TOP { \d ** 2..* \s* x? } }`),
 		MustCompile(`grammar L { token TOP { [ab]+ | 'ab'* } }`),
 		MustCompile(`grammar R { rule TOP { \d+ \d+ } }`),
+		// Runs of literals, classes and anchors, which seq steps over in a
+		// loop, then something it doesn't.
+		MustCompile(`grammar A { token TOP { ^ '£' \d \d ',' \d \d \d » \s* '-' \s* '£' \d \d ',' \d \d \d » [ \s per \s annum ]? } }`),
+		MustCompile(`grammar B { regex TOP { a b a b [ a b a b a b ]+ $ } }`),
 	}
 	compared, stepLimited, depthLimited := 0, 0, 0
 	for _, limits := range [][2]int{{0, 0}, {3, 0}, {50, 0}, {400, 0}, {0, 10}, {0, 100}, {0, 600}, {200, 300}} {
@@ -123,7 +127,7 @@ func TestFastPathsKeepLimits(t *testing.T) {
 			}
 		}
 	}
-	if compared != 8*6*6 {
+	if compared != 8*8*6 {
 		t.Fatalf("compared %d", compared)
 	}
 	// Both limits must be reached, or this checks nothing about them.

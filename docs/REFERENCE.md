@@ -791,7 +791,7 @@ rules it called. Rules without an action are left alone.
 `Find` and `FindAll` work out, from the grammar, every character a match
 could start with, and skip positions where none does. A pay grammar can
 only start at a `£`, so a search for pay in a 4 KB posting skips almost
-everything, and takes about 46 µs (`BenchmarkFindAll`); trying the grammar
+everything, and takes about 39 µs (`BenchmarkFindAll`); trying the grammar
 at every position took 1.6 ms. A grammar of common words, which can start
 almost anywhere, gains less: about twice as fast. Where the start can't be
 worked out, as for a grammar starting with `Re`, nothing is skipped, so
@@ -814,17 +814,25 @@ job-meta's hours package past `StepLimit` on a 37 KB text; with
 `\s ** 0..3` it takes 66 ms. `TestLookbehindChangesNothing` and `FuzzMatch` check that
 the narrowing changes no results.
 
-The matcher has two fast paths, which skip machinery that can't change
-the result. Inside a token, committing to an atom that can match only one
+The matcher has fast paths, which skip machinery that can't change the
+result. Inside a token, committing to an atom that can match only one
 way, a literal, a class, an anchor, a regex or a backreference, needs no
 closure to catch its first match, so the atom is matched directly; and a
 greedy repeat of a class or a literal, such as `\d+` or `\s*`, takes as
 many as it can and never gives one back, so it runs as a plain loop
 rather than through closures and recursion. Together they took a pay
 parse from 12.5 µs to 9.3 µs, and a third of its allocations
-(`BenchmarkParse`), and `FindAll` on a posting 8%. The repeat loop takes
-the same steps as before, so `StepLimit` and `DepthLimit` are reached at
-the same point. Both sit behind a switch, `fastPaths`:
+(`BenchmarkParse`), and `FindAll` on a posting 8%. Two more (2026-10-31)
+cut what the matcher allocates. Committing to a rule's body or a branch's
+first match keeps the result in a slot on the match's state, reused from
+one call to the next, instead of a new closure each time; and a sequence
+steps over a run of literals, classes and anchors in a loop. Together
+they took a pay parse from 10.5 µs to 8.3 µs, and searching each line of
+a posting for facts, as jdc-lab does (`BenchmarkFindLines`), from
+1.87 ms to 1.13 ms, with two thirds fewer allocations. The loops take the
+same steps and reach the same depths as before, so `StepLimit` and
+`DepthLimit` are reached at the same point. All sit behind a switch,
+`fastPaths`:
 `TestFastPathsChangeNothing` compares every result, failure report and
 step count with them on and off, over every Raku case,
 `TestFastPathsKeepLimits` does the same under tight limits, and
@@ -1158,7 +1166,7 @@ Before changing anything, it helps to know how the package is put together:
 | Gap | When you'd need it | What it would take | Fixable | Effort |
 |---|---|---|---|---|
 | **`Find` can't skip positions for some grammars.** It skips positions where no match can start, but only when it can work that out: not for a grammar that starts with a regex terminal (`Re`), or that can match empty text, as those could start anywhere. Such grammars search at about the old speed. | Searching long texts with grammars like those. | For `Re`, ask regexp2 for the pattern's possible first characters (it works them out internally, but doesn't expose them), or let `Re` take them as a hint. A grammar that can match empty text matches everywhere, so there's nothing to skip. | partly | 2 |
-| **The matcher still makes closures for most steps.** Two fast paths, behind `fastPaths` (2026-10-19), took the commonest away (see [Speed](#speed)), and a pay parse went from 12.5 µs and 532 allocations to 9.3 µs and 359 (`BenchmarkParse`). What's left: `once` still makes about a third of a parse's allocations, for rule calls under ratchet and for steps over groups, calls and word lists, and every step of a sequence makes a continuation (`seq.from`). | Parse speed at high volumes: a pay string parses in about 9 µs, against Participle's 6 µs. | Commit to a rule body or a group without a closure: `once`'s closure only records where the first match ended, so a slot on `state` could do it, where nothing can run between the match and reading the slot; that needs checking node by node. The fast paths' trade-offs hold for any more: they duplicate what the general engine does, so a later change to an atom (case folding, failure reports) must be made in both; they must step aside for frugal, possessive or separated repeats and items that can match nothing; and they must leave failure reports alone, as the repeat loop does by running only when failures aren't being tracked. `TestFastPathsChangeNothing` and `TestFastPathsKeepLimits` compare both paths, and must cover a new one, with a planted bug to show they'd notice. A lexer was considered instead and rejected: it would make matching cheaper, but cost precise errors, word lists that span spaces, `Find` anywhere in text, and Raku compatibility. | yes | 2 |
+| **The matcher still makes closures for some steps.** Four fast paths, behind `fastPaths`, took most away (see [Speed](#speed)): a pay parse went from 12.5 µs and 532 allocations to 9.3 µs and 359 (2026-10-19), then to 8.3 µs and 225, with `once` keeping its results in slots on the state and `seq` stepping over atoms in a loop (2026-10-31; roadmap 9's [record](changes/2026-10-31-r9-fewer-closures-in-the-matcher.md)). What's left, in `BenchmarkFindLines`: each step of a sequence over anything but an atom still makes a continuation (`seq.from`, about a quarter of the allocations), a rule call makes its match node and capture as it matches, even where backtracking then throws them away (`call.run`, about a quarter), and `FindAll` makes a new state, and so new slots, for every text it searches. | Parse speed at high volumes: a pay string parses in about 8 µs, against Participle's 6 µs. | Keep the slots between searches, on the grammar in a `sync.Pool`, so searching many short texts, as jdc-lab does line by line, builds them once. Making match nodes only for the match that's kept would need captures held some other way until then; not yet looked into. A sequence's continuations can't be made once, as `once`'s are, as each carries the continuation for what follows the sequence, which differs at every call. The fast paths' trade-offs hold for any more: they duplicate what the general engine does, so a later change to an atom (case folding, failure reports) must be made in both; they must step aside for frugal, possessive or separated repeats and items that can match nothing; and they must leave failure reports alone, as the repeat loop does by running only when failures aren't being tracked. `TestFastPathsChangeNothing` and `TestFastPathsKeepLimits` compare both paths, and must cover a new one, with a planted bug to show they'd notice. A lexer was considered instead and rejected: it would make matching cheaper, but cost precise errors, word lists that span spaces, `Find` anywhere in text, and Raku compatibility. | yes | 2 |
 | **Building a match's scalar data takes about 40% of a parse.** Profiled after the fast paths (2026-10-19), building the match took 43% of `BenchmarkParse`'s time, scalar's own code 32%, most of it making each match's hash. | Parse speed at high volumes, once matching is faster still. | Kept: scalar's `HV.Set` stores a new key without first making a placeholder (scalar v0.5.1), which took a parse from 9.30 to 9.13 µs, 8 allocations fewer. Tried and reverted: making each match's hash in one `scalar.Hash` call with every key, so the map is sized once, made a parse slower, 9.13 to 9.58 µs and 21 allocations more, as building the list costs more than the growing it saves. Not pursued: building scalar values only when they're read. It would need a new kind of scalar value in scalar's core, honoured by every way of reading one; it could save up to the 43% where results are hardly read, as in the benchmark, but little in real use, where `To` reads every field. | partly | 3 |
 | **Each match's text is a copy.** A match's `~` is rebuilt from the runes of the text, rather than being a slice of the original string. | Never, as measured. | Tried and measured, then reverted: sharing the original string (when it's valid UTF-8, with a cursor from rune positions to byte offsets) saved about 1% of allocations, made a parse no faster, and made `FindAll` on a 4 KB posting 20% slower, through checking the whole text was UTF-8 and walking the cursor to each match. Copying a match's few characters was always cheap, and storing text in a scalar allocates either way. | no | — |
 | **No memoisation.** A rule may be tried at the same position more than once. | Rarely, as measured (2026-10-16): of 37,400 token calls across titleeval, payeval and grammarrules, 18 were repeats at the same position, and `BenchmarkParse` and `BenchmarkFindAll` have none. Only `regex` rules that backtrack heavily through tokens repeat much, and `StepLimit` bounds those. | Cache each token's result by rule and position in `state` (a token has at most one result there), skipped under `ParseErr`, which must record every failure. Not worth it for these grammars: it would add a map lookup to every call to save almost none. Worth reconsidering, perhaps as an option, for a grammar whose profile shows repeats. | yes | 2 |

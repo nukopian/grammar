@@ -48,7 +48,7 @@ and changing a rule means changing a line. It's for getting from "could
 rules do this?" to a measured answer quickly: its pay grammar went from
 first sketch to agreeing with a language model on every posting tried, in
 a day. It's also for keeping the rules readable once they work. At about
-9 µs a parse, it gets through the 134,000 postings it was built for in
+8 µs a parse, it gets through the 134,000 postings it was built for in
 seconds. Where production volumes need more, a rule set that has settled
 can be ported.
 
@@ -131,7 +131,7 @@ a working example of every function and method, see the
   structure: several pieces, each following rules, that you'd otherwise
   glue together by hand.
 - **At high volumes, once a grammar has settled.** Go's parser generators
-  are faster: Participle is about one and a half times as fast on a pay
+  are faster: Participle is about 1.4 times as fast on a pay
   string. `grammar` is for finding out whether rules can do the job, and
   keeping them readable; port a settled rule set if you need the speed
   (see [Handing a grammar on](docs/REFERENCE.md#handing-a-grammar-on)).
