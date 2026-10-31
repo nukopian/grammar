@@ -3,7 +3,10 @@
 ## Fewer allocations in the matcher, measured on jdc-lab's facts
 
 **From:** jdc-lab's session, 2026-10-31 (jdc-lab 8c9df97c5d9ab378637b3c95a2bb75b2d8193823)
-**Waiting on:** nothing
+**Waiting on:** jdc-lab's roadmap 43, which reads facts only in lines
+that can hold them, and so changes the lab's figures below; it will
+re-measure them, with a facts benchmark of its own, as this task's
+baseline
 
 **What:** take up roadmap 9 (Fewer closures in the matcher) as an
 experiment, with jdc-lab's fact grammars as the measure: stop `once`
