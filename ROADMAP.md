@@ -43,18 +43,7 @@ dropped is deleted, and the commit that drops it names its number.
 
 ## Now
 
-### 9. Fewer closures in the matcher
-
-**Serves:** speed
-
-**Size:** S (2)
-
-Commit to a rule body or a group without making a closure, so that the
-matcher allocates far less, measured on jdc-lab's fact grammars, where
-chunking an ad is mostly the matcher allocating. Each fast path is
-checked on and off, as the existing ones are. Its
-[change record](docs/changes/2026-10-31-r9-fewer-closures-in-the-matcher.md)
-has the plan and the measurements.
+Nothing yet.
 
 ## Next
 

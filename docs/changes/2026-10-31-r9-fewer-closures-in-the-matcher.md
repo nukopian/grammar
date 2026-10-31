@@ -1,11 +1,13 @@
 # Fewer closures in the matcher
 
-**Status:** in progress
+**Status:** shipped in v0.4.3
 
 **Origin:** roadmap 9, taken up by a TODO task from jdc-lab's session
 (jdc-lab 8c9df97c5d9ab378637b3c95a2bb75b2d8193823)
 
 **Started:** 2026-10-31, in 4cf91879b7b641e4808be710d37408e2cd4bae15
+
+**Finished:** 2026-10-31
 
 ## The plan
 
@@ -136,6 +138,11 @@ release is out.
 
 ## What happened
 
+- **Outcome:** done. The lab's facts allocate a quarter of what they
+  did and run 1.6 times as fast, where the plan estimated 1.5; every
+  output of the lab's is unchanged; the fast-path, fuzz, trace and limit
+  tests pass with the fast paths on and off; Iain gave the go-ahead, and
+  it shipped in v0.4.3.
 - **Baseline** (step 1): `BenchmarkFindLines`, added for this, runs
   `FindAll(line, Outermost())` over 140 short lines of a posting, 80
   facts among them, through a grammar of alternations, ratchet rules and
@@ -194,8 +201,26 @@ release is out.
   lean on that finer ordering.
 - **Changes from the plan:** none in what was built. benchstat was
   installed partway through step 1.
-- **Still to come:** jdc-lab's check of the commit (step 6) and the
-  release (step 7).
+- **jdc-lab's check** (step 6), 2026-10-31, of
+  312894f9cd68206515f759a6123952602a50c502 against v0.4.2 (jdc-lab
+  07ca7b6; `GOWORK=off` for v0.4.2, the lab's `go.work` for the commit;
+  each binary's build info checked to name the grammar it was built
+  with): `scripts/test-all.sh` and `go test ./...` pass;
+  `pipeline compare` shows every stage unchanged; all 25,954 sample ads
+  through `cmd/chunk -json` give identical output, byte for byte. Over
+  2,000 ads, median of five, `-benchtime 3x`:
+
+  | jdc-lab benchmark | v0.4.2 | 312894f | Change |
+  |---|---:|---:|---:|
+  | `BenchmarkFindSamples`, time | 1.82 s | 1.11 s | 39% less |
+  | allocated | 1.76 GB | 0.98 GB | 44% less |
+  | allocations | 64.8 million | 16.7 million | 74% less |
+  | `BenchmarkAdOfSamples`, time | 2.22 s | 1.39 s | 38% less |
+  | allocated | 2.20 GB | 1.30 GB | 41% less |
+  | allocations | 74.6 million | 24.5 million | 67% less |
+
+  Chunking every ad, reading the run's ads included, went from 45.9 s
+  to 33.9 s, 26% less.
 - **What's left,** in the reference's gap "The matcher still makes
   closures for some steps": `FindAll` makes a new state, and so new
   slots, for every text, which jdc-lab's line-by-line search pays for
