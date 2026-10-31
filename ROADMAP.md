@@ -43,31 +43,19 @@ dropped is deleted, and the commit that drops it names its number.
 
 ## Now
 
-Nothing yet.
-
-## Next
-
 ### 1. A trace of a parse
 
 **Serves:** debugging
 
 **Size:** S (2)
 
-**What:** a `Trace(w io.Writer)` option that prints each rule as it's
-entered, indented by depth, then `* MATCH "text"` or `* FAIL`, in the
-style of Raku's `Grammar::Tracer`.
+A `Trace(w io.Writer)` option that prints each rule as it's entered,
+indented by depth, then `* MATCH "text"` or `* FAIL`, in the style of
+Raku's `Grammar::Tracer`, so a grammar that won't match can be watched.
+The plan is in its
+[change record](docs/changes/2026-10-31-r1-a-trace-of-a-parse.md).
 
-**Why:** when a grammar won't match, `ParseErr` reports only the
-furthest failure, not which rules were tried, where, or what each
-matched. Watching the rules is the quickest way to debug a grammar, and
-to learn how grammars work. The README's
-[When not to use it](README.md#when-not-to-use-it) names it as missing.
-
-**Done when** tracing is hooked into rule calls (not every step, which
-would bury the rules), `BenchmarkParse` shows no real cost with it off,
-`FuzzMatch` checks that tracing changes no result, it has an example and
-a place in the reference, and the README no longer says there's no
-trace.
+## Next
 
 ### 4. Failure reports from Find and FindAll
 

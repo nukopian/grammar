@@ -64,6 +64,8 @@ Why, What's known, Steps, Done when.
 
 Newest first.
 
+- [A trace of a parse](2026-10-31-r1-a-trace-of-a-parse.md)
+  (roadmap 1), in progress
 - [A word list's value in a rule with more in it than the list](2026-10-30-list-value-beside-lookarounds.md),
   shipped in v0.4.1
 - [Name the quantified group in $<k>=( … )?, as Raku does](2026-10-27-named-quantified-groups.md),
