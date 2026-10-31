@@ -36,8 +36,9 @@ func fuzzList() *WordList {
 
 // Whatever grammar and text, matching keeps its promises: no panics; Parse
 // and ParseErr agree; a parse matches all of the text; Find finds what
-// FindAll finds first; skipping start positions changes nothing; and Values
-// takes any match, and CheckPath every path in one.
+// FindAll finds first; skipping start positions changes nothing; tracing
+// changes nothing, and closes every rule it opens; and Values takes any
+// match, and CheckPath every path in one.
 // fuzzPatterns is a pattern list for FuzzMatch's grammars, <@pats>.
 var fuzzPatterns = MustPatternList("pats", `x+`, `<c> y`, `'z z'`, `(a) $0?`)
 
@@ -116,6 +117,11 @@ func FuzzMatch(f *testing.F) {
 			if d := m.Diff(m2); d != "" || m.Defined() != (err == nil) {
 				t.Fatalf("Parse and ParseErr disagree (sub %v): %s, err %v", sub, d, err)
 			}
+			var trace strings.Builder
+			if d := m.Diff(parse(text, Trace(&trace))); d != "" {
+				t.Fatalf("tracing changed the match (sub %v): %s", sub, d)
+			}
+			checkTrace(t, trace.String())
 			// Text is read as Go reads it into runes, each byte that isn't
 			// UTF-8 becoming U+FFFD, and then in NFC.
 			if read := nfc(text); !sub && m.Defined() && m.At("~").Str() != read {
@@ -127,6 +133,11 @@ func FuzzMatch(f *testing.F) {
 			}
 		}
 		all := g.FindAll(text)
+		var trace strings.Builder
+		if d := all.Diff(g.FindAll(text, Trace(&trace))); d != "" {
+			t.Fatalf("tracing changed FindAll's matches: %s", d)
+		}
+		checkTrace(t, trace.String())
 		first := g.Find(text)
 		if all.Length() > 0 {
 			if d := first.Diff(all.Get(0)); d != "" {
@@ -293,4 +304,35 @@ func FuzzWords(f *testing.F) {
 			}
 		}
 	})
+}
+
+// checkTrace checks that a trace closes every rule it opens, once, at the
+// depth it opened it, and goes no deeper than one level at a time.
+func checkTrace(t *testing.T, trace string) {
+	t.Helper()
+	open := 0 // rules open, each one level deeper
+	for i, l := range strings.Split(strings.TrimSuffix(trace, "\n"), "\n") {
+		if l == "" {
+			continue
+		}
+		rest, depth := l, 0
+		for strings.HasPrefix(rest, "|  ") {
+			rest, depth = rest[3:], depth+1
+		}
+		switch {
+		case strings.HasPrefix(rest, "* MATCH"), rest == "* FAIL":
+			if depth != open-1 {
+				t.Fatalf("line %d closes depth %d with %d open:\n%s", i+1, depth, open, trace)
+			}
+			open--
+		default:
+			if depth != open {
+				t.Fatalf("line %d opens %q at depth %d with %d open:\n%s", i+1, rest, depth, open, trace)
+			}
+			open++
+		}
+	}
+	if open != 0 {
+		t.Fatalf("%d rules left open:\n%s", open, trace)
+	}
 }

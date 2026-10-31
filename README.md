@@ -119,7 +119,7 @@ Two more things set it apart:
 | Parsing and searching | `Parse`, `Subparse`, `Find`, `FindAll`, `Split`; `Pos` and `Rule` to start elsewhere; `Overlap` for every match, overlaps included, and `Outermost` for those not inside another | `.parse`, `.subparse`, `m:g//`, `split(:v)`, `:ov` |
 | Reading a match | ordinary `scalar` data: `At("min.amount.~")`, `Or`; `Caps` and `Chunks`; `CheckPath` to catch a misspelt path | `$/`, `.caps`, `.chunks` |
 | Values from a match | `Actions`, methods named after rules, whose results are `made`; `To[T]` into a Go struct, `ToAll[T]` for every match `FindAll` finds, and `Values` | action classes, `make` and `.made` |
-| When text doesn't match | `ParseErr` and `SubparseErr`, saying where the parse got furthest and what it expected; `Check` for mistakes in a grammar; `StepLimit` and `DepthLimit` for runaway matches | |
+| When text doesn't match | `ParseErr` and `SubparseErr`, saying where the parse got furthest and what it expected; `Trace` to watch each rule tried, and what it matched; `Check` for mistakes in a grammar; `StepLimit` and `DepthLimit` for runaway matches | `Grammar::Tracer` |
 
 For how each feature behaves, see the [reference](docs/REFERENCE.md); for
 a working example of every function and method, see the
@@ -137,9 +137,6 @@ a working example of every function and method, see the
   (see [Handing a grammar on](docs/REFERENCE.md#handing-a-grammar-on)).
 - **For text that doesn't follow rules.** A language model, or comparing
   embeddings, does better with wording nobody anticipated.
-- **When you need to watch a parse to debug it.** There's no trace yet:
-  `ParseErr` says where a parse got furthest and what it expected, but
-  not which rules it tried on the way.
 - **When a panic is unacceptable.** `Parse`, `Find` and the rest panic
   when a match runs past `StepLimit` or `DepthLimit`, and `MustCompile`
   on a malformed grammar. `ParseErr`, `SubparseErr` and `Compile` return

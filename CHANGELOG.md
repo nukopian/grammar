@@ -11,7 +11,18 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- `Trace(w)` writes a trace of a parse to `w`, in the style of Raku's
+  `Grammar::Tracer`: each rule as it's entered, indented by depth, then
+  `* MATCH` and the text it matched, or `* FAIL`. It works with every
+  way of matching, `Find` and `FindAll` tracing each position they try,
+  changes no result, and costs nothing measurable when it's off. So a
+  grammar that won't match can be watched, rather than guessed at from
+  where `ParseErr` says it got furthest (roadmap 1;
+  [record](docs/changes/2026-10-31-r1-a-trace-of-a-parse.md)).
+- Traced, `Parse`, `Find` and the rest say where a `StepLimitError` or
+  `DepthLimitError` was reached, the rule and its place, as `ParseErr`
+  does; untraced, they still leave the place empty, as knowing it costs
+  every match.
 
 ## v0.4.1 (2026-10-30)
 

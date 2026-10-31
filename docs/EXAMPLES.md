@@ -824,6 +824,56 @@ grammar Pay: line 1, column 14: expected \d, found end of text
 grammar Pay: line 1, column 15: expected end of text, found ", DOE"
 ```
 
+#### `Trace`
+
+Trace writes a trace of the parse to w, in the style of Raku's Grammar::Tracer: each rule's name as it's entered, indented by depth, then "* MATCH" and the text it matched, or "* FAIL", at its caller's depth.
+
+Trace prints each rule as it's tried, indented by depth, then what it matched, or FAIL, at its caller's depth, as Raku's Grammar::Tracer does. There's no separator, so \<sep> fails, and TOP goes on to \<period>.
+
+```go
+Pay.Parse("£45k per annum", grammar.Trace(os.Stdout))
+```
+
+```
+TOP
+|  money
+|  |  amount
+|  |  |  num
+|  |  |  * MATCH "45"
+|  |  * MATCH "45k"
+|  * MATCH "£45k"
+|  sep
+|  * FAIL
+|  period
+|  * MATCH " per annum"
+* MATCH "£45k per annum"
+```
+
+#### `Trace.failure`
+
+Where ParseErr says only that \<money> was expected at "55,000", a trace shows the way there: the separator matched, then \<money> failed at once, with no £, so the range was given up, \<period> was tried and failed, and TOP matched "£45k", which isn't the whole text.
+
+```go
+Pay.Parse("£45k - 55,000", grammar.Trace(os.Stdout))
+```
+
+```
+TOP
+|  money
+|  |  amount
+|  |  |  num
+|  |  |  * MATCH "45"
+|  |  * MATCH "45k"
+|  * MATCH "£45k"
+|  sep
+|  * MATCH " - "
+|  money
+|  * FAIL
+|  period
+|  * FAIL
+* MATCH "£45k"
+```
+
 #### `Grammar.SubparseErr`
 
 SubparseErr is Subparse, with a *ParseError when the text doesn't match, as ParseErr has.

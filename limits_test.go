@@ -2,6 +2,7 @@ package grammar
 
 import (
 	"errors"
+	"io"
 	"strings"
 	"testing"
 
@@ -125,6 +126,9 @@ func TestLimitErrorsSayWhere(t *testing.T) {
 			}
 			nowhere("Parse", stepLimitPanic(t, func() { g.Parse(c.text) }))
 			nowhere("Find", stepLimitPanic(t, func() { g.Find(c.text) }))
+			// Traced, they say where, from the trace's stack of rules.
+			check("Parse traced", stepLimitPanic(t, func() { g.Parse(c.text, Trace(io.Discard)) }))
+			check("Find traced", stepLimitPanic(t, func() { g.Find(c.text, Trace(io.Discard)) }))
 			_, err := g.ParseErr(c.text)
 			var e *StepLimitError
 			errors.As(err, &e)

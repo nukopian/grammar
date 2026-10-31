@@ -1,12 +1,12 @@
 # A trace of a parse
 
-**Status:** in progress
+**Status:** unreleased
 
 **Origin:** roadmap 1
 
 **Started:** 2026-10-31, in 964ed623ae2ad64da19fd9dc427aa5c3e8892084
 
-**Finished:**
+**Finished:** 2026-10-31
 
 ## The plan
 
@@ -84,3 +84,72 @@ a place in the reference, and the README no longer says there's no
 trace.
 
 ## What happened
+
+- **Outcome:** met. `Trace(w)` prints in `Grammar::Tracer`'s form,
+  hooked into rule calls only (`call.match`, and each variant in
+  `matchProto`), with every way of matching. `BenchmarkParse` shows no
+  cost with it off. `FuzzMatch` checks that it changes no result from
+  `Parse`, `Subparse` and `FindAll`, and that each rule it opens is
+  closed, once, at its own depth. It has two examples, `ExampleTrace`
+  and `ExampleTrace_failure`, a section in the reference (Watching a
+  parse), a row in its Differences from Raku, and a place in the how-to
+  and the README, whose "When not to use it" no longer names it.
+- **Changes from the plan:**
+  - The traces in `TestTrace` are those the copy of `Grammar::Tracer`
+    printed for the same grammars and texts, except for `|` and protos,
+    where grammar traces every branch it matches to find the longest.
+    They aren't compared with Raku in CI, as `Grammar::Tracer` isn't
+    part of Rakudo, and what it traces isn't what Raku matches (above).
+    That's a new difference from Raku, of a module rather than the
+    language, documented in the reference rather than raised first: it
+    follows from `Alt`'s and protos' existing difference, and tracing
+    the branches as Raku's tracer would means guessing which branches
+    Raku would have tried.
+  - Step 5 went further than updating the gap: the tracer keeps a stack
+    of rules, as the failure tracker does, rather than a bare depth, so
+    `Parse`, `Find` and the rest name the rule and place in a limit
+    error while traced, as roadmap 2 suggested. The gap now covers only
+    untraced calls. A rule stopped by a limit is left open at the end of
+    the trace, as the panic unwinds without printing.
+  - `TestTraceText` checks the quoting against what Rakudo's `.raku`
+    gives for each kind of character, including a combining mark at the
+    start, which is written as a code, as it would otherwise join the
+    quote. The cut counts runes, where Raku's counts graphemes, which
+    differ only as the reference's Differences from Raku already says.
+- **Measurements:** `BenchmarkParse`, `BenchmarkFindAll` and
+  `BenchmarkLookbehind`, `-count 2` five times, alternating between a
+  worktree of 964ed623ae2ad64da19fd9dc427aa5c3e8892084 and the change,
+  both with `GOWORK=off`; the median ns/op of ten runs, on the
+  maintainer's Mac. Allocations are unchanged.
+
+  | Benchmark | Before | After | Before (B) | Variant B |
+  |---|---|---|---|---|
+  | `Parse` | 9,859 | 9,828 (−0.3%) | 9,891 | 9,904 (+0.1%) |
+  | `FindAll` | 40,677 | 40,600 (−0.2%) | 40,568 | 40,794 (+0.6%) |
+  | `Lookbehind/bounded` | 838,718 | 850,196 (+1.4%) | 841,311 | 849,898 (+1.0%) |
+  | `Lookbehind/unbounded` | 39,953,998 | 40,204,860 (+0.6%) | 40,680,128 | 40,159,480 (−1.3%) |
+
+  `Lookbehind/bounded` calls `TOP` once at each of about 4,300 positions
+  and little else, so it shows a rule call's cost most; its runs before
+  the change spread from 834,225 to 878,093 across the two sessions, so
+  the 1% is near the noise, and no benchmark that parses moved.
+- **Tried and reverted:** variant B, to see whether the 1% on
+  `Lookbehind/bounded` was the extra call from `call.match` to `run`:
+  the untraced path inline, the traced one wrapping the continuation and
+  ending in a deferred call, which needed the tracer stopped at a limit
+  so the defer wouldn't unwind it. It was no faster (the table's last
+  column), so the simpler version was kept: the cost, if any, is the
+  check itself, which tracing can't do without.
+- **Checks:** planted bugs, each caught: the depth kept up while the
+  caller goes on (`TestTrace`), a MATCH printed each time the body
+  matches rather than once (`TestTrace`), and the rule left on the
+  stack while the caller goes on (`TestLimitErrorsSayWhere`, "handed
+  on", and every trace test). The Raku differential tests ran against
+  Rakudo 2025.11 and pass, the tests pass with `GOWORK=off`, and
+  `FuzzMatch` ran for 60 seconds twice, before and after the stack, and
+  found nothing; staticcheck is clean.
+- **What's left:** limit errors from untraced calls, in the reference's
+  gap
+  [Untraced, only `ParseErr`'s limit errors say where](../REFERENCE.md#gaps-and-possible-additions).
+  Colour, as `Grammar::Tracer` prints, is left out, as a writer may not
+  be a terminal.

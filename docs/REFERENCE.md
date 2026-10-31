@@ -883,6 +883,64 @@ which rule postings fail at, for instance, to see what a grammar is
 missing. Working the report out costs a little, so `Parse` doesn't; use
 `ParseErr` when you want to know why.
 
+### Watching a parse: `Trace`
+
+`ParseErr` says where a parse got furthest. To see how it got there,
+`Trace(w)` writes each rule to `w` as it's entered, indented by depth,
+then `* MATCH` and the text it matched, or `* FAIL`, in the style of
+Raku's `Grammar::Tracer`:
+
+```go
+Pay.Parse("£45k per annum", grammar.Trace(os.Stdout))
+```
+
+```
+TOP
+|  money
+|  |  amount
+|  |  |  num
+|  |  |  * MATCH "45"
+|  |  * MATCH "45k"
+|  * MATCH "£45k"
+|  sep
+|  * FAIL
+|  period
+|  * MATCH " per annum"
+* MATCH "£45k per annum"
+```
+
+A rule's result is printed at its caller's depth, so the rules it
+called sit between its name and its result. Every way of matching takes it:
+`Parse`, `Subparse`, `ParseErr`, `SubparseErr`, and `Find`, `FindAll`
+and `Split`, which trace each position they try, leaving out those
+where no match can start. As in `Grammar::Tracer`:
+
+- **Each call is traced once.** When matching backtracks into a rule
+  that has matched, to try a shorter match, nothing more is printed for
+  it, and the rules after it are traced again as they're retried.
+- **Built-in rules aren't traced,** such as `<ws>`, which every `rule`
+  calls between its parts, and `<alpha>`, unless the grammar defines its
+  own. Word lists, pattern lists and `Re` aren't rules, so they aren't
+  traced either. Rules called in lookarounds are.
+- **The text is cut** to 60 characters, less three for each level of
+  depth, and quoted as Raku quotes a string, so a tab is `\t` and a
+  control character `\x[1B]`. Past 20 levels there's no room for it.
+
+It shows what `grammar` does, which isn't always what Raku's tracer
+shows (see [Differences from Raku](#differences-from-raku)): `|` and a
+proto try every branch to find the longest, so each is traced, and in
+a `regex` the winner is matched, and traced, again.
+
+Tracing changes no result, which `FuzzMatch` checks, and each rule it
+opens is closed, once. A match that runs past `StepLimit` or
+`DepthLimit` while traced stops with the rule it was in still open, at
+the end of the trace, and the error names it, as `ParseErr`'s does (see
+[Runaway matches](#runaway-matches)). Without it, it costs a check per rule call, too
+little to measure (see the [record](changes/2026-10-31-r1-a-trace-of-a-parse.md)).
+With it, a parse is much slower, so it's for debugging, not for
+production. What `w` returns is ignored, so a failing writer doesn't
+stop the parse.
+
 ### Runaway matches
 
 A `regex` rule backtracks, so a badly written one can take a very long time
@@ -927,9 +985,11 @@ where that rule's match started, as in "gave up after 100000 steps, in
 amount from line 1, column 9". For a proto, it's the variant, such as
 `amount:sym<range>`. That's the rule to look at first, though the steps
 may have been spent anywhere since the match began. The other calls
-leave `Rule` empty and the place 0, as knowing it costs every match a
-little; when one stops at a limit, run the same text through `ParseErr`
-to see where.
+say where too while they're traced with `Trace`, from the trace's own
+stack of rules, which leaves out built-in rules such as `<ws>`. Untraced,
+they leave `Rule` empty and the place 0, as knowing it costs every match
+a little; when one stops at a limit, run the same text through
+`ParseErr`, or with `Trace`, to see where.
 
 The default, 250,000 levels, comes from measuring how much stack a level
 takes, by running grammars of different shapes until they ran out:
@@ -986,6 +1046,7 @@ with when each matters. *Fixable* and *Effort* are as in the
 | **A literal under `:i` folds case a character at a time,** so `:i 'ẙ'` doesn't match `Y̊`, a capital with no composed form. Word lists compare such letters decomposed, so they match (see [Accented letters](#accented-letters-text-is-read-in-nfc)). Rakudo 2025.11 agrees that the two are equal under `fc`, but matches only one way round with a literal, and neither way with an array. | Almost never: a handful of letters, such as Y and W with a ring above, J with a caron, and some Greek capitals with accents, none of them in English or most European languages. | Fold literals as word lists do, a decomposed character at a time. | yes | 1 |
 | **`Subparse` returns undef when nothing matches,** as `Parse` does. Raku's `.subparse` returns a failed `Match`, which is defined but false: reading it gives `Nil`, and its text is `""`. | Only for Raku code that tests a subparse result with `.defined` rather than by its truth, which grammar's undef agrees with. In Go, one check, `Defined()`, works for every way of finding nothing. | Return a locked `""`, which is defined, false and reads through to undef, but then `Subparse` callers would have to check `Bool()` where every other method's callers check `Defined()`, and `To`, `Values` and `SubparseErr` would need special cases. | by design | — |
 | **`<alias=name>` captures under both names,** as Raku does. | When you expect only the alias. | Nothing to fix: use `<alias=.name>`. | by design | — |
+| **`Trace` shows what `grammar` tries, not what Raku's `Grammar::Tracer` would.** Both print the rules called in the same form, but for `\|` and protos, `grammar` matches every branch to find the longest, so each is traced, where Raku's tracer shows the branches it tried in order. `Grammar::Tracer` also changes what Raku matches: wrapping a rule stops it being declarative, so `<h> \| <hours>` on "hours" matches "hour" traced and "hours" not. | Only when comparing a trace with Raku's, line for line: the rules a branch calls are the same. | — | by design | — |
 | **`Re` takes Perl-style regex syntax.** | Only that it isn't Raku syntax. It's for patterns you already have. | — | by design | — |
 | **`Outermost()` adds to Raku's `:ov`:** `Overlap()`'s matches, less each one wholly inside another. | Never without it: `FindAll` and `Overlap()` match as Raku's `:g` and `:ov` do. | — | by design | — |
 | **`CheckPath` adds to Raku:** it says whether a path can ever be defined in a match, from the grammar alone. | Never: matching is the same without it. | — | by design | — |
@@ -1102,8 +1163,7 @@ Before changing anything, it helps to know how the package is put together:
 | **Word lists: no stemming or fuzzy matching.** (`JoinedSpacing` covers "frontend" against "front end", and `Plurals` regular plurals.) | Synonym data that doesn't list every form of a word: "visiting" for "visit". | Stemming could follow `Plurals`, making forms in `Add`, but English stems are irregular enough to need a real stemmer, such as Porter's (effort 2–3). Fuzzy matching belongs elsewhere: compare embeddings for near misses, and send the rest to the LLM (effort 3+). | yes | 2–3 |
 | **Word lists can't change while in use.** | Refreshing synonyms in a long-running service. | Build a new list and grammar, and swap them in with an `atomic.Pointer`. Needs no change here. | yes | 1 |
 | **The Raku-syntax parser is hand-written,** not built with the package's own builder as first planned. | Only if the syntax grows much larger. | Rewrite it as a grammar of Raku regex syntax, with actions building nodes. | yes | 3 |
-| **No trace of a parse.** When a grammar won't match, there's no way to watch it work: which rules it tried, where, and what each matched before something failed. `ParseErr` reports only the furthest failure. | Writing or debugging a grammar, and learning how grammars work: seeing the rules called, nested by depth, with what each matched, is the quickest way to understand both. Raku programmers use the `Grammar::Tracer` module from `Grammar::Debugger` for this. | A `Trace(w io.Writer)` option, printing in `Grammar::Tracer`'s style: each rule as it's entered, indented by depth, then `* MATCH "text"` or `* FAIL`. Hook it into the rule call in `call.match`, not `tick`, which fires on every repeat item and alternation and would bury the rules in noise. Off, it costs a nil check per rule call; measure with `BenchmarkParse` before keeping it. `FuzzMatch` would check that tracing changes no result. | yes | 1–2 |
-| **Only `ParseErr`'s limit errors say where.** From `Parse`, `Find` and the rest, a `StepLimitError` or `DepthLimitError` names the grammar and the limit, not the rule that was running or the place in the text; `ParseErr` and `SubparseErr` name both, from the failure tracker's stack of rules. | Finding the rule that backtracks badly in a long run of `Find` or `FindAll`, without running the text again through `ParseErr`. | Keep the innermost rule in `state` for every match: set it in `call.match`, and put the caller's back around the continuation and on return, as the tracker does. Tried and reverted (2026-10-26): it cost `BenchmarkParse` 2.3%, `BenchmarkFindAll` 1.2% and `BenchmarkLookbehind` 4.5–6.2%, with a deferred restore or explicit ones alike, for an error that's rarely seen. Better: record it only while tracing (above), and have the error point at `Trace`. [The change's record](changes/2026-10-26-r2-limit-errors-that-say-where.md) has the measurements. | yes | 1 |
+| **Untraced, only `ParseErr`'s limit errors say where.** From `Parse`, `Find` and the rest, a `StepLimitError` or `DepthLimitError` names the grammar and the limit, not the rule that was running or the place in the text, unless they're traced with `Trace`; `ParseErr` and `SubparseErr` name both, from the failure tracker's stack of rules. | Finding the rule that backtracks badly in a long run of `Find` or `FindAll`, without running the text again through `ParseErr` or with `Trace`. | Keep the innermost rule in `state` for every match: set it in `call.match`, and put the caller's back around the continuation and on return, as the tracker does. Tried and reverted (2026-10-26): it cost `BenchmarkParse` 2.3%, `BenchmarkFindAll` 1.2% and `BenchmarkLookbehind` 4.5–6.2%, with a deferred restore or explicit ones alike, for an error that's rarely seen. Done instead while tracing ([roadmap 1's record](changes/2026-10-31-r1-a-trace-of-a-parse.md)), which keeps its own stack. [Roadmap 2's record](changes/2026-10-26-r2-limit-errors-that-say-where.md) has the measurements. | yes | 1 |
 
 ### Handing a grammar on
 

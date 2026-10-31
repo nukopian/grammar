@@ -3,6 +3,7 @@ package grammar_test
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/nukopian/grammar"
@@ -281,6 +282,49 @@ func ExampleGrammar_ParseErr() {
 	// grammar Pay: line 1, column 8: expected <money>, found "55,000"
 	// grammar Pay: line 1, column 14: expected \d, found end of text
 	// grammar Pay: line 1, column 15: expected end of text, found ", DOE"
+}
+
+// Trace prints each rule as it's tried, indented by depth, then what it
+// matched, or FAIL, at its caller's depth, as Raku's Grammar::Tracer does.
+// There's no separator, so <sep> fails, and TOP goes on to <period>.
+func ExampleTrace() {
+	Pay.Parse("£45k per annum", grammar.Trace(os.Stdout))
+	// Output:
+	// TOP
+	// |  money
+	// |  |  amount
+	// |  |  |  num
+	// |  |  |  * MATCH "45"
+	// |  |  * MATCH "45k"
+	// |  * MATCH "£45k"
+	// |  sep
+	// |  * FAIL
+	// |  period
+	// |  * MATCH " per annum"
+	// * MATCH "£45k per annum"
+}
+
+// Where ParseErr says only that <money> was expected at "55,000", a trace
+// shows the way there: the separator matched, then <money> failed at
+// once, with no £, so the range was given up, <period> was tried and
+// failed, and TOP matched "£45k", which isn't the whole text.
+func ExampleTrace_failure() {
+	Pay.Parse("£45k - 55,000", grammar.Trace(os.Stdout))
+	// Output:
+	// TOP
+	// |  money
+	// |  |  amount
+	// |  |  |  num
+	// |  |  |  * MATCH "45"
+	// |  |  * MATCH "45k"
+	// |  * MATCH "£45k"
+	// |  sep
+	// |  * MATCH " - "
+	// |  money
+	// |  * FAIL
+	// |  period
+	// |  * FAIL
+	// * MATCH "£45k"
 }
 
 // SubparseErr is ParseErr for Subparse: the text must match from its

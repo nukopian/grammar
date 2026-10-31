@@ -43,17 +43,7 @@ dropped is deleted, and the commit that drops it names its number.
 
 ## Now
 
-### 1. A trace of a parse
-
-**Serves:** debugging
-
-**Size:** S (2)
-
-A `Trace(w io.Writer)` option that prints each rule as it's entered,
-indented by depth, then `* MATCH "text"` or `* FAIL`, in the style of
-Raku's `Grammar::Tracer`, so a grammar that won't match can be watched.
-The plan is in its
-[change record](docs/changes/2026-10-31-r1-a-trace-of-a-parse.md).
+Nothing yet.
 
 ## Next
 

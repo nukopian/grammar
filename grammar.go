@@ -18,6 +18,7 @@ package grammar
 import (
 	"cmp"
 	"fmt"
+	"io"
 	"maps"
 	"reflect"
 	"slices"
@@ -549,6 +550,7 @@ type options struct {
 	pos       int  // where to start, in runes of the NFC text
 	overlap   bool // Overlap, or Outermost
 	outermost bool // Outermost
+	trace     io.Writer
 }
 
 // Pos starts matching n characters into the text (of its NFC form, as
@@ -726,6 +728,9 @@ func (g *Grammar) newState(in []rune) *state {
 }
 
 func (g *Grammar) runState(st *state, from int, whole bool, o options) *mnode {
+	if o.trace != nil && st.trace == nil {
+		st.trace = &tracer{w: o.trace}
+	}
 	var m *mnode
 	(&call{name: o.rule, capture: true}).match(st, from, nil, env{}, func(p int, c *capList) bool {
 		if whole && p != len(st.in) {

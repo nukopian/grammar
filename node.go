@@ -46,6 +46,9 @@ type state struct {
 	// otherwise, so ordinary parsing pays nothing for it.
 	tr *tracker
 
+	// trace writes a trace of the parse, for Trace. It's nil otherwise.
+	trace *tracer
+
 	// steps counts the matcher's steps, against limit (0: no limit). Find,
 	// FindAll and Split share one state, and so one count, across every
 	// position they try.
@@ -83,15 +86,21 @@ func (st *state) depthLimitError() *DepthLimitError {
 
 // limitPlace is where a limit was reached, for its error: the rule whose
 // body was matching, and where that rule's match started. Only the tracker
-// knows, keeping its stack of rules right as matching passes
-// continuations; keeping one for every match costs Parse a few per cent
-// (measured 2026-10-26), so without it the place is left empty.
+// and the tracer know, keeping their stacks of rules right as matching
+// passes continuations; keeping one for every match costs Parse a few per
+// cent (measured 2026-10-26), so without either the place is left empty.
+// The tracker's is used first, as the tracer leaves out built-in rules.
 func (st *state) limitPlace() (rule string, offset, line, column int) {
-	t := st.tr
-	if t == nil || len(t.calls) == 0 {
+	var calls []frame
+	if st.tr != nil {
+		calls = st.tr.calls
+	} else if st.trace != nil {
+		calls = st.trace.calls
+	}
+	if len(calls) == 0 {
 		return "", 0, 0, 0
 	}
-	f := t.calls[len(t.calls)-1]
+	f := calls[len(calls)-1]
 	line, column = lineCol(st.in, f.pos)
 	return f.rule, f.pos, line, column
 }
@@ -1038,6 +1047,14 @@ func (n *call) match(st *state, pos int, c *capList, e env, k cont) bool {
 	if r == nil {
 		panic("grammar: no rule " + n.name + " in " + st.g.name)
 	}
+	if st.trace != nil && traced(r) {
+		return n.matchTraced(st, pos, c, e, k, r)
+	}
+	return n.run(st, pos, c, e, k, r)
+}
+
+// run matches a call to r, the rule it names.
+func (n *call) run(st *state, pos int, c *capList, e env, k cont, r *rule) bool {
 	if r.proto {
 		return n.matchProto(st, pos, c, e, k, r)
 	}
@@ -1102,7 +1119,20 @@ func (n *call) matchProto(st *state, pos int, c *capList, e env, k cont, r *rule
 		if t != nil {
 			t.enter(vf)
 		}
+		tr := st.trace
+		if tr != nil {
+			tr.line(v.name)
+			tr.enter(vf)
+		}
 		p, inner, ok := once(v.body, st, pos, nil, env{ratchet: v.ratchet, sc: v.sc})
+		if tr != nil {
+			tr.leave()
+			if ok {
+				tr.matched(st.in[pos:p])
+			} else {
+				tr.line("* FAIL")
+			}
+		}
 		if t != nil {
 			t.leave(vf)
 		}

@@ -282,8 +282,27 @@ Then:
   `ParseErr` returns as an error. See
   [Runaway matches](REFERENCE.md#runaway-matches).
 
-There's no trace of a parse yet, showing each rule tried; it's in the
-[gaps](REFERENCE.md#gaps-and-possible-additions).
+- **Watch it.** `Trace` prints each rule as it's tried, indented by
+  depth, with what it matched or `* FAIL`, as Raku's `Grammar::Tracer`
+  does:
+  ```go
+  Pay.Parse("£45k per annum", grammar.Trace(os.Stdout))
+  ```
+  ```
+  TOP
+  |  money
+  |  |  amount
+  |  |  |  num
+  |  |  |  * MATCH "45"
+  |  |  * MATCH "45k"
+  |  * MATCH "£45k"
+  |  sep
+  |  * FAIL
+  |  period
+  |  * MATCH " per annum"
+  * MATCH "£45k per annum"
+  ```
+  See [Watching a parse](REFERENCE.md#watching-a-parse-trace).
 
 ## A regex or a grammar?
 
