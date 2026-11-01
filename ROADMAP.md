@@ -43,32 +43,18 @@ dropped is deleted, and the commit that drops it names its number.
 
 ## Now
 
-Nothing yet.
-
-## Next
-
 ### 4. Failure reports from Find and FindAll
 
 **Serves:** debugging
 
 **Size:** S (2)
 
-**What:** a way to ask `Find` or `FindAll` why nothing was found: the
-furthest failure across every start position, as `ParseErr` gives for
-one string, with positions that fail at once left out as noise.
+`FindErr` and `FindAllErr`, which say why nothing was found in a text:
+the attempt that got furthest past where it started, and what it
+expected there, as `ParseErr` says for one string. The plan is in its
+[change record](docs/changes/2026-11-01-r4-failure-reports-from-find-and-findall.md).
 
-**Why:** with postings, the question is usually why pay wasn't found
-anywhere in the text, not why one string didn't parse, and today the
-only answer is to cut out the likely span by hand and run `ParseErr` on
-it. Beside the trace (1) it answers both "what happened" and "where did
-it get furthest", for little work.
-
-**Done when** the report names the furthest position, the rules
-running there and what they expected, as `ParseErr`'s does; positions
-that fail on their first item don't crowd it out; `BenchmarkFindAll`
-shows no cost when it isn't asked for; it has an example on posting
-text and a place in the reference, which says it goes beyond Raku; and
-its gap is gone.
+## Next
 
 ### 3. Code assertions
 
