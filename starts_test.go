@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nukopian/scalar"
 )
@@ -176,5 +177,25 @@ func TestReStartsSkip(t *testing.T) {
 	}
 	if want := []int{850, 853, 860}; !slices.Equal(tried, want) {
 		t.Errorf("tried %v, want %v", tried, want)
+	}
+}
+
+// A regex whose search over the rest of the text runs past RegexTimeout,
+// as (?:a|aa)+b does over a run of a's, stops skipping, and every position
+// is tried, as without it, rather than the search panicking.
+func TestReStartsTimeout(t *testing.T) {
+	old := scalar.RegexTimeout
+	scalar.RegexTimeout = time.Millisecond
+	defer func() { scalar.RegexTimeout = old }()
+	g := New("S").Token("TOP", Re(`(?:a|aa)+b|c`))
+	in := []rune(strings.Repeat("a", 40) + " c")
+	sc := g.scanner("TOP", in)
+	for at := 0; at <= len(in); at++ {
+		if !sc.can(at) {
+			t.Fatalf("position %d skipped after the search timed out", at)
+		}
+	}
+	if !sc.stuck[0] {
+		t.Error("the search didn't time out: lengthen the run of a's")
 	}
 }

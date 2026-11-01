@@ -115,3 +115,8 @@ still not skipped.
   `FindAll` with a grammar that doesn't start with `Re`, the one point
   of Done when not met, for the elevenfold gain on grammars that do.
 - **The 60 seconds of fuzzing** after the fix were clean.
+- **The wash-up** found nothing to fix. It ran searches with a shared
+  `Re` grammar from eight goroutines under the race detector, clean, and
+  found the fallback after a skip search runs past `RegexTimeout`
+  untested; `TestReStartsTimeout` covers it now, and fails if the
+  fallback skips the rest of the text instead.
