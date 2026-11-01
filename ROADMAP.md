@@ -26,7 +26,7 @@ Items come in four groups, the most useful first in each:
 Each item has a number, given when it's added, in whichever group. It
 keeps it as it moves between groups, and a number is never used again,
 so that 7 means the same item in a commit message months later. Next
-number: 23.
+number: 24.
 
 Each item has a size too, a guess at how much work it is, as a T-shirt
 size and its story points: XS 1, S 2, M 3 and L 5. Sizes compare items
@@ -156,5 +156,14 @@ Added 2026-10-31, split from 7. **Size:** M (3). **Moves with:** 20 and
 rather than matching every branch in full. It would close the cases
 where `Alt`'s approximation differs from Raku, and speed up large
 alternations, protos and nested alternations in a `regex`.
+
+### 23. Rejecting a text that can't hold a match
+
+Added 2026-11-01, from jdc-lab. **Size:** S (2). Work out characters
+every match must contain, such as a digit for a pay figure, and have
+`Find` and the rest return at once for a text with none, without
+trying a position. jdc-lab keeps such a check beside each fact grammar
+by hand (`MayHold`), as a prose line costs a search 17 µs where a digit
+check takes 0.17 µs; this would make it automatic.
 
 [gaps]: docs/REFERENCE.md#gaps-and-possible-additions
