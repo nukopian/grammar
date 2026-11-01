@@ -11,6 +11,15 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.4.4 (2026-11-01)
+
+Why a search found nothing, and searches with Re that skip ahead
+
+No breaking change: two new methods and a new `ParseError` field. Needs
+scalar v0.6.2.
+
 - `FindErr` and `FindAllErr` say why a search found nothing, as
   `ParseErr` says why a parse failed: of the attempts at each position,
   the one that got furthest past where it started, what it expected

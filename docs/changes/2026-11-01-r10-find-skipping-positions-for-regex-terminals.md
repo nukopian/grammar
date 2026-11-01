@@ -1,6 +1,6 @@
 # Find skipping positions for regex terminals
 
-**Status:** unreleased
+**Status:** shipped in v0.4.4
 
 **Origin:** roadmap 10
 

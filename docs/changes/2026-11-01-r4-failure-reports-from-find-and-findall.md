@@ -1,6 +1,6 @@
 # Failure reports from Find and FindAll
 
-**Status:** unreleased
+**Status:** shipped in v0.4.4
 
 **Origin:** roadmap 4
 
