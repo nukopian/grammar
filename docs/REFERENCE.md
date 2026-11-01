@@ -886,7 +886,8 @@ branch can still match. In a `rule`, each part keeps the space written
 after it, so `rule TOP { '(' ~ ')' <w> }` matches "( ab )".
 
 The error is a `*ParseError`, whose fields (`Line`, `Column`, `Offset`,
-`Expected`, `Found`) give the same facts for a program to use: logging
+`Expected`, `Found`, and `From`, where the parse started) give the same
+facts for a program to use: logging
 which rule postings fail at, for instance, to see what a grammar is
 missing. Working the report out costs a little, so `Parse` doesn't; use
 `ParseErr` when you want to know why.

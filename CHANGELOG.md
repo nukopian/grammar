@@ -14,7 +14,8 @@ release's entry when `main` is moved to it and tagged
 - `FindErr` and `FindAllErr` say why a search found nothing, as
   `ParseErr` says why a parse failed: of the attempts at each position,
   the one that got furthest past where it started, what it expected
-  there, and where it started (`ParseError.From`). For a posting with
+  there, and where it started (`ParseError.From`, which from `ParseErr`
+  is where its parse started: `Pos`, or 0). For a posting with
   "Salary: £ TBC", that's `expected <amount>, found "TBC…" (trying from
   line 1, column 9)`, where before the only way to find out was to cut
   out the likely span and run `ParseErr` on it. Attempts that fail at

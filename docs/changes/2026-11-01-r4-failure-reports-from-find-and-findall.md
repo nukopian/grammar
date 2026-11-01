@@ -108,3 +108,12 @@ its gap is gone.
 - **What's left:** nothing for this item. A failed search costs two
   passes under `FindErr`, the second with the fast paths off; that's
   paid only when nothing is found, which is when the report is wanted.
+- **The wash-up found** that `ParseErr` and `SubparseErr` left `From` at
+  0 under `Pos`, so Offset less From wasn't how far the parse got, as
+  the field's comment said. They set it to `Pos` now
+  (`TestParseErrFrom`). It also found that `whyNotFound`'s comment
+  blamed ranking by position for merging attempts, which pooling their
+  failures would do; ranking by position favours late starts. The
+  wash-up checked that a tracked search takes exactly the steps an
+  untracked one does, over every Raku case, so `FindErr` can't hit
+  `StepLimit` where `Find` didn't.

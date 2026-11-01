@@ -766,12 +766,16 @@ func (g *Grammar) parseErr(text string, whole bool, opts []Option) (match *scala
 		}
 	}()
 	if o.pos > len(in) {
-		return noMatch(), newParseError(g.name, in, len(in), nil)
+		e := newParseError(g.name, in, len(in), nil)
+		e.From = len(in)
+		return noMatch(), e
 	}
 	if m := g.runState(st, o.pos, whole, o); m != nil {
 		return o.result(in, m), nil
 	}
-	return noMatch(), newParseError(g.name, in, st.tr.far, st.tr.exp)
+	e := newParseError(g.name, in, st.tr.far, st.tr.exp)
+	e.From = o.pos
+	return noMatch(), e
 }
 
 // limitErr turns running out of steps or depth, recovered from a panic, into
@@ -825,12 +829,13 @@ func (g *Grammar) FindAllErr(text string, opts ...Option) (all *scalar.AV, err e
 // whyNotFound searches text again, tracking failures from each position
 // where a match could start, and reports the attempt that got furthest past
 // its start, the earlier on a tie. Ranking attempts by where in the text
-// they stopped, as a single parse does, would merge two that happen to stop
-// at the same place, such as one expecting <period> after "£45k - £55k" and
-// another expecting <sep> after "£55k", into "<period> or <sep>". An
-// attempt that gets nowhere ranks last, so the many positions that fail at
-// once don't crowd out the one that nearly matched. If no position could
-// start a match, the report is from an attempt at the first.
+// they stopped, as a single parse is, would favour those that started late;
+// pooling their failures, as one tracker over the whole search would, would
+// merge two that stop at the same place, such as one expecting <period>
+// after "£45k - £55k" and another expecting <sep> after "£55k". An attempt
+// that gets nowhere ranks last, so the many positions that fail at once
+// don't crowd out the one that nearly matched. If no position could start a
+// match, the report is from an attempt at the first.
 func (g *Grammar) whyNotFound(text string, opts []Option) *ParseError {
 	o, in := g.prepare(opts), []rune(nfc(text))
 	o.trace = nil // Find has traced the search already
@@ -861,6 +866,8 @@ func (g *Grammar) whyNotFound(text string, opts []Option) *ParseError {
 // ParseError says why a parse failed: the furthest point in the text that
 // any part of the grammar reached, and what it expected there. That's
 // usually where the mistake is, as everything before it matched something.
+// From FindErr and FindAllErr, it says the same of one attempt in a search:
+// the one that got furthest past where it started.
 type ParseError struct {
 	Grammar string
 	Offset  int // characters (runes) from the start of the text
@@ -876,9 +883,10 @@ type ParseError struct {
 	// characters; empty at the end of a line or of the text.
 	Found string
 
-	// From is where the attempt reported started, in characters, for
-	// FindErr and FindAllErr, which try every position: Offset less From
-	// is how far it got. For ParseErr it's 0.
+	// From is where the attempt reported started, in characters, so
+	// Offset less From is how far it got: Pos, or 0, for ParseErr and
+	// SubparseErr; for FindErr and FindAllErr, which try every position,
+	// where the attempt reported began, which the message gives too.
 	From int
 
 	atEnd                bool

@@ -308,3 +308,32 @@ func TestFindErrLimitsAndTrace(t *testing.T) {
 		t.Errorf("FindErr traced\n%s\nwant\n%s", b2.String(), b.String())
 	}
 }
+
+// From is where the attempt reported started, for ParseErr as for FindErr,
+// so Offset less From is always how far it got: Pos when it's given.
+func TestParseErrFrom(t *testing.T) {
+	for _, c := range []struct {
+		text              string
+		pos, from, offset int
+		sub               bool
+	}{
+		{"Pay: £45k - x", 0, 0, 0, false},
+		{"Pay: £45k - x", 5, 5, 12, false},
+		{"Pay: £x", 5, 5, 6, true},
+		{"Pay: £45k - x", 20, 13, 13, false}, // past the end: reported at the end
+	} {
+		parse := payErr.ParseErr
+		if c.sub {
+			parse = payErr.SubparseErr
+		}
+		_, err := parse(c.text, Pos(c.pos))
+		var pe *ParseError
+		if !errors.As(err, &pe) {
+			t.Errorf("%q, Pos(%d): no ParseError: %v", c.text, c.pos, err)
+			continue
+		}
+		if pe.From != c.from || pe.Offset != c.offset || strings.Contains(err.Error(), "trying") {
+			t.Errorf("%q, Pos(%d): %v, From %d, Offset %d; want From %d, Offset %d", c.text, c.pos, err, pe.From, pe.Offset, c.from, c.offset)
+		}
+	}
+}
