@@ -43,7 +43,16 @@ dropped is deleted, and the commit that drops it names its number.
 
 ## Now
 
-Nothing yet.
+### 10. Find skipping positions for regex terminals
+
+**Serves:** speed
+
+**Size:** S (2)
+
+`Find` and the rest skip positions where a grammar starting with `Re`
+can't match, by asking regexp2 where the pattern next matches. The plan
+is in its
+[change record](docs/changes/2026-11-01-r10-find-skipping-positions-for-regex-terminals.md).
 
 ## Next
 
@@ -100,17 +109,6 @@ regular plurals, so "visiting" matches a list that has "visit". English
 needs a real stemmer, such as Porter's. Synonym data rarely lists every
 form, and jdc-lab's word lists, which already lean on `Plurals`, would
 gain from it.
-
-### 10. Find skipping positions for regex terminals
-
-**Serves:** speed
-
-**Size:** S (2)
-
-Work out where a grammar starting with `Re` can begin, from the
-pattern's first characters or a hint, so `Find` can skip the rest of a
-long text as it does for other grammars. It pays only for grammars that
-start with `Re`.
 
 ## Ideas
 
