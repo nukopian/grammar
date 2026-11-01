@@ -11,6 +11,17 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+- `FindErr` and `FindAllErr` say why a search found nothing, as
+  `ParseErr` says why a parse failed: of the attempts at each position,
+  the one that got furthest past where it started, what it expected
+  there, and where it started (`ParseError.From`). For a posting with
+  "Salary: £ TBC", that's `expected <amount>, found "TBC…" (trying from
+  line 1, column 9)`, where before the only way to find out was to cut
+  out the likely span and run `ParseErr` on it. Attempts that fail at
+  once never crowd out one that got somewhere. The report is made only
+  when nothing is found, so `Find` and `FindAll` cost what they did.
+  Raku has nothing like it.
+  (roadmap 4; [record](docs/changes/2026-11-01-r4-failure-reports-from-find-and-findall.md))
 - Build: needs scalar v0.6.2, up from v0.6.1. Nothing changes for
   grammar: scalar's new `Linear` regex engine is chosen only if a
   program asks for it, and its fix to `S` with `g` doesn't touch

@@ -11,7 +11,8 @@ import (
 
 // results is everything a grammar gives for a text, to compare with the
 // fast paths on and off: what Parse, Subparse, Find and FindAll return,
-// ParseErr's and SubparseErr's reports, and the matcher's steps, trying the
+// ParseErr's, SubparseErr's, FindErr's and FindAllErr's reports, and the
+// matcher's steps, trying the
 // grammar at every position.
 func results(g *Grammar, text string) []string {
 	show := func(v *scalar.SV) string { return v.Dump() }
@@ -34,6 +35,8 @@ func results(g *Grammar, text string) []string {
 		"FindAll " + show(scalar.Value(g.FindAll(text))),
 		"ParseErr " + errText(g.ParseErr(text)),
 		"SubparseErr " + errText(g.SubparseErr(text)),
+		"FindErr " + errText(g.FindErr(text)),
+		"FindAllErr " + errText(func() (*scalar.SV, error) { all, err := g.FindAllErr(text); return scalar.Value(all), err }()),
 		fmt.Sprint("steps ", st.steps),
 	}
 }

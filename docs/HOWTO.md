@@ -278,8 +278,17 @@ Then:
   }
   fmt.Println(Pay.CheckPath("min.amont")) // grammar Pay: path "min.amont": rule money has no capture "amont" (it has: amount)
   ```
+- **When a search finds nothing,** `FindErr` says why: of its attempts
+  at each position, the one that got furthest past where it started, and
+  what it expected there. See
+  [Why nothing was found](REFERENCE.md#why-nothing-was-found-finderr-and-findallerr).
+  ```go
+  _, err := Pay.FindErr("Salary: £ TBC. Hours: 37.5 per week")
+  fmt.Println(err)
+  // grammar Pay: line 1, column 11: expected <amount>, found "TBC. Hours: 37.5 per" (trying from line 1, column 9)
+  ```
 - **A match that runs away** stops at `StepLimit` or `DepthLimit`, which
-  `ParseErr` returns as an error. See
+  `ParseErr` and `FindErr` return as an error. See
   [Runaway matches](REFERENCE.md#runaway-matches).
 
 - **Watch it.** `Trace` prints each rule as it's tried, indented by

@@ -1,10 +1,12 @@
 # Failure reports from Find and FindAll
 
-**Status:** in progress
+**Status:** unreleased
 
 **Origin:** roadmap 4
 
 **Started:** 2026-11-01, in ae1eeb0e0066d69bccfc5f4e3f3e0966ef412e6f
+
+**Finished:** 2026-11-01
 
 ## The plan
 
@@ -33,8 +35,8 @@ it get furthest", for little work.
   `<money> <.sep> <money> <period>`, over "Salary £45k - £55k, depending
   on experience": the start at "£45k" and the one at "£55k" both fail at
   offset 18, the first expecting `<period>`, the second `<sep>`. By
-  position they tie, and the report would merge them into "expected
-  <period> or <sep>". So each start is ranked by how far it got past
+  position they tie, and the report would merge them into `expected
+  <period> or <sep>`. So each start is ranked by how far it got past
   where it started, ties going to the earlier start: here the first,
   expecting `<period>`, which is the real problem. A start that gets
   nowhere ranks last, so positions that fail on their first item drop
@@ -75,3 +77,34 @@ text and a place in the reference, which says it goes beyond Raku; and
 its gap is gone.
 
 ## What happened
+
+- **Outcome:** every point in Done when holds. `FindErr` and
+  `FindAllErr` report the attempt that got furthest past its start, with
+  `ParseErr`'s position, rules and expectations, and where it started;
+  attempts that fail at once never win over one that got somewhere;
+  `BenchmarkFindAll` is unchanged (below); both have examples on posting
+  text; the reference has a section beside `ParseErr`'s and a row in
+  Differences from Raku saying they go beyond it; the gap is gone.
+- **Changes from the plan:** none in substance. `ParseError` keeps where
+  the start was as line and column too, unexported, for the message,
+  which ends "(trying from line 1, column 9)". `ParseErr`'s message is
+  unchanged, and its `From` is 0. The step and depth limits' recovery,
+  written out in `parseErr`, became `limitErr`, shared by the three.
+- **Tests:** `TestFindErr` covers the tie that motivated the ranking,
+  no possible start, `Pos` (inside and past the end), lines, and an
+  attempt that starts later and gets less far; `TestFindErrLimitsAndTrace`
+  the limits and a trace printed once. `FindErr` and `FindAllErr` were
+  added to `TestFastPathsChangeNothing`'s results, `TestNoMatchStaysUndef`
+  and `FuzzMatch`, which checks they find what `Find` and `FindAll` find.
+  Two planted bugs show the ranking is pinned: `>=` in place of `>`
+  (the later of equal attempts) and ranking by position in the text each
+  fail `TestFindErr`. 60 seconds of `FuzzMatch` (1.76 million runs) found
+  nothing.
+- **Measurements:** `BenchmarkFindAll` and `BenchmarkFindLines`, ten
+  runs each before and after, on an Apple M2: 38.31 µs against 38.22 µs
+  (p=0.58) and 1.120 ms against 1.119 ms (p=0.85), allocations
+  identical. Nothing changed on that path, as the report is made by a
+  second search only when the first finds nothing.
+- **What's left:** nothing for this item. A failed search costs two
+  passes under `FindErr`, the second with the fast paths off; that's
+  paid only when nothing is found, which is when the report is wanted.

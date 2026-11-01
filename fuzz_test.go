@@ -35,8 +35,8 @@ func fuzzList() *WordList {
 }
 
 // Whatever grammar and text, matching keeps its promises: no panics; Parse
-// and ParseErr agree; a parse matches all of the text; Find finds what
-// FindAll finds first; skipping start positions changes nothing; tracing
+// and ParseErr agree, as do Find and FindErr, and FindAll and FindAllErr;
+// a parse matches all of the text; Find finds what FindAll finds first; skipping start positions changes nothing; tracing
 // changes nothing, and closes every rule it opens; and Values takes any
 // match, and CheckPath every path in one.
 // fuzzPatterns is a pattern list for FuzzMatch's grammars, <@pats>.
@@ -143,6 +143,12 @@ func FuzzMatch(f *testing.F) {
 		}
 		checkTrace(t, trace.String())
 		first := g.Find(text)
+		if m, err := g.FindErr(text); m.Diff(first) != "" || m.Defined() != (err == nil) {
+			t.Fatalf("Find and FindErr disagree: %s, err %v", m.Diff(first), err)
+		}
+		if a, err := g.FindAllErr(text); a.Diff(all) != "" || (a.Length() > 0) != (err == nil) {
+			t.Fatalf("FindAll and FindAllErr disagree: %s, err %v", a.Diff(all), err)
+		}
 		if all.Length() > 0 {
 			if d := first.Diff(all.Get(0)); d != "" {
 				t.Fatalf("Find and FindAll's first differ: %s", d)

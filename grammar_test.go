@@ -314,10 +314,11 @@ func BenchmarkLookbehind(b *testing.B) {
 // then report as a match.
 func TestNoMatchStaysUndef(t *testing.T) {
 	parseErr := func(m *scalar.SV, _ error) *scalar.SV { return m }
-	var limited, limitedSub *scalar.SV
+	var limited, limitedSub, limitedFind *scalar.SV
 	withStepLimit(t, 1000, func() {
 		limited = parseErr(blowup.ParseErr(nearMiss))
 		limitedSub = parseErr(blowup.SubparseErr(nearMiss))
+		limitedFind = parseErr(blowup.FindErr(nearMiss))
 	})
 	for name, m := range map[string]*scalar.SV{
 		"Parse":               pay.Parse("negotiable"),
@@ -329,6 +330,9 @@ func TestNoMatchStaysUndef(t *testing.T) {
 		"ParseErr past end":   parseErr(pay.ParseErr("£45k", Pos(10))),
 		"ParseErr step limit": limited,
 		"SubparseErr limit":   limitedSub,
+		"FindErr":             parseErr(pay.FindErr("Salary negotiable")),
+		"FindErr past end":    parseErr(pay.FindErr("£45k", Pos(10))),
+		"FindErr step limit":  limitedFind,
 	} {
 		if got := m.At("min.amount.~").Or("none").String(); got != "none" {
 			t.Errorf("%s: read %q, want none", name, got)

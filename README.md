@@ -119,7 +119,7 @@ Two more things set it apart:
 | Parsing and searching | `Parse`, `Subparse`, `Find`, `FindAll`, `Split`; `Pos` and `Rule` to start elsewhere; `Overlap` for every match, overlaps included, and `Outermost` for those not inside another | `.parse`, `.subparse`, `m:g//`, `split(:v)`, `:ov` |
 | Reading a match | ordinary `scalar` data: `At("min.amount.~")`, `Or`; `Caps` and `Chunks`; `CheckPath` to catch a misspelt path | `$/`, `.caps`, `.chunks` |
 | Values from a match | `Actions`, methods named after rules, whose results are `made`; `To[T]` into a Go struct, `ToAll[T]` for every match `FindAll` finds, and `Values` | action classes, `make` and `.made` |
-| When text doesn't match | `ParseErr` and `SubparseErr`, saying where the parse got furthest and what it expected; `Trace` to watch each rule tried, and what it matched; `Check` for mistakes in a grammar; `StepLimit` and `DepthLimit` for runaway matches | `Grammar::Tracer` |
+| When text doesn't match | `ParseErr` and `SubparseErr`, saying where the parse got furthest and what it expected; `FindErr` and `FindAllErr`, saying why a search found nothing; `Trace` to watch each rule tried, and what it matched; `Check` for mistakes in a grammar; `StepLimit` and `DepthLimit` for runaway matches | `Grammar::Tracer` |
 
 For how each feature behaves, see the [reference](docs/REFERENCE.md); for
 a working example of every function and method, see the
@@ -139,8 +139,8 @@ a working example of every function and method, see the
   embeddings, does better with wording nobody anticipated.
 - **When a panic is unacceptable.** `Parse`, `Find` and the rest panic
   when a match runs past `StepLimit` or `DepthLimit`, and `MustCompile`
-  on a malformed grammar. `ParseErr`, `SubparseErr` and `Compile` return
-  errors instead.
+  on a malformed grammar. `ParseErr`, `SubparseErr`, `FindErr`,
+  `FindAllErr` and `Compile` return errors instead.
 
 ## Documentation
 

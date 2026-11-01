@@ -891,6 +891,45 @@ which rule postings fail at, for instance, to see what a grammar is
 missing. Working the report out costs a little, so `Parse` doesn't; use
 `ParseErr` when you want to know why.
 
+### Why nothing was found: `FindErr` and `FindAllErr`
+
+`FindErr` is `Find`, and `FindAllErr` is `FindAll`, with a `*ParseError`
+when nothing at all is found: the question with a posting is usually why
+pay wasn't found anywhere in it, not why one string didn't parse. Raku
+has nothing like them.
+
+```go
+_, err := Pay.FindErr("Salary: £ TBC. Hours: 37.5 per week")
+// grammar Pay: line 1, column 11: expected <amount>, found "TBC. Hours: 37.5 per" (trying from line 1, column 9)
+```
+
+A search tries the grammar at each position in turn, and the report is
+`ParseErr`'s for one of those attempts: the one that got furthest past
+where it started, the earlier of any that got equally far. `From` is
+where it started, which the message gives after the rest. Two things
+that might seem simpler would mislead:
+
+- **The furthest place in the text,** as `ParseErr` reports, would
+  favour attempts that started late. In "£45 - x, £46 - y", the attempt
+  at "£46" stops further on in the text, but the one at "£45" got as
+  far, and is reported, as the first.
+- **Every attempt's failures together** would merge attempts that happen
+  to stop at the same place: one expecting `<period>` after
+  "£45k - £55k", another expecting `<sep>` after "£55k", into
+  `expected <period> or <sep>`.
+
+Most positions fail at once, on the grammar's first character, and,
+having got nowhere, they're never reported over one that got somewhere.
+Where no position could start a match at all, such as "Salary:
+competitive" for `Pay`, the report is from an attempt at the first
+position (or `Pos`): `expected <money>`.
+
+Both take the options `Find` and `FindAll` do, and return the same
+matches. Running out of steps or depth is an error, as from `ParseErr`.
+The report costs a second search, with failures tracked, so it's made
+only when nothing was found, and costs nothing when something is; `Find`
+and `FindAll` never make it. A `Trace` shows the first search only.
+
 ### Watching a parse: `Trace`
 
 `ParseErr` says where a parse got furthest. To see how it got there,
@@ -1061,6 +1100,7 @@ with when each matters. *Fixable* and *Effort* are as in the
 | **`Trace` shows what `grammar` tries, not what Raku's `Grammar::Tracer` would.** Both print the rules called in the same form, but for `\|` and protos, `grammar` matches every branch to find the longest, so each is traced, where Raku's tracer shows the branches it tried in order. `Grammar::Tracer` also changes what Raku matches: wrapping a rule stops it being declarative, so `<h> \| <hours>` on "hours" matches "hour" traced and "hours" not. | Only when comparing a trace with Raku's, line for line: the rules a branch calls are the same. | — | by design | — |
 | **`Re` takes Perl-style regex syntax.** | Only that it isn't Raku syntax. It's for patterns you already have. | — | by design | — |
 | **`Outermost()` adds to Raku's `:ov`:** `Overlap()`'s matches, less each one wholly inside another. | Never without it: `FindAll` and `Overlap()` match as Raku's `:g` and `:ov` do. | — | by design | — |
+| **`FindErr` and `FindAllErr` add to Raku:** a report of why a search found nothing. | Never: they find what `Find` and `FindAll` find. | — | by design | — |
 | **`CheckPath` adds to Raku:** it says whether a path can ever be defined in a match, from the grammar alone. | Never: matching is the same without it. | — | by design | — |
 | **Word lists add to Raku's `@list`:** canonical values (a rule's `made`, when the rule is a list, alone or beside lookarounds and anchors, where Raku's `made` is `Nil`), `FoldCase`, `LooseSpacing`, `JoinedSpacing`, `Plurals`, `WholeWords`, `ExactAcronyms` and `MapOnly`. | Never for Raku-compatible lists: without the options, a list matches as Raku's does. | — | by design | — |
 
@@ -1158,7 +1198,6 @@ Before changing anything, it helps to know how the package is put together:
 | **Exhaustive matching**: `:ex` | Every way a pattern can match at each position, not only the first, as `Overlap` gives: "aaaa" with `regex { a+ }` gives "aaaa", "aaa", "aa" and "a" from the start. For a word list, or a token, which never gives anything back, Raku's `:ex` is the same as `:ov`, so word lists don't need it. | A `FindAll` option whose continuation records each match and returns false, so the matcher tries every other way; the state's failure tracking and step counting must cope with matches that are then thrown back. The Raku tests would need `:ex` cases. | yes | 2 |
 | **Rule parameters and dynamic variables**: `token amount($cur)`, `$*CURRENCY` | Parsing that depends on context, such as a currency that changes how amounts read. | Arguments in the syntax and on `call`, and a stack of dynamic variables in `state`, visible to called rules. Inheritance and roles usually do the job more simply. | yes | 3 |
 | **Interpolation**: `$var`, `<$regex>`, `<{ … }>` | Patterns chosen at run time. Backreferences, `$<name>` and `$0`, are supported. | Word lists cover literal phrases, pattern lists (`<@name>`) patterns from data, and `Re` regex strings. Variables would come with rule parameters (below). | partly | 2 |
-| **Failure reports from `Find` and `FindAll`** | Finding out why pay wasn't found in a posting, rather than why one string didn't parse. | Track failures across every start position and report the furthest. The noise is the hard part: most positions fail at once, for no interesting reason. | partly | 2 |
 | **Backtracking control beyond `:`**: `::`, `:::`, `<commit>`, `<cut>` | Taming slow, heavily backtracking `regex` rules. `:` after an atom (`[ a \| ab ]:`, `<w>:`) is supported, as Rakudo supports it. | Rakudo doesn't implement these either (2025.11: `::` and `:::` are "not yet implemented", and `<commit>` and `<cut>` are taken as calls to rules of those names), so there's nothing to check them against, and a grammar using them wouldn't run in Raku; `Compile` rejects `::` and `:::`. They need the matcher to unwind to a marked point, which continuation-passing makes awkward. `:`, tokens and `StepLimit` usually do the job. | partly | 3 |
 
 ### Engineering

@@ -761,15 +761,8 @@ func (g *Grammar) parseErr(text string, whole bool, opts []Option) (match *scala
 	st := g.newState(in)
 	st.tr = &tracker{}
 	defer func() {
-		// Running out of steps or depth is an error here, not a panic.
-		switch e := recover().(type) {
-		case nil:
-		case *StepLimitError:
+		if e := limitErr(recover()); e != nil {
 			match, err = noMatch(), e
-		case *DepthLimitError:
-			match, err = noMatch(), e
-		default:
-			panic(e)
 		}
 	}()
 	if o.pos > len(in) {
@@ -779,6 +772,90 @@ func (g *Grammar) parseErr(text string, whole bool, opts []Option) (match *scala
 		return o.result(in, m), nil
 	}
 	return noMatch(), newParseError(g.name, in, st.tr.far, st.tr.exp)
+}
+
+// limitErr turns running out of steps or depth, recovered from a panic, into
+// an error, for the methods that return one; it panics again with anything
+// else. It's nil when nothing was recovered.
+func limitErr(r any) error {
+	switch e := r.(type) {
+	case nil:
+		return nil
+	case *StepLimitError:
+		return e
+	case *DepthLimitError:
+		return e
+	default:
+		panic(e)
+	}
+}
+
+// FindErr is Find, but when nothing is found it also returns a *ParseError
+// saying why: of the attempts at each position, the one that got furthest
+// past where it started, where it stopped and what it expected there, as
+// ParseErr says for a single parse. From says where that attempt started.
+// Raku has nothing like it. Working it out means searching the text again,
+// so it costs nothing when there's a match, and Find never does it.
+func (g *Grammar) FindErr(text string, opts ...Option) (match *scalar.SV, err error) {
+	defer func() {
+		if e := limitErr(recover()); e != nil {
+			match, err = noMatch(), e
+		}
+	}()
+	if m := g.Find(text, opts...); m.Defined() {
+		return m, nil
+	}
+	return noMatch(), g.whyNotFound(text, opts)
+}
+
+// FindAllErr is FindAll, with FindErr's *ParseError when there are no
+// matches at all.
+func (g *Grammar) FindAllErr(text string, opts ...Option) (all *scalar.AV, err error) {
+	defer func() {
+		if e := limitErr(recover()); e != nil {
+			all, err = scalar.Array(), e
+		}
+	}()
+	if all = g.FindAll(text, opts...); all.Length() > 0 {
+		return all, nil
+	}
+	return all, g.whyNotFound(text, opts)
+}
+
+// whyNotFound searches text again, tracking failures from each position
+// where a match could start, and reports the attempt that got furthest past
+// its start, the earlier on a tie. Ranking attempts by where in the text
+// they stopped, as a single parse does, would merge two that happen to stop
+// at the same place, such as one expecting <period> after "£45k - £55k" and
+// another expecting <sep> after "£55k", into "<period> or <sep>". An
+// attempt that gets nowhere ranks last, so the many positions that fail at
+// once don't crowd out the one that nearly matched. If no position could
+// start a match, the report is from an attempt at the first.
+func (g *Grammar) whyNotFound(text string, opts []Option) *ParseError {
+	o, in := g.prepare(opts), []rune(nfc(text))
+	o.trace = nil // Find has traced the search already
+	if o.pos > len(in) {
+		return newParseError(g.name, in, len(in), nil).searched(in, len(in))
+	}
+	s, empty := g.startsOf(o.rule)
+	st := g.newState(in)
+	var best *ParseError
+	try := func(from int) {
+		st.tr = &tracker{far: from}
+		g.runState(st, from, false, o)
+		if best == nil || st.tr.far-from > best.Offset-best.From {
+			best = newParseError(g.name, in, st.tr.far, st.tr.exp).searched(in, from)
+		}
+	}
+	for from := o.pos; from <= len(in); from++ {
+		if canStart(s, empty, in, from) {
+			try(from)
+		}
+	}
+	if best == nil {
+		try(o.pos)
+	}
+	return best
 }
 
 // ParseError says why a parse failed: the furthest point in the text that
@@ -799,24 +876,46 @@ type ParseError struct {
 	// characters; empty at the end of a line or of the text.
 	Found string
 
-	atEnd bool
+	// From is where the attempt reported started, in characters, for
+	// FindErr and FindAllErr, which try every position: Offset less From
+	// is how far it got. For ParseErr it's 0.
+	From int
+
+	atEnd                bool
+	search               bool // from FindErr or FindAllErr, so the message gives From
+	fromLine, fromColumn int
 }
 
 func newParseError(name string, in []rune, at int, expected []string) *ParseError {
-	e := &ParseError{Grammar: name, Offset: at, Line: 1, Column: 1, Expected: slices.Clone(expected), atEnd: at >= len(in)}
-	for _, r := range in[:at] {
-		if r == '\n' {
-			e.Line, e.Column = e.Line+1, 1
-		} else {
-			e.Column++
-		}
-	}
+	e := &ParseError{Grammar: name, Offset: at, Expected: slices.Clone(expected), atEnd: at >= len(in)}
+	e.Line, e.Column = lineColumn(in, at)
 	rest := in[at:]
 	if i := slices.Index(rest, '\n'); i >= 0 {
 		rest = rest[:i]
 	}
 	e.Found = string(rest[:min(len(rest), 20)])
 	return e
+}
+
+// searched marks e as a report from FindErr or FindAllErr, on the attempt
+// that started at from.
+func (e *ParseError) searched(in []rune, from int) *ParseError {
+	e.From, e.search = from, true
+	e.fromLine, e.fromColumn = lineColumn(in, from)
+	return e
+}
+
+// lineColumn is the line and column of in[at], each from 1.
+func lineColumn(in []rune, at int) (line, column int) {
+	line, column = 1, 1
+	for _, r := range in[:at] {
+		if r == '\n' {
+			line, column = line+1, 1
+		} else {
+			column++
+		}
+	}
+	return line, column
 }
 
 func (e *ParseError) Error() string {
@@ -846,7 +945,11 @@ func (e *ParseError) Error() string {
 	case e.Found == "":
 		found = "end of line"
 	}
-	return fmt.Sprintf("grammar %s: line %d, column %d: expected %s, found %s", e.Grammar, e.Line, e.Column, expected, found)
+	msg := fmt.Sprintf("grammar %s: line %d, column %d: expected %s, found %s", e.Grammar, e.Line, e.Column, expected, found)
+	if e.search {
+		msg += fmt.Sprintf(" (trying from line %d, column %d)", e.fromLine, e.fromColumn)
+	}
+	return msg
 }
 
 func (o options) result(in []rune, m *mnode) *scalar.SV {

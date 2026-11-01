@@ -214,3 +214,97 @@ func TestParseErrConj(t *testing.T) {
 		}
 	}
 }
+
+// payRange needs a whole range with its period, so most postings nearly
+// match it somewhere.
+var payRange = MustCompile(`
+grammar Range {
+    token TOP    { <min=money> <.sep> <max=money> <period> }
+    token money  { '£' \s? <num> [:i k]? }
+    token num    { \d ** 1..3 [ ',' \d ** 3 ]* }
+    token sep    { \s* [ '-' | '–' | to ] \s* }
+    token period { :i \s* [ pa | per \s+ [ annum | year ] ] }
+}`)
+
+func TestFindErr(t *testing.T) {
+	for _, c := range []struct {
+		g        *Grammar
+		in, want string
+		from     int
+		opts     []Option
+	}{
+		// The attempts from "£45k" and "£55k" both stop at column 19; the
+		// first got further past its start, so it's the one reported, not
+		// both merged into "<period> or <sep>".
+		{payRange, "Salary £45k - £55k, depending on experience",
+			`grammar Range: line 1, column 19: expected <period>, found ", depending on exper" (trying from line 1, column 8)`, 7, nil},
+		// Nowhere could a match start: the report is from the first position.
+		{payRange, "Competitive salary",
+			`grammar Range: line 1, column 1: expected <money>, found "Competitive salary" (trying from line 1, column 1)`, 0, nil},
+		// Attempts that get equally far: the earlier is reported.
+		{payRange, "£45 - x, £46 - y",
+			`grammar Range: line 1, column 7: expected <money>, found "x, £46 - y" (trying from line 1, column 1)`, 0, nil},
+		// Lines and columns count as ParseErr's do, for both places.
+		{payRange, "Salary:\n£45k to\n£55k, DOE",
+			`grammar Range: line 3, column 5: expected <period>, found ", DOE" (trying from line 2, column 1)`, 8, nil},
+		// Attempts at the positions before " per" get nowhere, and an
+		// attempt that starts later gets less far, so neither crowds out
+		// the one that nearly matched.
+		{MustCompile(`grammar P { token TOP { \s* per \s+ annum } }`), "45k per anum",
+			`grammar P: line 1, column 9: expected 'annum', found "anum" (trying from line 1, column 4)`, 3, nil},
+		// Pos is where the search starts, and past the end is reported there.
+		{payRange, "£45k - £55k pa; £60k to £70k",
+			`grammar Range: line 1, column 29: expected <period>, found end of text (trying from line 1, column 17)`, 16, []Option{Pos(15)}},
+		{payRange, "£45k", `grammar Range: line 1, column 5: expected something else, found end of text (trying from line 1, column 5)`, 4, []Option{Pos(9)}},
+	} {
+		m, err := c.g.FindErr(c.in, c.opts...)
+		var pe *ParseError
+		if m.Defined() || !errors.As(err, &pe) {
+			t.Errorf("%q: match %v, err %v", c.in, m, err)
+			continue
+		}
+		if err.Error() != c.want || pe.From != c.from {
+			t.Errorf("%q:\n got %v (from %d)\nwant %s (from %d)", c.in, err, pe.From, c.want, c.from)
+		}
+		all, err2 := c.g.FindAllErr(c.in, c.opts...)
+		if all.Length() != 0 || err2 == nil || err2.Error() != err.Error() {
+			t.Errorf("%q: FindAllErr gave %v, %v", c.in, all.Dump(), err2)
+		}
+	}
+	// A match is returned as Find returns it, with no error, and ParseErr's
+	// message doesn't say where it started.
+	text := "Salary £45k - £55k pa, DOE"
+	m, err := payRange.FindErr(text)
+	if err != nil || m.Diff(payRange.Find(text)) != "" {
+		t.Errorf("match: %v, %v", m, err)
+	}
+	all, err := payRange.FindAllErr(text + "; £60k to £70k per annum")
+	if err != nil || all.Length() != 2 {
+		t.Errorf("FindAllErr: %v, %v", all.Dump(), err)
+	}
+	if _, err := payRange.ParseErr(text); err == nil || strings.Contains(err.Error(), "trying") {
+		t.Errorf("ParseErr: %v", err)
+	}
+}
+
+// Running out of steps is an error from FindErr and FindAllErr, as from
+// ParseErr, and a trace is printed once, by the search that found nothing.
+func TestFindErrLimitsAndTrace(t *testing.T) {
+	withStepLimit(t, 1000, func() {
+		m, err := blowup.FindErr(nearMiss)
+		var se *StepLimitError
+		if m.Defined() || !errors.As(err, &se) {
+			t.Errorf("FindErr: %v, %v", m, err)
+		}
+		all, err := blowup.FindAllErr(nearMiss)
+		if all.Length() != 0 || !errors.As(err, &se) {
+			t.Errorf("FindAllErr: %v, %v", all.Dump(), err)
+		}
+	})
+	var b, b2 strings.Builder
+	payRange.Find("£45k - x", Trace(&b))
+	payRange.FindErr("£45k - x", Trace(&b2))
+	if b.String() != b2.String() {
+		t.Errorf("FindErr traced\n%s\nwant\n%s", b2.String(), b.String())
+	}
+}

@@ -65,7 +65,7 @@ Why, What's known, Steps, Done when.
 Newest first.
 
 - [Failure reports from Find and FindAll](2026-11-01-r4-failure-reports-from-find-and-findall.md)
-  (roadmap 4), in progress
+  (roadmap 4), unreleased
 - [Fewer closures in the matcher](2026-10-31-r9-fewer-closures-in-the-matcher.md)
   (roadmap 9), shipped in v0.4.3
 - [A trace of a parse](2026-10-31-r1-a-trace-of-a-parse.md)

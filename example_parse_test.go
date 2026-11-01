@@ -336,6 +336,37 @@ func ExampleGrammar_SubparseErr() {
 	// grammar Pay: line 1, column 1: expected <money>, found "Salary: £45k"
 }
 
+// The second posting's report is from the attempt at its £, whose figure is
+// missing. Pay can't start anywhere in the third, so its report is from the
+// first position.
+func ExampleGrammar_FindErr() {
+	for _, posting := range []string{
+		"Salary: £45k - £55k per annum",
+		"Salary: £ TBC. Hours: 37.5 per week",
+		"Salary: competitive",
+	} {
+		m, err := Pay.FindErr(posting)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		fmt.Println("found:", m.At("~"))
+	}
+	// Output:
+	// found: £45k - £55k per annum
+	// grammar Pay: line 1, column 11: expected <amount>, found "TBC. Hours: 37.5 per" (trying from line 1, column 9)
+	// grammar Pay: line 1, column 1: expected <money>, found "Salary: competitive" (trying from line 1, column 1)
+}
+
+// With Rule, FindAllErr looks for one rule's matches: the period here, which
+// this posting gives in a way Pay doesn't know.
+func ExampleGrammar_FindAllErr() {
+	all, err := Pay.FindAllErr("£45k - £55k, per calendar month", grammar.Rule("period"))
+	fmt.Println(all.Length(), err)
+	// Output:
+	// 0 grammar Pay: line 1, column 18: expected 'annum', 'year', 'hour' or 'day' (ignoring case), found "calendar month" (trying from line 1, column 13)
+}
+
 // A ParseError's fields give the same facts as its message, for a program
 // to use: to log which rule postings fail at, say, or to underline the
 // place in an editor.

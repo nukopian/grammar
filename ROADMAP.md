@@ -43,16 +43,7 @@ dropped is deleted, and the commit that drops it names its number.
 
 ## Now
 
-### 4. Failure reports from Find and FindAll
-
-**Serves:** debugging
-
-**Size:** S (2)
-
-`FindErr` and `FindAllErr`, which say why nothing was found in a text:
-the attempt that got furthest past where it started, and what it
-expected there, as `ParseErr` says for one string. The plan is in its
-[change record](docs/changes/2026-11-01-r4-failure-reports-from-find-and-findall.md).
+Nothing yet.
 
 ## Next
 
