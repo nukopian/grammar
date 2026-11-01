@@ -11,7 +11,12 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- Build: needs scalar v0.6.2, up from v0.6.1. Nothing changes for
+  grammar: scalar's new `Linear` regex engine is chosen only if a
+  program asks for it, and its fix to `S` with `g` doesn't touch
+  matching. A program that sets `scalar.DefaultEngine` gets the faster
+  engine for its own regexes; a grammar's `Re` terminals stay on
+  regexp2 either way.
 
 ## v0.4.3 (2026-10-31)
 
