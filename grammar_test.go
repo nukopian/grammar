@@ -235,6 +235,20 @@ func BenchmarkFindAll(b *testing.B) {
 	}
 }
 
+// BenchmarkFindRe searches BenchmarkFindAll's text with a grammar that
+// starts with a regex terminal, so the positions to skip are found by
+// regexp2 rather than from the grammar's first characters.
+func BenchmarkFindRe(b *testing.B) {
+	text := strings.Repeat("We offer a competitive package and flexible working. ", 80) +
+		"Salary: £45,000 - £55,000 p.a. plus a bonus of up to £5k."
+	g := New("PayRe").Token("TOP", Re(`£\d[\d,]*(?:k\b)?`))
+	for b.Loop() {
+		if g.FindAll(text).Length() != 3 {
+			b.Fatal("wrong count")
+		}
+	}
+}
+
 // BenchmarkParse parses one pay string: the matcher's work on a short
 // text, with no positions to skip.
 func BenchmarkParse(b *testing.B) {

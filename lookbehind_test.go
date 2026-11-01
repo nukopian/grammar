@@ -56,6 +56,12 @@ func TestLookbehindChangesNothing(t *testing.T) {
 	} {
 		cases = append(cases, tc{MustCompile(src, MustPatternList("p", `a`, `ab`, `\d+`), hedgeList(), looseList()), texts})
 	}
+	// A lookbehind whose pattern starts with a regex terminal: Find skips
+	// to where the regex next matches, but a lookbehind can't narrow its
+	// starts by that, so tries them all.
+	cases = append(cases,
+		tc{New("L17").Token("TOP", Seq(NotAfter(Call("e")), Class(isWord))).Token("e", Re(`[ab]+`)), append(texts, "a", "xa ba")},
+		tc{New("L18").Token("TOP", Seq(After(Re(`\d+`)), Lit("k"))), texts})
 	for _, c := range cases {
 		for _, text := range c.texts {
 			with := matchAll(c.g, text)

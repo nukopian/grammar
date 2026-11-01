@@ -65,7 +65,7 @@ Why, What's known, Steps, Done when.
 Newest first.
 
 - [Find skipping positions for regex terminals](2026-11-01-r10-find-skipping-positions-for-regex-terminals.md)
-  (roadmap 10), in progress
+  (roadmap 10), unreleased
 - [Failure reports from Find and FindAll](2026-11-01-r4-failure-reports-from-find-and-findall.md)
   (roadmap 4), unreleased
 - [Fewer closures in the matcher](2026-10-31-r9-fewer-closures-in-the-matcher.md)

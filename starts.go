@@ -2,28 +2,37 @@ package grammar
 
 import (
 	"slices"
+	"strings"
 	"unicode"
+
+	"github.com/dlclark/regexp2"
+	"github.com/nukopian/scalar"
 )
 
 // Find and FindAll try a grammar at each position in the text in turn. Most
 // positions can't start a match: pay can only start at a £. So they work
 // out, from the grammar, every character a match can start with, and skip
-// the positions where none does. The working out is cautious: where it can't
-// tell, as with a regex terminal (Re), or a rule that can match nothing, it
-// skips nothing.
+// the positions where none does. A regex terminal (Re) that a match can start
+// with is asked where it next matches, and the positions before that are
+// skipped. The working out is cautious: where it can't tell, as with a rule
+// that can match nothing, it skips nothing.
 
 // skipStarts turns the skipping off, so tests can check that it changes no
 // results.
 var skipStarts = true
 
 // starts are the characters a match can start with, or more: any, or a
-// character in runes, or one some pred accepts.
+// character in runes, or one some pred accepts, or a position where one of
+// res matches.
 type starts struct {
 	any   bool
 	runes map[rune]bool
 	preds []func(rune) bool
+	res   []*regexp2.Regexp // regex terminals' patterns, unanchored
 }
 
+// has reports whether a match can start with r, as far as the characters
+// say. A regex in res can start a match where has says no: ask a scan.
 func (s *starts) has(r rune) bool {
 	return s.any || s.runes[r] || slices.ContainsFunc(s.preds, func(p func(rune) bool) bool { return p(r) })
 }
@@ -64,6 +73,7 @@ func (s *starts) merge(o *starts) {
 		s.runes[r] = true
 	}
 	s.preds = append(s.preds, o.preds...)
+	s.res = append(s.res, o.res...)
 }
 
 // startsEntry caches a grammar's starts for one rule, until any grammar
@@ -182,8 +192,24 @@ func (f *startFinder) add(n Node, ci bool, s *starts) bool {
 		return f.add(n.inner, ci, s)
 	case *group, *named, commit:
 		return f.add(children(n)[0], ci, s)
+	case re:
+		// A match can start only where the pattern matches, which regexp2
+		// finds with the pattern unanchored. A pattern that can match
+		// empty text could start anywhere; one with \G means something
+		// else unanchored.
+		if n.empty || strings.Contains(n.pattern, `\G`) {
+			break
+		}
+		opt := regexp2.None
+		if ci {
+			opt = regexp2.IgnoreCase
+		}
+		rx := regexp2.MustCompile(`(?:`+n.pattern+`)`, opt)
+		rx.MatchTimeout = scalar.RegexTimeout
+		s.res = append(s.res, rx)
+		return false
 	}
-	// A regex terminal, or anything else: it could start with anything.
+	// Anything else could start with anything.
 	s.any = true
 	return true
 }
@@ -208,11 +234,69 @@ func (f *startFinder) rule(name string) *ruleStarts {
 	return r
 }
 
-// canStart reports whether a match can start at position at of in, as far
-// as s says.
-func canStart(s *starts, empty bool, in []rune, at int) bool {
-	if !skipStarts || empty || s.any {
+// scan says where in a text a search can start a match of a rule. For each
+// regex in its starts, it remembers where the regex next matches, so a
+// search asks again only once it has passed that.
+type scan struct {
+	s     *starts
+	all   bool // every position can start a match: skip none
+	re    bool // there are regexes to ask
+	in    []rune
+	from  []int  // where each regex was last asked from; -1 before it's asked
+	next  []int  // where it next matches, at or after from; past the end if nowhere
+	stuck []bool // it failed, as by running past RegexTimeout: don't skip for it
+}
+
+// scanner starts a scan of in for a match of rule. It's a value, so a
+// search that has no regex to ask allocates nothing for it.
+func (g *Grammar) scanner(rule string, in []rune) scan {
+	s, empty := g.startsOf(rule)
+	c := scan{s: s, all: !skipStarts || empty || s.any, re: len(s.res) > 0, in: in}
+	if n := len(s.res); n > 0 {
+		c.from, c.next, c.stuck = make([]int, n), make([]int, n), make([]bool, n)
+		for i := range c.from {
+			c.from[i], c.next[i] = -1, -1 // not yet asked
+		}
+	}
+	return c
+}
+
+// can reports whether a match can start at position at, as far as the
+// starts say. Positions are asked in order, as a search goes.
+func (c *scan) can(at int) bool {
+	if c.all {
 		return true
 	}
-	return at < len(in) && s.has(in[at])
+	if at < len(c.in) && c.s.has(c.in[at]) {
+		return true
+	}
+	return c.re && c.canRe(at)
+}
+
+// canRe reports whether a regex in the starts matches at position at.
+func (c *scan) canRe(at int) bool {
+	for i, rx := range c.s.res {
+		if c.stuck[i] {
+			return true
+		}
+		if at < c.from[i] || at > c.next[i] {
+			m, err := rx.FindRunesMatchStartingAt(c.in, at)
+			switch {
+			case err != nil:
+				// A search over the rest of the text can run past
+				// RegexTimeout where a match at one position wouldn't, so
+				// try every position, as the matcher would without it.
+				c.stuck[i] = true
+				return true
+			case m == nil:
+				c.from[i], c.next[i] = at, len(c.in)+1
+			default:
+				c.from[i], c.next[i] = at, m.Index
+			}
+		}
+		if c.next[i] == at {
+			return true
+		}
+	}
+	return false
 }

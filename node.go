@@ -1364,8 +1364,10 @@ func (n *look) match(st *state, pos int, c *capList, e env, k cont) bool {
 			st.tick()
 			return n.inner.match(st, from, c, e, func(p int, _ *capList) bool { return p == pos })
 		}
-		if info != nil && !info.empty && !info.s.any {
-			// Only where the pattern can start, latest first.
+		if info != nil && !info.empty && !info.s.any && len(info.s.res) == 0 {
+			// Only where the pattern can start, latest first. A regex
+			// start says where a search can go next, not which characters
+			// start a match, so with one, every start is tried.
 			starts := st.lookbehindStarts(info)
 			for i := sort.SearchInts(starts, hi+1) - 1; i >= 0 && starts[i] >= lo && !ok; i-- {
 				ok = try(starts[i])

@@ -23,6 +23,15 @@ release's entry when `main` is moved to it and tagged
   when nothing is found, so `Find` and `FindAll` cost what they did.
   Raku has nothing like it.
   (roadmap 4; [record](docs/changes/2026-11-01-r4-failure-reports-from-find-and-findall.md))
+- `Find`, `FindAll` and `Split` skip positions for a grammar that starts
+  with `Re`, as they do for others: they ask regexp2 where the pattern
+  next matches, and skip every position before it. Searching a 4 KB
+  posting with `Re(£\d[\d,]*(?:k\b)?)` takes 40 µs, not 440 µs, with 113
+  allocations, not 17,218, and finds the same. A pattern that can match
+  empty text, or uses `\G`, still skips nothing. Searches with grammars
+  that don't start with `Re` cost about 3% more on long texts, for the
+  check at each position.
+  (roadmap 10; [record](docs/changes/2026-11-01-r10-find-skipping-positions-for-regex-terminals.md))
 - Build: needs scalar v0.6.2, up from v0.6.1. Nothing changes for
   grammar: scalar's new `Linear` regex engine is chosen only if a
   program asks for it, and its fix to `S` with `g` doesn't touch

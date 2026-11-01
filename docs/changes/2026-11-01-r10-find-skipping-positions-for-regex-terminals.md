@@ -1,10 +1,12 @@
 # Find skipping positions for regex terminals
 
-**Status:** in progress
+**Status:** unreleased
 
 **Origin:** roadmap 10
 
 **Started:** 2026-11-01, in 8678e28ae8f274bc4f9562a2674483fdbb3b1eee
+
+**Finished:** 2026-11-01
 
 ## The plan
 
@@ -77,3 +79,39 @@ skipping on and off; `BenchmarkFindRe` shows the gain, and
 still not skipped.
 
 ## What happened
+
+- **Outcome:** a grammar starting with `Re` skips positions, and every
+  result is unchanged, with skipping on and off, over the new
+  `TestReStartsChangeNothing`, the existing `TestStartsChangeNothing`,
+  and `FuzzMatch`, now with a regex terminal `<e>` in its grammar.
+  `BenchmarkFindRe` gained as estimated. `BenchmarkFindAll` did not
+  come out free: see Measurements. The reference and its gap say what's
+  still not skipped.
+- **Changes from the plan:** `canStart` became a `scan`, made per search
+  and returned by value, so a search allocates nothing more for it. A
+  pattern such as `(?=\d)`, which matches only empty text, counts as
+  matching empty, as `reCanBeEmpty` says, and skips nothing.
+- **Found on the way:** the first 17 seconds of fuzzing found that
+  lookbehinds narrow their starts with the same `startFinder`, and read
+  only its characters, so `<!after <e>>`, with `<e>` an `Re`, tried no
+  starts at all and wrongly matched. A lookbehind whose pattern starts
+  with a regex now tries every start, as before. `TestLookbehindChangesNothing`
+  gained two such grammars, which failed first; the fuzz input is in
+  `testdata/fuzz`. `TestReStartsSkip` also caught the scanner treating
+  position 0 as a match before its first search.
+- **A planted bug,** a scanner that searches once and never again,
+  fails 144 checks.
+- **Measurements,** Apple M2, ten runs each, with benchstat:
+  `BenchmarkFindRe` 442 µs to 39.8 µs (−91%), 17,218 allocations to
+  113. `BenchmarkParse` and `BenchmarkFindLines` unchanged.
+  `BenchmarkFindAll` 38.4 µs to 39.8 µs (+3–4%, p<0.001, run against a
+  worktree at the start commit, interleaved), allocations unchanged. A
+  profile puts about 1.5 points of that in the per-position check
+  (`canStart` 0.23 s against `scan.can` 0.30 s of 4.6 s); the rest
+  looks like layout. Tried, without moving it: working out "skip
+  nothing" once per search, a flag for "has regexes" on the scanner,
+  and moving the regex path out of `can`. Kept, as they cost nothing.
+- **What's left:** nothing for this item. Iain accepted the 3% on
+  `FindAll` with a grammar that doesn't start with `Re`, the one point
+  of Done when not met, for the elevenfold gain on grammars that do.
+- **The 60 seconds of fuzzing** after the fix were clean.

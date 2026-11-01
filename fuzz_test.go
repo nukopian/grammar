@@ -69,15 +69,22 @@ var fuzzMatchSeeds = [][2]string{
 	{`<p>+ % ','`, "x,xyab,x"},
 	{`:i <@pats>+ % ' '`, "XX z z abY"},
 	{`<s>`, "xab"}, // backtracking into <r>, a regex that has matched
+	{`<e>+ % ','`, "ab,xy,abc"},
+	{`:i <e> <c>?`, "zzABCa xy"},
 }
 
 // fuzzGrammar is FuzzMatch's grammar around a fuzzed rule body. Its
 // rules are tokens, but for <s>, a regex that backtracks into <r>, which
-// tries again after matching, with little to try.
+// tries again after matching, with little to try. <e> is a regex terminal,
+// with lookbehind, so a search skips to where it next matches.
 func fuzzGrammar(body string) (*Grammar, error) {
-	return Compile("grammar F { token TOP { "+body+" }; token a { x }; rule b { y z }; token c { <[a..c]>+ }; "+
+	g, err := Compile("grammar F { token TOP { "+body+" }; token a { x }; rule b { y z }; token c { <[a..c]>+ }; "+
 		"proto token p {*}; token p:sym<x> { <sym> }; token p:sym<xy> { xy <c>? }; "+
-		"regex r { <a> <c> || <a> }; regex s { <r> <c> } }", fuzzList(), fuzzPatterns)
+		"regex r { <a> <c> || <a> }; regex s { <r> <c> }; token e { x } }", fuzzList(), fuzzPatterns)
+	if err != nil {
+		return nil, err
+	}
+	return g.Token("e", Re(`[ab]+c?|(?<=x)y`)), nil
 }
 
 func TestFuzzMatchSeedsCompile(t *testing.T) {

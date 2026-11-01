@@ -43,16 +43,7 @@ dropped is deleted, and the commit that drops it names its number.
 
 ## Now
 
-### 10. Find skipping positions for regex terminals
-
-**Serves:** speed
-
-**Size:** S (2)
-
-`Find` and the rest skip positions where a grammar starting with `Re`
-can't match, by asking regexp2 where the pattern next matches. The plan
-is in its
-[change record](docs/changes/2026-11-01-r10-find-skipping-positions-for-regex-terminals.md).
+Nothing yet.
 
 ## Next
 
@@ -62,9 +53,12 @@ is in its
 
 **Size:** M (3)
 
-**What:** `<?{name}>` and `<!{name}>`, calling a Go function passed to
-`Compile` with the captures so far, which says whether the match goes
-on.
+**What:** `<?{ name($/) }>` and `<!{ name($/) }>`, calling a Go
+function passed to `Compile` as a `Use`, `grammar.Assertion(name, fn)`,
+with the match so far, which says whether the match goes on. The match
+holds the `made` values of the rules already matched, built through the
+actions, as Raku's does. Written so, a grammar runs unchanged in Raku
+given a `sub name($/)`. (Decided 2026-11-01, after roadmap 10.)
 
 **Why:** some checks only code can make mid-parse: a pay range's
 minimum below its maximum, a plausible year, a listed word that isn't a

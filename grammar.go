@@ -624,10 +624,10 @@ func (g *Grammar) Subparse(text string, opts ...Option) *scalar.SV {
 // Find returns the first match anywhere in text, or undef.
 func (g *Grammar) Find(text string, opts ...Option) *scalar.SV {
 	o, in := g.prepare(opts), []rune(nfc(text))
-	s, empty := g.startsOf(o.rule)
+	sc := g.scanner(o.rule, in)
 	st := g.newState(in)
 	for from := o.pos; from <= len(in); from++ {
-		if !canStart(s, empty, in, from) {
+		if !sc.can(from) {
 			continue
 		}
 		if m := g.runState(st, from, false, o); m != nil {
@@ -642,14 +642,14 @@ func (g *Grammar) Find(text string, opts ...Option) *scalar.SV {
 func (g *Grammar) FindAll(text string, opts ...Option) *scalar.AV {
 	o, in := g.prepare(opts), []rune(nfc(text))
 	all := scalar.Array()
-	s, empty := g.startsOf(o.rule)
+	sc := g.scanner(o.rule, in)
 	st := g.newState(in)
 	// end is the furthest end of the matches so far. Overlap's matches
 	// come in order of where they start, one from each position, so a
 	// match is inside an earlier one exactly when it ends by then.
 	end := -1
 	for from := o.pos; from <= len(in); {
-		if !canStart(s, empty, in, from) {
+		if !sc.can(from) {
 			from++
 			continue
 		}
@@ -678,12 +678,12 @@ func (g *Grammar) FindAll(text string, opts ...Option) *scalar.AV {
 // if it's empty. For a match's captures, use FindAll.
 func (g *Grammar) Split(text string, opts ...Option) *scalar.AV {
 	o, in := g.prepare(opts), []rune(nfc(text))
-	s, empty := g.startsOf(o.rule)
+	sc := g.scanner(o.rule, in)
 	pieces := scalar.Array()
 	st := g.newState(in)
 	from := min(o.pos, len(in))
 	for at := from; at <= len(in); {
-		if !canStart(s, empty, in, at) {
+		if !sc.can(at) {
 			at++
 			continue
 		}
@@ -842,7 +842,7 @@ func (g *Grammar) whyNotFound(text string, opts []Option) *ParseError {
 	if o.pos > len(in) {
 		return newParseError(g.name, in, len(in), nil).searched(in, len(in))
 	}
-	s, empty := g.startsOf(o.rule)
+	sc := g.scanner(o.rule, in)
 	st := g.newState(in)
 	var best *ParseError
 	try := func(from int) {
@@ -853,7 +853,7 @@ func (g *Grammar) whyNotFound(text string, opts []Option) *ParseError {
 		}
 	}
 	for from := o.pos; from <= len(in); from++ {
-		if canStart(s, empty, in, from) {
+		if sc.can(from) {
 			try(from)
 		}
 	}

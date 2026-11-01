@@ -1,6 +1,7 @@
 package grammar
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -107,8 +108,73 @@ func TestStarts(t *testing.T) {
 			}
 		}
 	}
-	re := New("R").Token("TOP", Re(`\d+`))
-	if s, empty := re.startsOf("TOP"); !s.any && !empty {
-		t.Error("Re: skipped positions")
+	// A regex terminal is asked where it next matches, unless it can match
+	// empty text or uses \G, when it could start anywhere.
+	for _, c := range []struct {
+		pattern    string
+		everywhere bool
+	}{{`\d+`, false}, {`\d*`, true}, {`\G\d`, true}, {`(?=\d)`, true}} {
+		s, empty := New("R").Token("TOP", Re(c.pattern)).startsOf("TOP")
+		if got := empty || s.any; got != c.everywhere || !got && len(s.res) != 1 {
+			t.Errorf("Re(%s): everywhere %v, %d regexes; want everywhere %v", c.pattern, got, len(s.res), c.everywhere)
+		}
+	}
+}
+
+// Grammars that start with a regex terminal skip the positions before
+// where it next matches, and find what they found without skipping: alone,
+// beside a literal, under :i, after a lookahead or optional spaces, with
+// lookbehind in the pattern, in a called rule, and where they can't skip.
+func TestReStartsChangeNothing(t *testing.T) {
+	grammars := []*Grammar{
+		New("R1").Token("TOP", Re(`£\d[\d,]*(?:k\b)?`)),
+		New("R2").Token("TOP", Alt(Re(`\d+k`), Lit("£"))),
+		New("R3").Token("TOP", IgnoreCase(Re(`up to £\d+`))),
+		New("R4").Token("TOP", Seq(Before(Lit("£")), Re(`£\d+`))),
+		New("R5").Token("TOP", Seq(Star(Lit(" ")), Re(`\d+`), Lit("k"))),
+		New("R6").Token("TOP", Re(`(?<=£)\d+`)),
+		New("R7").Token("TOP", Seq(Call("num"), Lit("k"))).Token("num", Re(`\d+`)),
+		New("R8").Token("TOP", Seq(Re(`\d+`), Opt(Re(`k`)))),
+		New("R9").Token("TOP", Re(`\G£\d`)),
+		New("R10").Token("TOP", Re(`\d*k`)),
+		New("R11").Regex("TOP", Seq(Re(`\d+`), Lit("0k"))),
+	}
+	texts := []string{
+		"Salary: £45k – £55,000 per annum, plus £5k bonus", "", "£", "45k", "x£1 £ 2 £3,000k",
+		"UP TO £50 or up to £60", "Up To £7", "  45k and 100k", "£1£2£3", "1000k", "10k, 20k\n30k",
+	}
+	for _, g := range grammars {
+		for _, text := range texts {
+			with, without := findBoth(g, text)
+			for i, name := range []string{"Find", "FindAll", "FindAll with Overlap", "FindAll with Outermost"} {
+				if d := with[i].Diff(without[i]); d != "" {
+					t.Errorf("%s.%s(%q): %s", g.Name(), name, text, d)
+				}
+			}
+			skipStarts = false
+			split := g.Split(text)
+			skipStarts = true
+			if d := split.Diff(g.Split(text)); d != "" {
+				t.Errorf("%s.Split(%q): %s", g.Name(), text, d)
+			}
+		}
+	}
+}
+
+// A search skips the positions before a regex terminal's next match: on a
+// long text with three figures, the matcher is tried at just those.
+func TestReStartsSkip(t *testing.T) {
+	g := New("R").Token("TOP", Re(`£\d+`))
+	text := strings.Repeat("no figures here. ", 50) + "£1 £2 and £3"
+	in := []rune(text)
+	sc := g.scanner("TOP", in)
+	var tried []int
+	for at := 0; at <= len(in); at++ {
+		if sc.can(at) {
+			tried = append(tried, at)
+		}
+	}
+	if want := []int{850, 853, 860}; !slices.Equal(tried, want) {
+		t.Errorf("tried %v, want %v", tried, want)
 	}
 }
