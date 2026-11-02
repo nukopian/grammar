@@ -1349,31 +1349,22 @@ type look struct {
 	code   bool // a code assertion is in it, outside any rule or group; see start
 }
 
-// newLook is a lookaround, with whether it needs mark.
+// newLook is a lookaround, with whether it needs a mark; see mark.
 func newLook(inner Node, neg, behind bool) *look {
 	return &look{inner: inner, neg: neg, behind: behind, code: hasCode(inner)}
 }
 
-// hasCode reports whether a code assertion is in n, outside any rule or
-// ( ... ) group, each of which starts a match so far of its own, and so
-// whether a scope with n as its body needs start's mark.
+// hasCode reports whether a code assertion is in n, outside any rule, ( ...
+// ) group or lookaround, each of which starts a match so far of its own,
+// and so whether a scope with n as its body needs start's mark.
 func hasCode(n Node) bool {
 	switch n.(type) {
 	case *code:
 		return true
-	case *group:
+	case *group, *look:
 		return false
 	}
 	return slices.ContainsFunc(children(n), hasCode)
-}
-
-// mark returns c, for the lookaround's inside to match from at from, when
-// a code assertion is inside, with start's mark on top, so that its match so
-// far is the lookaround's own captures, from there, as in Raku; see sofar.
-// What's captured inside a lookaround is dropped, mark and all, when it's
-// done.
-func (n *look) mark(from int, c *capList) *capList {
-	return &capList{startMark, &mnode{from: from, to: from}, c}
 }
 
 // start is the capture list a rule's or a group's body starts with, at
@@ -1384,7 +1375,15 @@ func start(code bool, pos int) *capList {
 	if !code {
 		return nil
 	}
-	return &capList{startMark, &mnode{from: pos, to: pos}, nil}
+	return mark(pos, nil)
+}
+
+// mark is c with a mark on top of where a match so far starts, at pos. A
+// lookaround with a code assertion inside marks c, the captures so far, so
+// that its match so far is its own captures, from where it is, as in Raku;
+// what it captures is dropped, mark and all, when it's done.
+func mark(pos int, c *capList) *capList {
+	return &capList{startMark, &mnode{from: pos, to: pos}, c}
 }
 
 // startMark is the key of start's mark, which no capture can have.
@@ -1425,7 +1424,7 @@ func (n *look) match(st *state, pos int, c *capList, e env, k cont) bool {
 			// lookbehind 2% though it's never true.
 			try = func(from int) bool {
 				st.tick()
-				return n.inner.match(st, from, n.mark(from, c), e, func(p int, _ *capList) bool { return p == pos })
+				return n.inner.match(st, from, mark(from, c), e, func(p int, _ *capList) bool { return p == pos })
 			}
 		}
 		if info != nil && !info.empty && !info.s.any && len(info.s.res) == 0 {
@@ -1444,7 +1443,7 @@ func (n *look) match(st *state, pos int, c *capList, e env, k cont) bool {
 	} else {
 		cc := c
 		if n.code {
-			cc = n.mark(pos, c)
+			cc = mark(pos, c)
 		}
 		_, _, ok = once(n.inner, st, pos, cc, e)
 	}

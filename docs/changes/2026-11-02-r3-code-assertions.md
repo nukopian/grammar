@@ -200,6 +200,25 @@ named function among the Differences from Raku, and its gap is gone.
   reference now says so, in Code assertions and What you might assume,
   checked in Raku. jdc-lab has the patch as a task, waiting on the
   release.
+- **Wash-up** (2026-11-02, everything since v0.4.4): no crashes or
+  wrong matches found. Probed against Raku and kept as cases: an
+  assertion in a `rule`, whose space after it matches whitespace
+  (Code9); in a proto's variant (Code10); in a conjunction's branch
+  (Code11); beside a backreference (Code12); all alike. Probed in Go:
+  actions with assertions under `FindAll`, `Overlap` and `Outermost`,
+  each action run once per match, the match so far read-only and the
+  results writable. Found and fixed: `hasCode` didn't stop at
+  lookarounds, so a rule whose only assertion was inside one marked
+  where it started, two allocations a call it never read
+  (`TestAssertMarks`, failing first); and `(*look).mark` ignored its
+  receiver, now `mark` beside `start`. `TestAssertReadOnly` now takes
+  the path with actions too. Found, not changed: a quantified
+  zero-width atom, `^*`, `<?>?` or `<?{ … }>?`, is a compile error in
+  Raku ("Can only quantify a construct that produces a match"), and
+  matches here, as it did before assertions; Raku loops forever on
+  `<?before a>*`, which matches here. Afterwards, the tests, examples
+  and jdc-lab's chunks, with and without Pay's assertion, were as
+  before, and `FuzzMatch` ran 60 seconds with nothing found.
 - **What's left:** building only what the function reads, which would
   need a lazy value in scalar, is in the reference's
   [Engineering gaps](../REFERENCE.md#engineering).

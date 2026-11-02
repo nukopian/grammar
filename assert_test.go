@@ -71,8 +71,19 @@ func TestAssertReadOnly(t *testing.T) {
 			m.At("num.~").Set("changed")
 			return true
 		}))
-	if m := g.Parse("12"); m.At("num.~").Str() != "12" {
-		t.Errorf("num is %q", m.At("num.~").Str())
+	// With actions and without, as the match so far is made differently:
+	// a copy of what the result shares, or built for the assertion alone.
+	acts := Actions(map[string]func(*scalar.SV) any{"num": func(m *scalar.SV) any { return 1 }})
+	for _, opts := range [][]Option{nil, {acts}} {
+		m := g.Parse("12", opts...)
+		if m.At("num.~").Str() != "12" {
+			t.Errorf("num is %q", m.At("num.~").Str())
+		}
+		// The result is the caller's to change, as ever.
+		m.At("num").Set(scalar.Hash("mine", 1))
+		if m.At("num.mine").Int() != 1 {
+			t.Error("the result is read-only")
+		}
 	}
 }
 
@@ -124,5 +135,26 @@ func BenchmarkAssert(b *testing.B) {
 		if n := g.FindAll(text, Outermost()).Length(); n != 2 {
 			b.Fatalf("%d matches", n)
 		}
+	}
+}
+
+// A rule or group marks where it started only for an assertion of its
+// own: one inside a lookaround is the lookaround's, which marks itself, as
+// is one inside a group or a called rule.
+func TestAssertMarks(t *testing.T) {
+	yes := Assertion("yes", func(*scalar.SV) bool { return true })
+	g := MustCompile(`grammar G {
+    token TOP  { <look> <group> <own> }
+    token look { <?before <?{ yes($/) }>> \w }
+    token group { ( \w <?{ yes($/) }> ) }
+    token own  { \w <?{ yes($/) }> }
+}`, yes)
+	for rule, want := range map[string]bool{"TOP": false, "look": false, "group": false, "own": true} {
+		if got := g.lookup(rule).code; got != want {
+			t.Errorf("%s marks where it started: %v, want %v", rule, got, want)
+		}
+	}
+	if !g.Parse("abc").Defined() {
+		t.Error("no match")
 	}
 }

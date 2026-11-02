@@ -430,6 +430,27 @@ var rakuCases = []rakuCase{
 		Checks: map[string]func(*scalar.SV) bool{"empty": func(m *scalar.SV) bool {
 			return m.At("~").Str() == "" && m.At("from").Int() == m.At("to").Int()
 		}}},
+	// In a rule, the space after an assertion matches whitespace, as after
+	// any atom; a proto's variant, a conjunction's branch and a
+	// backreference beside one see what Raku's do.
+	{Src: `grammar Code9 { rule TOP { <n=num> <?{ small($/) }> hours }; token num { \d+ } }`,
+		Inputs: []string{"40 hours", "40hours", "60 hours"},
+		Raku:   `sub small($/) { +$<n> <= 50 }`,
+		Checks: map[string]func(*scalar.SV) bool{"small": func(m *scalar.SV) bool { return m.At("n.~").Int() <= 50 }}},
+	{Src: `grammar Code10 { token TOP { <p> }; proto token p {*}; token p:sym<n> { <n=num> <?{ small($/) }> }; token p:sym<w> { \w+ }; token num { \d+ } }`,
+		Inputs: []string{"40", "60"},
+		Raku:   `sub small($/) { +$<n> <= 50 }`,
+		Checks: map[string]func(*scalar.SV) bool{"small": func(m *scalar.SV) bool { return m.At("n.~").Int() <= 50 }}},
+	{Src: `grammar Code11 { regex TOP { [ \w+ <?{ odd($/) }> ] && [ a .* ] } }`,
+		Sub: true, Inputs: []string{"abcd", "abc"},
+		Raku: `sub odd($/) { +$/.chars % 2 == 1 }`,
+		Checks: map[string]func(*scalar.SV) bool{"odd": func(m *scalar.SV) bool {
+			return len([]rune(m.At("~").Str()))%2 == 1
+		}}},
+	{Src: `grammar Code12 { token TOP { $<a>=[\w] <?{ same($/) }> $<a> } }`,
+		Inputs: []string{"xx", "yy"},
+		Raku:   `sub same($/) { ~$<a> eq 'x' }`,
+		Checks: map[string]func(*scalar.SV) bool{"same": func(m *scalar.SV) bool { return m.At("a.~").Str() == "x" }}},
 	// Inside a lookaround, from where it is, with its own captures and
 	// none of the rule's.
 	{Src: `grammar Code8 { token TOP { <a=alpha> <?before <d=digit> <?{ five($/) }> > \d } }`,
