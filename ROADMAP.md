@@ -43,34 +43,20 @@ dropped is deleted, and the commit that drops it names its number.
 
 ## Now
 
-Nothing yet.
-
-## Next
-
 ### 3. Code assertions
 
 **Serves:** Raku
 
 **Size:** M (3)
 
-**What:** `<?{ name($/) }>` and `<!{ name($/) }>`, calling a Go
-function passed to `Compile` as a `Use`, `grammar.Assertion(name, fn)`,
-with the match so far, which says whether the match goes on. The match
-holds the `made` values of the rules already matched, built through the
-actions, as Raku's does. Written so, a grammar runs unchanged in Raku
-given a `sub name($/)`. (Decided 2026-11-01, after roadmap 10.)
+`<?{ name($/) }>` and `<!{ name($/) }>` call a Go function, passed to
+`Compile`, with the match so far, and fail or go on by what it says, so
+a check only code can make, such as a pay range's minimum below its
+maximum, is made mid-parse, where backtracking can find a reading that
+passes. The plan is in its
+[change record](docs/changes/2026-11-02-r3-code-assertions.md).
 
-**Why:** some checks only code can make mid-parse: a pay range's
-minimum below its maximum, a plausible year, a listed word that isn't a
-stopword. Without them wrong parses get through and are cleaned up
-afterwards, and the grammar can't backtrack to a reading that passes,
-as Raku's does.
-
-**Done when** both forms work in rules and the builder; a name with no
-function is a compile error that says so; `rakuCases` holds cases run
-in Raku with the same check as inline code, matching alike; it has an
-example with a pay range; and the reference documents it, with the
-named function among the Differences from Raku, and its gap is gone.
+## Next
 
 ### 5. A picture of a grammar
 
