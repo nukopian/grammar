@@ -49,7 +49,7 @@ and changing a rule means changing a line. It's for getting from "could
 rules do this?" to a measured answer quickly: its pay grammar went from
 first sketch to agreeing with a language model on every posting tried, in
 a day. It's also for keeping the rules readable once they work. At about
-5.5 µs to match a pay string, and 14 µs to fill a struct from it, it
+5 µs to match a pay string, and 14 µs to fill a struct from it, it
 gets through the 134,000 postings it was built for in seconds. Where production volumes need more, a rule set that has settled
 can be ported.
 

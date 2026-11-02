@@ -24,6 +24,10 @@ release's entry when `main` is moved to it and tagged
   Results are unchanged. A call can count fewer steps against
   `StepLimit` than it did, as skipped branches take none.
   (roadmap 25; [record](docs/changes/2026-11-02-r25-a-faster-matcher.md))
+- Faster still with scalar v0.6.4, which makes a hash's values, and an
+  array's, in one allocation: a pay parse takes 5.0 µs, from 5.5 µs, with
+  86 allocations rather than 126, and searches are 5 to 10% faster, with
+  a quarter fewer allocations. Build: needs scalar v0.6.4, up from v0.6.3.
 
 ## v0.5.1 (2026-11-02)
 
