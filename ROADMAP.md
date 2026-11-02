@@ -97,24 +97,6 @@ and whether `<$var>` interpolation comes with them.
 design questions are answered in the reference; and the reference's
 gap is gone.
 
-### 5. A picture of a grammar
-
-**Serves:** debugging
-
-**Size:** S (2)
-
-**What:** print a grammar as EBNF, with a note wherever a Raku feature
-has no EBNF form (backreferences, lookbehind, word lists, a token's
-ratchet), and draw railroad diagrams from it with an existing tool.
-
-**Why:** documenting, reviewing and learning a grammar: a diagram of
-the pay grammar beside its rules shows at a glance what the rules take
-a while to read.
-
-**Done when** every node prints, with a test that each does; it has an
-example; the how-to has a recipe that draws a diagram with a named
-tool, checked to work; and the reference's gap is gone.
-
 ## Later
 
 ### 11. Stemming in word lists
@@ -165,6 +147,13 @@ alternations, protos and nested alternations in a `regex`.
 An idea is a numbered heading, the date it was added, its size, and a
 line or two on what and why. Each wash-up prunes them: each is kept,
 promoted to Later or Next with its number, or dropped.
+
+### 5. A picture of a grammar
+
+Added 2026-10-26; parked from Next 2026-11-02. **Size:** S (2). Print a
+grammar as EBNF, noting where a Raku feature has no EBNF form, and draw
+railroad diagrams from it with an existing tool, for documenting,
+reviewing and learning a grammar.
 
 ### 17. A phrasebook from Raku to Participle
 
