@@ -1,6 +1,7 @@
 package grammar
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -58,6 +59,50 @@ func TestStartsChangeNothing(t *testing.T) {
 }
 
 func slicesClone(s []string) []string { return append([]string(nil), s...) }
+
+// The starts' table of ASCII characters says what asking the starts does,
+// for every character, for every Raku case's grammar and the package's test
+// grammars, and for each lookbehind in them.
+func TestStartsTableChangesNothing(t *testing.T) {
+	grammars := []*Grammar{pay, payErr, shapes}
+	var texts []string
+	for _, c := range rakuCases {
+		g, err := Compile(c.Src, c.uses()...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		grammars = append(grammars, g)
+		texts = append(texts, c.Inputs...)
+	}
+	same := func(name string, s *starts) {
+		if !s.tabled {
+			t.Fatalf("%s: no table", name)
+		}
+		slow := *s
+		slow.tabled = false
+		for r := rune(0); r < 128; r++ {
+			if s.has(r) != slow.has(r) {
+				t.Errorf("%s: %q: table says %v", name, r, s.has(r))
+			}
+		}
+	}
+	lookbehinds := 0
+	for _, g := range grammars {
+		s, _ := g.startsOf("TOP")
+		same(g.Name(), s)
+		for _, text := range texts {
+			g.FindAll(text) // works out its lookbehinds' starts
+		}
+		g.afters.Range(func(_, v any) bool {
+			same(g.Name()+" lookbehind", v.(*lookInfo).s)
+			lookbehinds++
+			return true
+		})
+	}
+	if lookbehinds == 0 {
+		t.Fatal("no lookbehinds checked")
+	}
+}
 
 // What a grammar can start with.
 func TestStarts(t *testing.T) {
@@ -198,4 +243,57 @@ func TestReStartsTimeout(t *testing.T) {
 	if !sc.stuck[0] {
 		t.Error("the search didn't time out: lengthen the run of a's")
 	}
+}
+
+// Skipping an alternation's branches that can't start with the next
+// character changes no result, not even a failure report, and never takes
+// more steps: checked over every Raku case and the package's test grammars,
+// each input also searched for inside some surrounding text. Somewhere, it
+// must take fewer, or it skipped nothing.
+func TestBranchSkipsChangeNothing(t *testing.T) {
+	defer func() { skipBranches = true }()
+	acronyms := NewWordList("acro", FoldCase(), WholeWords(), Plurals(), ExactAcronyms()).Add("IT").Add("NHS trust").Add("pay")
+	grammars := []*Grammar{pay, payErr, shapes, MustCompile(`grammar Acro { token TOP { @acro | IT \d } }`, acronyms)}
+	var texts []string
+	for _, c := range rakuCases {
+		g, err := Compile(c.Src, c.uses()...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		grammars = append(grammars, g)
+		texts = append(texts, c.Inputs...)
+	}
+	for _, in := range slicesClone(texts) {
+		texts = append(texts, "xx "+in+" ;"+in, strings.ToUpper(in)+"\n"+in)
+	}
+	texts = append(texts, "Salary: £45k – £55,000 per annum, plus £5k bonus", "", "££", "£", "£ 1",
+		"IT and it, an NHS Trust, nhs trust, PAY and pay, ITs, IT4", "£45,000 - £55,000 per annum")
+	fewer := 0
+	for _, g := range grammars {
+		for _, text := range texts {
+			skipBranches = true
+			with := results(g, text)
+			skipBranches = false
+			without := results(g, text)
+			last := len(with) - 1 // the steps
+			for i := range last {
+				if with[i] != without[i] {
+					t.Errorf("%s on %q:\n with: %s\n without: %s", g.Name(), text, with[i], without[i])
+				}
+			}
+			var stepsWith, stepsWithout int
+			fmt.Sscanf(with[last], "steps %d", &stepsWith)
+			fmt.Sscanf(without[last], "steps %d", &stepsWithout)
+			if stepsWith > stepsWithout {
+				t.Errorf("%s on %q: %d steps skipping branches, %d without", g.Name(), text, stepsWith, stepsWithout)
+			}
+			if stepsWith < stepsWithout {
+				fewer++
+			}
+		}
+	}
+	if fewer == 0 {
+		t.Fatal("no branch was ever skipped")
+	}
+	t.Logf("fewer steps for %d texts", fewer)
 }

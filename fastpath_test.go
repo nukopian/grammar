@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/nukopian/scalar"
@@ -171,5 +172,50 @@ func limitResults(g *Grammar, text string) []string {
 		try(func() string { return "Subparse " + g.Subparse(text).Dump() }),
 		try(func() string { return "Parse " + g.Parse(text).Dump() }),
 		steps,
+	}
+}
+
+// One grammar searched from many goroutines at once gives each what it
+// gives alone, though the states it searches with are kept and used again
+// (see done), even while some searches are stopped by StepLimit, whose
+// states mustn't be used again. Run with -race, as CI does.
+func TestStatesShared(t *testing.T) {
+	defer func(s int) { StepLimit = s }(StepLimit)
+	StepLimit = 5000
+	texts := []string{"£45,000 - £55,000 per annum", "Salary: £24,500 - £26,000 per annum", "no pay here", "£5k p.a.", ""}
+	long := strings.Repeat("£1 ", 3000) // past StepLimit
+	want := make([]string, len(texts))
+	for i, text := range texts {
+		want[i] = scalar.Value(pay.FindAll(text)).Dump() + pay.Parse(text).Dump()
+	}
+	limited := func() (err any) {
+		defer func() { err = recover() }()
+		pay.FindAll(long)
+		return nil
+	}
+	var wg sync.WaitGroup
+	errs := make(chan string, 1000)
+	for g := range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for n := range 200 {
+				if (g+n)%7 == 0 {
+					if limited() == nil {
+						errs <- "no StepLimit on the long text"
+					}
+					continue
+				}
+				i := (g + n) % len(texts)
+				if got := scalar.Value(pay.FindAll(texts[i])).Dump() + pay.Parse(texts[i]).Dump(); got != want[i] {
+					errs <- fmt.Sprintf("%q: got %s, want %s", texts[i], got, want[i])
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for e := range errs {
+		t.Error(e)
 	}
 }

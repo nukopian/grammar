@@ -44,8 +44,9 @@ type Grammar struct {
 	fromRole map[string]string // rule name → the role it was composed from
 	checked  atomic.Uint64     // the generation at which Check last passed
 	starts   atomic.Pointer[startsEntry]
-	protos   sync.Map // proto name → *protoEntry
-	afters   sync.Map // lookKey → *lookInfo, for lookbehinds; see lookbehind.go
+	protos   sync.Map  // proto name → *protoEntry
+	afters   sync.Map  // lookKey → *lookInfo, for lookbehinds; see lookbehind.go
+	states   sync.Pool // finished states, to search with again; see done
 }
 
 // generation counts changes to any grammar's rules. A grammar's Check
@@ -232,7 +233,7 @@ func (g *Grammar) Proto(name string) *Grammar {
 	if old, ok := g.rules[name]; ok && !old.proto && g.fromRole[name] == "" {
 		panic(fmt.Sprintf("grammar %s: %s is a rule already, so it can't be a proto", g.name, name))
 	}
-	g.rules[name] = &rule{name: name, proto: true, ratchet: true, body: alt(nil), sc: newScope(alt(nil)), seq: ruleSeq.Add(1)}
+	g.rules[name] = &rule{name: name, proto: true, ratchet: true, body: newAlt(nil), sc: newScope(newAlt(nil)), seq: ruleSeq.Add(1)}
 	delete(g.fromRole, name)
 	generation.Add(1)
 	return g
@@ -300,10 +301,11 @@ func (g *Grammar) protoRule(name string) *rule {
 		}
 	}
 	slices.SortFunc(vs, func(a, b *rule) int { return cmp.Compare(a.seq, b.seq) })
-	calls := make(alt, len(vs))
+	variants := make([]Node, len(vs))
 	for i, v := range vs {
-		calls[i] = Silent(v.name)
+		variants[i] = Silent(v.name)
 	}
+	calls := newAlt(variants)
 	r := &rule{name: name, proto: true, variants: vs, ratchet: true, body: calls, sc: newScope(calls)}
 	g.protos.Store(name, &protoEntry{gen, r})
 	return r
@@ -414,7 +416,7 @@ func canBeEmpty(n Node, empty map[string]bool) bool {
 	case conj:
 		// Its branches match the same text, so all or none are empty.
 		return !slices.ContainsFunc(n, func(c Node) bool { return !canBeEmpty(c, empty) })
-	case alt, first:
+	case *alt, first:
 		return slices.ContainsFunc(children(n), func(c Node) bool { return canBeEmpty(c, empty) })
 	case *Quant:
 		return n.min == 0 || canBeEmpty(n.item, empty) && (n.sep == nil || n.min == 1 || canBeEmpty(n.sep, empty))
@@ -610,6 +612,7 @@ func (g *Grammar) Parse(text string, opts ...Option) *scalar.SV {
 		return noMatch()
 	}
 	st := g.newState(in)
+	defer g.done(st)
 	return st.result(g.runState(st, o.pos, true, o))
 }
 
@@ -621,6 +624,7 @@ func (g *Grammar) Subparse(text string, opts ...Option) *scalar.SV {
 		return noMatch()
 	}
 	st := g.newState(in)
+	defer g.done(st)
 	return st.result(g.runState(st, o.pos, false, o))
 }
 
@@ -629,6 +633,7 @@ func (g *Grammar) Find(text string, opts ...Option) *scalar.SV {
 	o, in := g.prepare(opts), []rune(nfc(text))
 	sc := g.scanner(o.rule, in)
 	st := g.newState(in)
+	defer g.done(st)
 	for from := o.pos; from <= len(in); from++ {
 		if !sc.can(from) {
 			continue
@@ -647,6 +652,7 @@ func (g *Grammar) FindAll(text string, opts ...Option) *scalar.AV {
 	all := scalar.Array()
 	sc := g.scanner(o.rule, in)
 	st := g.newState(in)
+	defer g.done(st)
 	// end is the furthest end of the matches so far. Overlap's matches
 	// come in order of where they start, one from each position, so a
 	// match is inside an earlier one exactly when it ends by then.
@@ -684,6 +690,7 @@ func (g *Grammar) Split(text string, opts ...Option) *scalar.AV {
 	sc := g.scanner(o.rule, in)
 	pieces := scalar.Array()
 	st := g.newState(in)
+	defer g.done(st)
 	from := min(o.pos, len(in))
 	for at := from; at <= len(in); {
 		if !sc.can(at) {
@@ -727,7 +734,27 @@ func (g *Grammar) prepare(opts []Option) options {
 // newState starts a match over in, with the step and depth limits in force
 // now.
 func (g *Grammar) newState(in []rune) *state {
+	if fastPaths {
+		if st, _ := g.states.Get().(*state); st != nil {
+			st.in, st.limit, st.maxDepth = in, StepLimit, DepthLimit
+			return st
+		}
+	}
 	return &state{in: in, g: g, limit: StepLimit, maxDepth: DepthLimit}
+}
+
+// done is finished with st, a state from newState, keeping it for the
+// grammar's next search, so that once's slots and runState's call are
+// made once for many searches rather than for each, as when searching a
+// posting line by line. Everything else is reset, so a state a limit
+// stopped in the middle of a match, as done is deferred, is as good as
+// new. A state tracking failures or tracing is made for that alone.
+func (g *Grammar) done(st *state) {
+	if !fastPaths || st.tr != nil || st.trace != nil {
+		return
+	}
+	*st = state{g: g, slots: st.slots, top: st.top, topK: st.topK, rules: st.rules, alts: st.alts, rulesGen: st.rulesGen}
+	g.states.Put(st)
 }
 
 func (g *Grammar) runState(st *state, from int, whole bool, o options) *mnode {
@@ -735,15 +762,35 @@ func (g *Grammar) runState(st *state, from int, whole bool, o options) *mnode {
 		st.trace = &tracer{w: o.trace}
 	}
 	st.act = o.actions
-	var m *mnode
-	(&call{name: o.rule, capture: true}).match(st, from, nil, env{}, func(p int, c *capList) bool {
-		if whole && p != len(st.in) {
-			st.fail(p, aEnd, env{})
-			return false
+	if !fastPaths {
+		var m *mnode
+		(&call{name: o.rule, capture: true}).match(st, from, nil, env{}, func(p int, c *capList) bool {
+			if whole && p != len(st.in) {
+				st.fail(p, aEnd, env{})
+				return false
+			}
+			m = c.m
+			return true
+		})
+		return m
+	}
+	// The call and its continuation are made once for the state, not at
+	// every position a search tries.
+	if st.top == nil || st.top.name != o.rule {
+		st.top = &call{name: o.rule, id: ruleID(o.rule), capture: true}
+		st.topK = func(p int, c *capList) bool {
+			if st.whole && p != len(st.in) {
+				st.fail(p, aEnd, env{})
+				return false
+			}
+			st.found = c.m
+			return true
 		}
-		m = c.m
-		return true
-	})
+	}
+	st.whole, st.found = whole, nil
+	st.top.match(st, from, nil, env{}, st.topK)
+	m := st.found
+	st.found = nil
 	return m
 }
 
@@ -1117,7 +1164,7 @@ func (sc *scope) count(n Node, next int) (map[string]int, int) {
 			m, next = sc.count(c, next)
 			add(m)
 		}
-	case alt, first:
+	case *alt, first:
 		// Each branch numbers its positional captures from the same place,
 		// and a key captures as often as its busiest branch.
 		end := next

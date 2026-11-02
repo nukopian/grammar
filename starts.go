@@ -29,12 +29,39 @@ type starts struct {
 	runes map[rune]bool
 	preds []func(rune) bool
 	res   []*regexp2.Regexp // regex terminals' patterns, unanchored
+
+	// ascii is what has says for each ASCII character, once tabled says
+	// it's been worked out; see table.
+	ascii  [2]uint64
+	tabled bool
 }
+
+// startsTable turns on starts' table of ASCII characters, so tests can
+// check that it changes no results.
+var startsTable = true
 
 // has reports whether a match can start with r, as far as the characters
 // say. A regex in res can start a match where has says no: ask a scan.
 func (s *starts) has(r rune) bool {
+	if s.tabled && r >= 0 && r < 128 {
+		return s.ascii[r>>6]&(1<<(r&63)) != 0
+	}
 	return s.any || s.runes[r] || slices.ContainsFunc(s.preds, func(p func(rune) bool) bool { return p(r) })
+}
+
+// table works out has for every ASCII character once, so that a search,
+// which asks at every position, mostly looks it up instead of asking each
+// pred. s mustn't change after.
+func (s *starts) table() {
+	if !startsTable {
+		return
+	}
+	for r := rune(0); r < 128; r++ {
+		if s.has(r) {
+			s.ascii[r>>6] |= 1 << (r & 63)
+		}
+	}
+	s.tabled = true
 }
 
 // addRune adds r, and with ci its other cases.
@@ -95,6 +122,7 @@ func (g *Grammar) startsOf(rule string) (*starts, bool) {
 	f := &startFinder{g: g, rules: map[string]*ruleStarts{}}
 	s := &starts{runes: map[rune]bool{}}
 	empty := f.add(&call{name: rule}, false, s)
+	s.table()
 	g.starts.Store(&startsEntry{gen, rule, s, empty})
 	return s, empty
 }
@@ -168,7 +196,7 @@ func (f *startFinder) add(n Node, ci bool, s *starts) bool {
 			}
 		}
 		return true
-	case alt, first:
+	case *alt, first:
 		empty := false
 		for _, c := range children(n) {
 			empty = f.add(c, ci, s) || empty

@@ -41,6 +41,7 @@ func (g *Grammar) lookbehind(n *look, ci bool) *lookInfo {
 	info := &lookInfo{gen: gen, s: &starts{runes: map[rune]bool{}}}
 	info.lo, info.hi = g.width(n.inner, map[string]bool{})
 	info.empty = (&startFinder{g: g, rules: map[string]*ruleStarts{}}).add(n.inner, ci, info.s)
+	info.s.table()
 	g.afters.Store(key, info)
 	return info
 }
@@ -67,7 +68,7 @@ func (g *Grammar) width(n Node, calling map[string]bool) (lo, hi int) {
 		return lo, hi
 	case *goal:
 		return g.width(n.seq(), calling)
-	case alt, first, patterns:
+	case *alt, first, patterns:
 		var kids []Node
 		if p, ok := n.(patterns); ok {
 			kids = p.l.nodes

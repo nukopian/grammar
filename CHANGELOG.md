@@ -11,7 +11,19 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- Faster matching: a pay parse takes 5.5 µs, from 8.4 µs, with 44% fewer
+  allocations; searching each line of a posting for facts takes a third
+  of the time it did, with 84% fewer allocations; and jdc-lab's own
+  searches of postings take half the time. Under ratchet, sequences and
+  repeats step over what they commit to in a loop, without closures;
+  outside it, a greedy repeat of a class or a literal, such as `\s+`,
+  gives back what it took without matching it again; an alternation
+  skips a branch that can't start with the next character; `Find`
+  checks the next character against a table; and the state a search
+  used is kept for the grammar's next, with the rules it looked up.
+  Results are unchanged. A call can count fewer steps against
+  `StepLimit` than it did, as skipped branches take none.
+  (roadmap 25; [record](docs/changes/2026-11-02-r25-a-faster-matcher.md))
 
 ## v0.5.1 (2026-11-02)
 

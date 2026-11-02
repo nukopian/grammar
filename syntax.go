@@ -452,7 +452,7 @@ func (p *parser) alts() Node {
 	if len(branches) == 1 {
 		return branches[0]
 	}
-	return alt(branches)
+	return newAlt(branches)
 }
 
 // tightConjs reads branches joined by &.

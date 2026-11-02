@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"unicode"
 
 	"github.com/dlclark/regexp2"
@@ -74,6 +76,21 @@ type state struct {
 	// assertions and the result; see builder.
 	act *actions
 	b   *builder
+
+	// top is the call runState matches at each position, topK its
+	// continuation, which puts the match in found, and whole whether it
+	// must reach the end.
+	top   *call
+	topK  cont
+	whole bool
+	found *mnode
+
+	// rules are the rules calls have found, by their names' numbers, and
+	// alts the alternations' branches' starts, by theirs, as they were at
+	// generation rulesGen; see ruleOf and branchStarts.
+	rules    []*rule
+	alts     [][]*starts
+	rulesGen uint64
 }
 
 // deeper counts one more level of the matcher's recursion: every node that
@@ -261,7 +278,7 @@ func describe(n Node, ci bool) string {
 		return describe(n.open, ci)
 	case conj:
 		return describe(n[0], ci)
-	case alt, first:
+	case *alt, first:
 		var descs []string
 		for _, c := range children(n) {
 			descs = append(descs, describe(c, ci))
@@ -382,10 +399,23 @@ func oneWay(n Node) bool {
 	return false
 }
 
-// loopable reports whether q can be matched by loop: a greedy repeat of a
-// class or a literal, with no separator, which under ratchet takes as many
-// items as it can and never gives one back.
+// loopable reports whether q can be matched by loop: a greedy repeat with
+// no separator, of an item that commits to its first match under ratchet,
+// which so takes as many items as it can and never gives one back.
 func (q *Quant) loopable() bool {
+	if q.sep != nil || q.frugal {
+		return false
+	}
+	if lit, isLit := q.item.(lit); isLit {
+		return len(lit.rs) > 0 // an empty literal could repeat forever
+	}
+	return !extendable(q.item)
+}
+
+// atomItem reports whether q is a greedy repeat, with no separator, of a
+// class or a non-empty literal, whose items each match one width of text,
+// so that backtrack can give them back without matching them again.
+func (q *Quant) atomItem() bool {
 	if q.sep != nil || q.frugal {
 		return false
 	}
@@ -393,7 +423,7 @@ func (q *Quant) loopable() bool {
 	case class:
 		return true
 	case lit:
-		return len(item.rs) > 0 // an empty literal could repeat forever
+		return len(item.rs) > 0
 	}
 	return false
 }
@@ -405,6 +435,21 @@ func (q *Quant) loopable() bool {
 // reached at the same step, and it reaches the depths iter's recursion
 // would, so DepthLimit is too. st.depth is step's own level on entry.
 func (q *Quant) loop(st *state, pos int, c *capList, e env, k cont) bool {
+	p, cc, ok := q.loopAt(st, pos, c, e)
+	return ok && k(p, cc)
+}
+
+// loopAt is loop without a continuation: where the repeat ends, and the
+// captures then, or false.
+func (q *Quant) loopAt(st *state, pos int, c *capList, e env) (int, *capList, bool) {
+	p, cc, count := q.take(st, pos, c, e)
+	return p, cc, count >= q.min
+}
+
+// take takes q's items while they match, as loop does, and gives where
+// they end, the captures then, and how many it took. st.depth is as it
+// was on entry when it returns.
+func (q *Quant) take(st *state, pos int, c *capList, e env) (int, *capList, int) {
 	base := st.depth
 	reach := func(d int) {
 		st.depth = base + d
@@ -427,6 +472,15 @@ func (q *Quant) loop(st *state, pos int, c *capList, e env, k cont) bool {
 			p, ok = item.at(st, pos, e)
 		case lit:
 			p, ok = item.at(st, pos, e)
+		default:
+			var cc *capList
+			p, cc, ok = firstAt(item, st, pos, c, e)
+			if ok && p == pos && count >= q.min {
+				ok = false // an empty item would repeat forever
+			}
+			if ok {
+				c = cc
+			}
 		}
 		if !ok {
 			break
@@ -435,7 +489,38 @@ func (q *Quant) loop(st *state, pos int, c *capList, e env, k cont) bool {
 		count++
 	}
 	st.depth = base
-	return count >= q.min && k(pos, c)
+	return pos, c, count
+}
+
+// backtrack is iter for a repeat with atomItem outside ratchet, when
+// failures aren't being tracked: take as many items as it can, as loop
+// does, then go on with each count in turn, most first, at the depth
+// iter's recursion would have reached it, without matching an item again.
+func (q *Quant) backtrack(st *state, pos int, c *capList, e env, k cont) bool {
+	base := st.depth
+	end, _, count := q.take(st, pos, c, e)
+	width := 1
+	if lit, isLit := q.item.(lit); isLit {
+		width = len(lit.rs)
+	}
+	for n := count; n >= q.min; n-- {
+		st.depth = base + 1 + 2*n
+		if k(end-(count-n)*width, c) {
+			st.depth = base
+			return true
+		}
+	}
+	st.depth = base
+	return false
+}
+
+// firstAt is what step does under ratchet for n, which isn't extendable,
+// without a continuation: n's first match, and the captures then.
+func firstAt(n Node, st *state, pos int, c *capList, e env) (int, *capList, bool) {
+	if q, isQuant := n.(*Quant); isQuant && st.tr == nil && q.loopable() {
+		return q.loopAt(st, pos, c, e)
+	}
+	return once(n, st, pos, c, e)
 }
 
 // extendable reports whether n holds a frugal quantifier that can still
@@ -777,14 +862,27 @@ func (n seq) match(st *state, pos int, c *capList, e env, k cont) bool {
 
 func (n seq) from(i int, st *state, pos int, c *capList, e env, k cont) bool {
 	// With the fast paths on, a run of literals, classes and anchors is
-	// stepped over in a loop, without a closure for each. Each raises the
-	// depth before it matches and holds it while the rest of the sequence
-	// does, as step would, so DepthLimit is reached where it would be.
+	// stepped over in a loop, without a closure for each, and so, under
+	// ratchet, is anything step would commit to its first match. Each
+	// raises the depth before it matches and holds it while the rest of the
+	// sequence does, as step would, so DepthLimit is reached where it would
+	// be.
 	stepped := 0
-	for ; fastPaths && i < len(n) && atom(n[i]); i++ {
-		st.deeper()
-		stepped++
-		p, ok := atomAt(n[i], st, pos, e)
+	for ; fastPaths && i < len(n); i++ {
+		item := n[i]
+		var p int
+		var ok bool
+		if atom(item) {
+			st.deeper()
+			stepped++
+			p, ok = atomAt(item, st, pos, e)
+		} else if e.ratchet && !extendable(item) {
+			st.deeper()
+			stepped++
+			p, c, ok = firstAt(item, st, pos, c, e)
+		} else {
+			break
+		}
 		if !ok {
 			st.depth -= stepped
 			return false
@@ -824,23 +922,103 @@ func atomAt(n Node, st *state, pos int, e env) (int, bool) {
 	return pos, n.(anchor).at(st, pos, e)
 }
 
-type alt []Node
+type alt struct {
+	branches []Node
+	id       int // for the state to keep its branches' starts by; see branchStarts
+}
+
+// altIDs numbers alternations as they're made, from 1.
+var altIDs atomic.Int64
+
+func newAlt(branches []Node) *alt { return &alt{branches, int(altIDs.Add(1))} }
 
 // Alt is Raku's |: the branch that matches the most text wins, and the
 // earlier branch wins a tie. Raku decides by each branch's declarative
 // prefix; Alt approximates that by the length of each branch's first match.
-func Alt(nodes ...Node) Node { return alt(nodes) }
+func Alt(nodes ...Node) Node { return newAlt(nodes) }
 
-func (n alt) match(st *state, pos int, c *capList, e env, k cont) bool {
+// skipBranches turns on skipping an alternation's branches that can't
+// start with the next character, so tests can check that it changes no
+// results. As with skipStarts, a branch skipped takes no steps, so the
+// steps counted against StepLimit can be fewer.
+var skipBranches = true
+
+// branchStarts are what each of n's branches can start with, under ci, as
+// n's grammar sees them, or nil for a branch that could start with
+// anything or match nothing. They're worked out once and kept on the
+// state, by n's number, until a grammar changes, as ruleOf keeps rules.
+func (st *state) branchStarts(n *alt, ci bool) []*starts {
+	if gen := generation.Load(); st.rulesGen != gen {
+		clear(st.rules)
+		clear(st.alts)
+		st.rulesGen = gen
+	}
+	i := 2 * n.id
+	if ci {
+		i++
+	}
+	if i < len(st.alts) && st.alts[i] != nil {
+		return st.alts[i]
+	}
+	out := make([]*starts, len(n.branches))
+	f := &startFinder{g: st.g, rules: map[string]*ruleStarts{}}
+	for j, b := range n.branches {
+		s := &starts{runes: map[rune]bool{}}
+		if !f.add(b, ci, s) && !s.any && len(s.res) == 0 {
+			s.table()
+			out[j] = s
+		}
+	}
+	if i >= len(st.alts) {
+		st.alts = append(st.alts, make([][]*starts, i+1-len(st.alts))...)
+	}
+	st.alts[i] = out
+	return out
+}
+
+// mayStart reports whether n's branch j could start at pos, as far as its
+// starts say; see branchStarts.
+func (n *alt) mayStart(st *state, starts []*starts, j, pos int) bool {
+	s := starts[j]
+	return s == nil || pos < len(st.in) && s.has(st.in[pos])
+}
+
+func (n *alt) match(st *state, pos int, c *capList, e env, k cont) bool {
 	st.tick()
 	st.deeper()
 	defer st.shallower()
+	if e.ratchet && fastPaths {
+		// The longest first match, the earliest on a tie, as below, without
+		// a list of candidates.
+		end := -1
+		var caps *capList
+		var bs []*starts
+		if skipBranches && st.tr == nil {
+			bs = st.branchStarts(n, e.ci)
+		}
+		for j, b := range n.branches {
+			if bs != nil && !n.mayStart(st, bs, j, pos) {
+				continue
+			}
+			if p, cc, ok := once(b, st, pos, c, e); ok && p > end {
+				end, caps = p, cc
+			}
+		}
+		return end >= 0 && k(end, caps)
+	}
 	type cand struct {
 		i, end int
 		caps   *capList
 	}
 	var cands []cand
-	for i, b := range n {
+	var bs []*starts
+	if skipBranches && st.tr == nil {
+		bs = st.branchStarts(n, e.ci)
+	}
+	for i, b := range n.branches {
+		if bs != nil && !n.mayStart(st, bs, i, pos) {
+			continue
+		}
 		if p, cc, ok := once(b, st, pos, c, e); ok {
 			cands = append(cands, cand{i, p, cc})
 		}
@@ -862,7 +1040,7 @@ func (n alt) match(st *state, pos int, c *capList, e env, k cont) bool {
 	}
 	slices.SortStableFunc(cands, func(a, b cand) int { return b.end - a.end })
 	for _, cd := range cands {
-		if n[cd.i].match(st, pos, c, e, k) {
+		if n.branches[cd.i].match(st, pos, c, e, k) {
 			return true
 		}
 	}
@@ -1059,6 +1237,9 @@ func (q *Quant) Frugal() *Quant {
 }
 
 func (q *Quant) match(st *state, pos int, c *capList, e env, k cont) bool {
+	if fastPaths && !e.ratchet && st.tr == nil && q.atomItem() {
+		return q.backtrack(st, pos, c, e, k)
+	}
 	return q.iter(st, pos, c, e, 0, k)
 }
 
@@ -1120,27 +1301,77 @@ func (q *Quant) iter(st *state, pos int, c *capList, e env, count int, k cont) b
 
 type call struct {
 	name    string
+	id      int    // the name's number, for ruleOf; see ruleID
 	capture bool   // false for <.name>
 	alias   string // <alias=name>
 }
 
+// ruleIDs number rule names as calls to them are made, from 1, so that a
+// state can keep the rules it has looked up in a slice; see ruleOf.
+var ruleIDs = struct {
+	sync.Mutex
+	m map[string]int
+}{m: map[string]int{}}
+
+// ruleID is name's number, given it the first time it's asked for.
+func ruleID(name string) int {
+	ruleIDs.Lock()
+	defer ruleIDs.Unlock()
+	id, ok := ruleIDs.m[name]
+	if !ok {
+		id = len(ruleIDs.m) + 1
+		ruleIDs.m[name] = id
+	}
+	return id
+}
+
+// ruleOf is the rule n calls, as st's grammar sees it. With the fast paths
+// on, it's kept on the state, by the name's number, until a grammar
+// changes, rather than looked up through the grammar and its parents at
+// every call; a state used again for another search keeps them.
+func (st *state) ruleOf(n *call) *rule {
+	if !fastPaths || n.id == 0 {
+		return st.g.lookup(n.name)
+	}
+	if gen := generation.Load(); st.rulesGen != gen {
+		clear(st.rules)
+		clear(st.alts)
+		st.rulesGen = gen
+	}
+	if n.id < len(st.rules) {
+		if r := st.rules[n.id]; r != nil {
+			return r
+		}
+	}
+	r := st.g.lookup(n.name)
+	if r != nil {
+		if n.id >= len(st.rules) {
+			st.rules = append(st.rules, make([]*rule, n.id+1-len(st.rules))...)
+		}
+		st.rules[n.id] = r
+	}
+	return r
+}
+
 // Call is <name>: it matches the rule name and captures it under that name.
-func Call(name string) Node { return &call{name: name, capture: true} }
+func Call(name string) Node { return &call{name: name, id: ruleID(name), capture: true} }
 
 // Silent is <.name>: it matches the rule name without capturing it.
-func Silent(name string) Node { return &call{name: name} }
+func Silent(name string) Node { return &call{name: name, id: ruleID(name)} }
 
 // Alias is <alias=name>. As in Raku, the match is captured under both names.
-func Alias(alias, name string) Node { return &call{name: name, capture: true, alias: alias} }
+func Alias(alias, name string) Node {
+	return &call{name: name, id: ruleID(name), capture: true, alias: alias}
+}
 
 // AliasOnly is <alias=.name>, captured only as alias.
-func AliasOnly(alias, name string) Node { return &call{name: name, alias: alias} }
+func AliasOnly(alias, name string) Node { return &call{name: name, id: ruleID(name), alias: alias} }
 
 func (n *call) match(st *state, pos int, c *capList, e env, k cont) bool {
 	st.tick()
 	st.deeper()
 	defer st.shallower()
-	r := st.g.lookup(n.name)
+	r := st.ruleOf(n)
 	if r == nil {
 		panic("grammar: no rule " + n.name + " in " + st.g.name)
 	}
@@ -1155,19 +1386,16 @@ func (n *call) run(st *state, pos int, c *capList, e env, k cont, r *rule) bool 
 	if r.proto {
 		return n.matchProto(st, pos, c, e, k, r)
 	}
-	finish := func(p int, inner *capList) bool {
-		m := &mnode{rule: r.name, from: pos, to: p, caps: inner, sc: r.sc, words: r.words}
-		cc := c
-		if n.capture {
-			cc = &capList{n.name, m, cc}
-		}
-		if n.alias != "" {
-			cc = &capList{n.alias, m, cc}
-		}
-		return k(p, cc)
-	}
 	ce := env{ratchet: r.ratchet, sc: r.sc}
 	t := st.tr
+	if t == nil && r.ratchet && fastPaths {
+		// Without finish, which a closure would allocate at every call.
+		p, inner, ok := once(r.body, st, pos, start(r.code, pos), ce)
+		return ok && k(p, n.captured(c, r, pos, p, inner))
+	}
+	finish := func(p int, inner *capList) bool {
+		return k(p, n.captured(c, r, pos, p, inner))
+	}
 	if t == nil {
 		if r.ratchet {
 			p, inner, ok := once(r.body, st, pos, start(r.code, pos), ce)
@@ -1192,6 +1420,45 @@ func (n *call) run(st *state, pos int, c *capList, e env, k cont, r *rule) bool 
 	})
 	t.leave(f)
 	return ok
+}
+
+// captured is c with the match of r from pos to p, its captures inner,
+// captured as the call captures it: under its name, its alias, both or
+// neither.
+func (n *call) captured(c *capList, r *rule, pos, p int, inner *capList) *capList {
+	m := mnode{rule: r.name, from: pos, to: p, caps: inner, sc: r.sc, words: r.words}
+	switch {
+	case n.capture && n.alias != "":
+		return captureTwice(n.name, n.alias, m, c)
+	case n.capture:
+		return captureAs(n.name, m, c)
+	case n.alias != "":
+		return captureAs(n.alias, m, c)
+	}
+	return c
+}
+
+// captureAs is c with m captured under key. The capture and its match are
+// made in one allocation, as they're kept and dropped together.
+func captureAs(key string, m mnode, c *capList) *capList {
+	x := &struct {
+		c capList
+		m mnode
+	}{capList{key: key, next: c}, m}
+	x.c.m = &x.m
+	return &x.c
+}
+
+// captureTwice is c with m captured under key, then under alias, sharing
+// the one match, as <alias=name> does; see builder.
+func captureTwice(key, alias string, m mnode, c *capList) *capList {
+	x := &struct {
+		c, a capList
+		m    mnode
+	}{m: m}
+	x.c = capList{key, &x.m, c}
+	x.a = capList{alias, &x.m, &x.c}
+	return &x.a
 }
 
 // matchProto matches a call to a proto: each variant the grammar can see
@@ -1245,15 +1512,7 @@ func (n *call) matchProto(st *state, pos int, c *capList, e env, k cont, r *rule
 	if best == nil {
 		return false
 	}
-	m := &mnode{rule: best.name, from: pos, to: end, caps: bestCaps, sc: best.sc, words: best.words}
-	cc := c
-	if n.capture {
-		cc = &capList{n.name, m, cc}
-	}
-	if n.alias != "" {
-		cc = &capList{n.alias, m, cc}
-	}
-	return k(end, cc)
+	return k(end, n.captured(c, best, pos, end, bestCaps))
 }
 
 // symText is <sym> in a variant's body, until the variant is added, when it
@@ -1293,8 +1552,7 @@ func (n *group) match(st *state, pos int, c *capList, e env, k cont) bool {
 	}
 	ie := env{ratchet: e.ratchet, ci: e.ci, sc: n.sc}
 	return n.inner.match(st, pos, start(n.code, pos), ie, func(p int, inner *capList) bool {
-		m := &mnode{from: pos, to: p, caps: inner, sc: n.sc}
-		return k(p, &capList{key, m, c})
+		return k(p, captureAs(key, mnode{from: pos, to: p, caps: inner, sc: n.sc}, c))
 	})
 }
 
@@ -1320,7 +1578,7 @@ func Named(name string, n Node) Node {
 		}
 	case *call:
 		if n.alias == "" {
-			return &call{name: n.name, capture: n.capture, alias: name}
+			return &call{name: n.name, id: n.id, capture: n.capture, alias: name}
 		}
 	}
 	l, n := wordsIn(n)
@@ -1331,12 +1589,12 @@ func (n *named) match(st *state, pos int, c *capList, e env, k cont) bool {
 	st.deeper()
 	defer st.shallower()
 	return n.inner.match(st, pos, c, e, func(p int, cc *capList) bool {
-		m := &mnode{from: pos, to: p, sc: emptyScope, words: n.words}
+		m := mnode{from: pos, to: p, sc: emptyScope, words: n.words}
 		if cc != nil && cc.key == listSpan {
 			// The inner list's, which is the capture's; see wordsIn.
 			m.caps, cc = &capList{listSpan, cc.m, nil}, cc.next
 		}
-		return k(p, &capList{n.name, m, cc})
+		return k(p, captureAs(n.name, m, cc))
 	})
 }
 
@@ -1415,9 +1673,15 @@ func (n *look) match(st *state, pos int, c *capList, e env, k cont) bool {
 				lo = max(0, pos-info.hi)
 			}
 		}
+		// The continuation is made when the first start is tried, and
+		// kept for the rest: most lookbehinds try none, and some many.
+		var endsHere cont
 		try := func(from int) bool {
 			st.tick()
-			return n.inner.match(st, from, c, e, func(p int, _ *capList) bool { return p == pos })
+			if endsHere == nil {
+				endsHere = func(p int, _ *capList) bool { return p == pos }
+			}
+			return n.inner.match(st, from, c, e, endsHere)
 		}
 		if n.code {
 			// Chosen here, not tested at each start, which costs a
@@ -1504,8 +1768,8 @@ func children(n Node) []Node {
 		return n.l.nodes
 	case *goal:
 		return n.seq()
-	case alt:
-		return n
+	case *alt:
+		return n.branches
 	case first:
 		return n
 	case *Quant:
@@ -1567,8 +1831,8 @@ func distinct(n Node, seen map[*group]bool, sym string) (Node, bool) {
 		return conj(copied), true
 	case *goal:
 		return &goal{copied[0], copied[1], copied[2]}, true
-	case alt:
-		return alt(copied), true
+	case *alt:
+		return newAlt(copied), true
 	case first:
 		return first(copied), true
 	case *Quant:
