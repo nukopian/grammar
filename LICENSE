@@ -7,8 +7,7 @@ under the terms of the Artistic License 2.0, as Rakudo is.
 
 SPDX-License-Identifier: Artistic-2.0
 
-It uses the scalar package, in the directory above, which is under the
-same terms as Perl itself; see its LICENSE.
+It uses the scalar package, which is under the same licence.
 
 The licence follows, as it comes with Rakudo 2025.11.
 

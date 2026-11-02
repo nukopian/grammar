@@ -215,7 +215,7 @@ reports are made privately, through the Security tab.
 Copyright 2026 Iain Campbell. `grammar` is free software; you can
 redistribute it and/or modify it under the terms of the Artistic License
 2.0, as Rakudo is (`Artistic-2.0`); see [LICENSE](LICENSE). It uses the
-`scalar` package, which is under the same terms as Perl itself; see
+`scalar` package, which is under the same licence; see
 [its licence](https://github.com/nukopian/scalar#licence).
 
 ## Acknowledgements

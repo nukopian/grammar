@@ -11,7 +11,10 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- Build: needs scalar v0.6.3, up from v0.6.2. Nothing changes for
+  grammar's matching: scalar is now under the Artistic License 2.0, as
+  grammar is, so the two share one licence, and the LICENSE and README
+  say so.
 
 ## v0.4.4 (2026-11-01)
 
