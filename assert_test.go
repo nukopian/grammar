@@ -149,6 +149,26 @@ func TestAssertReads(t *testing.T) {
 	}
 }
 
+// The match so far has no made value of its own, as its rule hasn't
+// finished, and reads it as undef whether the assertion names its reads
+// or not: made isn't a capture to name.
+func TestAssertReadsMade(t *testing.T) {
+	for _, reads := range [][]string{nil, {"n"}} {
+		g := MustCompile(`grammar G { token TOP { <n=num> <?{ unmade($/) }> }; token num { \d+ } }`,
+			Assertion("unmade", func(m *scalar.SV) bool { return !m.At("made").Defined() }, reads...))
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("reads %v: %v", reads, r)
+				}
+			}()
+			if !g.Parse("12").Defined() {
+				t.Errorf("reads %v: no match", reads)
+			}
+		}()
+	}
+}
+
 // Reading a capture an assertion doesn't name panics, saying which
 // assertion and what it names, and so does writing to the match.
 func TestAssertReadsUnnamed(t *testing.T) {

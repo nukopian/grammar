@@ -85,7 +85,8 @@ grammar's answer.
   and `Assert` and `AssertNot` the same, build only the captures named,
   with the match's `~`, `from` and `to`. `BenchmarkAssertReads` (the
   same search, naming `cur` and `period`) against `BenchmarkAssert`:
-  1.88 ms to 1.43 ms, −24% time, −22% bytes, −28% allocations, on scalar
+  1.88 ms to 1.43 ms, −24% time, −22% bytes, −28% allocations (−22%, −20%
+  and −26% after the wash-up, below), on scalar
   v0.6.3 as released. jdc-lab's chunker, naming the reads of Pay's and
   Hours' assertions, gave output identical, byte for byte, to v0.5.0's
   over all 28,000 ads, in 37.05–37.69 s against 38.01–38.36 s (three
@@ -131,6 +132,19 @@ grammar's answer.
   check for one (+0.5% geomean on scalar's benchmarks). Given these
   numbers, scalar dropped lazy values, its roadmap 5, and the prototype
   branches in both repositories were deleted.
+- **Wash-up** (2026-11-02, everything since v0.5.0): probed in Go, with
+  named reads against every capture built, under `FindAll` with
+  `Overlap`: positional captures named `"0"` and `"1"`, reading through
+  an empty array (`c.0.~`) and a missing capture (`p.x.y`), and an
+  assertion inside a group, all alike. Found and fixed: a function
+  reading `made`, which the match so far hasn't got yet, read undef
+  with every capture built but panicked with its reads named, calling
+  `made` a capture (`TestAssertReadsMade`, failing first). The named
+  match now holds an undef `made`, beside `~`, `from` and `to`, which
+  costs one allocation a call: `BenchmarkAssertReads` went from 1.41 ms
+  to 1.45 ms, +2.7%. Against every capture built, measured again
+  (10 runs each, interleaved, scalar v0.6.3): 1.85 ms to 1.44 ms, −22%
+  time, −20% bytes, −26% allocations.
 - **What's left:** the match's own hash and its text, built at each
   call, which most functions don't read; in the reference's
   [Engineering gaps](../REFERENCE.md#engineering).

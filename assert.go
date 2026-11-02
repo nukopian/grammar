@@ -145,9 +145,10 @@ func (st *state) sofar(pos int, c *capList, e env, reads []string) *scalar.SV {
 }
 
 // only is sofar for an assertion that names the captures it reads: the
-// match's text and position, and those captures, each named one there,
-// undef or an empty array if it hasn't matched. Its own keys are fixed, so
-// reading another panics, while what's below them reads as sofar's does.
+// match's text and position, an undef made, as it has none yet, and those
+// captures, each named one there, undef or an empty array if it hasn't
+// matched. Its own keys are fixed, so reading another panics, while what's
+// below them reads as sofar's does.
 func (st *state) only(m *mnode, reads []string) *scalar.SV {
 	var b *builder
 	if st.act == nil {
@@ -155,7 +156,7 @@ func (st *state) only(m *mnode, reads []string) *scalar.SV {
 	} else {
 		b = st.builder()
 	}
-	h := scalar.Hash("~", string(st.in[m.from:m.to]), "from", m.from, "to", m.to)
+	h := scalar.Hash("~", string(st.in[m.from:m.to]), "from", m.from, "to", m.to, "made", nil)
 	for _, k := range reads {
 		if m.sc.many[k] {
 			h.Set(k, scalar.Array())
