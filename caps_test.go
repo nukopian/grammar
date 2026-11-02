@@ -99,10 +99,11 @@ for @(Rakudo::Internals::JSON.from-json($*IN.slurp)) -> $case {
     my $prelude = (|($case<lists> // {}).pairs, |($case<patterns> // {}).pairs).map(-> $p {
         my ($k, $v) = $p.kv;
         "my \@$k = " ~ ($v.elems ?? $v.map({ "'" ~ .subst("\\", "\\\\", :g).subst("'", "\\'", :g) ~ "'" }).join(", ") !! "()") ~ ";\n"
-    }).join;
+    }).join ~ ($case<raku> // '') ~ "\n";
+    my $*ACTS = Any;
     my $g = EVAL $prelude ~ $case<src>;
     @out.push: [ $case<inputs>.map: -> $in {
-        my $m = $case<sub> ?? $g.subparse($in) !! $g.parse($in);
+        my $m = $case<sub> ?? $g.subparse($in, :actions($*ACTS)) !! $g.parse($in, :actions($*ACTS));
         $m ?? tree($m) !! Any
     } ];
 }
@@ -121,18 +122,13 @@ print Rakudo::Internals::JSON.to-json(@out, :!pretty);
 		t.Fatalf("raku's output: %v", err)
 	}
 	for i, c := range rakuCases {
-		g, err := Compile(c.Src, caseUses(c.Lists, c.Patterns)...)
+		g, err := Compile(c.Src, c.uses()...)
 		if err != nil {
 			t.Errorf("case %d: %v", i, err)
 			continue
 		}
 		for j, input := range c.Inputs {
-			var m *scalar.SV
-			if c.Sub {
-				m = g.Subparse(input)
-			} else {
-				m = g.Parse(input)
-			}
+			m := c.parse(g, input)
 			w := want.Get(i, j)
 			if !m.Defined() {
 				if w.Defined() {

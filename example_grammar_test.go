@@ -284,3 +284,26 @@ func Example_unicodeProperties() {
 	// Zoë | Ölander | Жанна | Петрова | Wei
 	// Zo | Wei
 }
+
+// An Assertion is a check only code can make, called from the grammar by
+// name in the middle of a parse: here, that a pay range's minimum is no
+// more than its maximum, read from the values PayActions made. The
+// assertion's match so far holds the captures up to it, with their made
+// values. Raku runs the same grammar given a sub ordered($/).
+func ExampleAssertion() {
+	ordered := grammar.Assertion("ordered", func(m *scalar.SV) bool {
+		return !m.At("max").Defined() || m.At("min.amount.made").Num() <= m.At("max.amount.made").Num()
+	})
+	g := grammar.MustCompile(`grammar Range is Pay {
+    token TOP { <min=money> [ <.sep> <max=money> ]? <?{ ordered($/) }> <period>? }
+}`, Pay, ordered)
+
+	acts := grammar.Actions(PayActions{})
+	for _, text := range []string{"£45k - £55,000 per annum", "£55k - £45,000 per annum", "£45k per annum"} {
+		fmt.Println(g.Parse(text, acts).Defined())
+	}
+	// Output:
+	// true
+	// false
+	// true
+}

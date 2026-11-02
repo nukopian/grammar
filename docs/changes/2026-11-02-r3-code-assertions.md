@@ -1,10 +1,12 @@
 # Code assertions
 
-**Status:** in progress
+**Status:** unreleased
 
 **Origin:** roadmap 3
 
 **Started:** 2026-11-02, in 88a4f68abfe1a11ea84140f3cf77ba8ef08a1d7a
+
+**Finished:** 2026-11-02
 
 ## The plan
 
@@ -105,4 +107,61 @@ named function among the Differences from Raku, and its gap is gone.
 
 ## What happened
 
-Nothing yet.
+- **Outcome:** done as planned. Both forms work in rules and the
+  builder; a name with no function, and any other code in the braces,
+  are compile errors that say what to do; `rakuCases` has eight cases,
+  Code1 to Code8, run in Raku with `sub`s holding the same checks, and
+  matching alike; `ExampleAssertion` has a pay range; the reference has
+  a section, two rows in the Differences, and the gap is gone; the
+  how-to has a recipe.
+- **Raku's answers** (Rakudo 2025.11, 2026-11-02): inside `( … )`, `$/`
+  is the group's match; inside `$<n>=[ … ]`, the rule's, without `n`
+  yet; inside a lookahead, the lookahead's, from where it is, with its
+  own captures and none of the rule's. All three are cases.
+- **Changes from the plan:**
+  - The match so far is a locked copy of what's built, as planned, but
+    only when the parse has actions. Without them nothing built for an
+    assertion is kept for the result, so it's built fresh and locked,
+    with no copy: that took `BenchmarkAssert` from 2.3 ms to 1.87 ms.
+  - `env` first gained a start and a base, the captures a lookaround
+    started with, which took it from two words to four. Every node
+    passes it, so grammars without assertions were 5–15% slower
+    (`Lookbehind/unbounded` 14.6%), with up to 19% more bytes. The start
+    is now an `int32` beside the two flags, and a lookaround with an
+    assertion directly inside puts a mark on the capture list instead of
+    a base in `env`, which keeps `env` at two words.
+  - Keeping the parse's builder on the `state` cost three allocations a
+    parse, as the result's builder could no longer stay on the stack;
+    the result uses the parse's only if an assertion made one.
+  - The trace needed nothing: it traces rule calls, as Raku's
+    `Grammar::Tracer` does, and neither shows code assertions.
+  - `rakuCases` became a named type, `rakuCase`, with `uses` and
+    `parse`, so the seven tests that compile its grammars pass the
+    functions and actions without each knowing about them; its Raku
+    runners set `$*ACTS` from a case's `Raku` code.
+- **Planted bugs:** taking the match so far from the text's start, and
+  ignoring the lookaround's mark, each failed the Raku cases (Code7 and
+  Code8). The second passed at first, as Code8 had no capture before its
+  lookahead; it was given one, `<a=alpha>`, that Raku says isn't seen.
+- **Measurements** (Apple M2, benchstat, six runs each, interleaved,
+  against 704e4832e7e5ebe2ca3ea77372da93e0f81b97bc): grammars without
+  assertions are 1.2% slower by the geometric mean (`Parse` 1.5%,
+  `FindLines` 1.7%, `Lookbehind/bounded` 2.8%; `FindAll` and `FindRe`
+  unchanged), with the same allocations and 0.07% more bytes.
+  `BenchmarkAssert`, a pay grammar checking for a currency or a period
+  on a text of figures, mostly not pay: 1.87 ms and 42,963 allocations,
+  against 1.14 ms and 25,621 with the check made on `FindAll`'s matches
+  afterwards. Building the match so far is most of the difference.
+- **Fuzzing:** `FuzzCompile` and `FuzzMatch`, which now call an
+  assertion in their grammars, ran 60 seconds each, with nothing found.
+- **Dogfooding:** jdc-lab's Pay checked for a currency or a period
+  after the search, in two places, `facts.payOf` and `headings`, kept
+  in step by hand. Moved into the grammar as `<?{ pay($/) }>`, against
+  this checkout, chunking all 28,000 ads of the latest run gave output
+  identical, byte for byte, to grammar v0.4.4's, and jdc-lab's tests
+  passed; so did the same ads with the assertion-free code against this
+  checkout. The chunker took 38.4–39.0 s against 36.7–36.9 s, 4–6%
+  longer, the cost of building the match so far at each figure.
+- **What's left:** building only what the function reads, which would
+  need a lazy value in scalar, is in the reference's
+  [Engineering gaps](../REFERENCE.md#engineering).

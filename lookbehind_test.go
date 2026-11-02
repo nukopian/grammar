@@ -28,7 +28,7 @@ func TestLookbehindChangesNothing(t *testing.T) {
 	}
 	var cases []tc
 	for _, c := range rakuCases {
-		g, err := Compile(c.Src, caseUses(c.Lists, c.Patterns)...)
+		g, err := Compile(c.Src, c.uses()...)
 		if err != nil {
 			t.Fatal(err)
 		}

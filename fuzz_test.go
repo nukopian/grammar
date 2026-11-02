@@ -21,13 +21,26 @@ func FuzzCompile(f *testing.F) {
 	for _, c := range rakuCases {
 		f.Add(c.Src)
 	}
-	for _, src := range []string{`grammar G { token TOP { <[a..`, `grammar G { rule TOP { a ** 3..1 } }`, `role R {`} {
+	for _, src := range []string{`grammar G { token TOP { <[a..`, `grammar G { rule TOP { a ** 3..1 } }`, `role R {`,
+		`grammar G { token TOP { a <?{ f($/) }> <!{f( $/ )}> } }`, `grammar G { token TOP { <?{ f($/`} {
 		f.Add(src)
 	}
 	f.Fuzz(func(t *testing.T, src string) {
-		Compile(src, fuzzList()) // a panic fails the test
+		Compile(src, fuzzList(), fuzzAssertion) // a panic fails the test
 	})
 }
+
+// fuzzAssertion is a code assertion for fuzzed grammars to call, as
+// <?{ f($/) }>. What it says depends only on the match so far, so it's
+// the same each time the matcher reaches the same place the same way: its
+// text has an even length, counting a <c> as one more.
+var fuzzAssertion = Assertion("f", func(m *scalar.SV) bool {
+	n := utf8.RuneCountInString(m.At("~").Str())
+	if m.At("c").Defined() {
+		n++
+	}
+	return n%2 == 0
+})
 
 // fuzzList is a word list for fuzzed grammars to use, as @w.
 func fuzzList() *WordList {
@@ -71,6 +84,10 @@ var fuzzMatchSeeds = [][2]string{
 	{`<s>`, "xab"}, // backtracking into <r>, a regex that has matched
 	{`<e>+ % ','`, "ab,xy,abc"},
 	{`:i <e> <c>?`, "zzABCa xy"},
+	// Code assertions, which backtrack in <r>, see a group's match inside
+	// it, and a lookaround's.
+	{`[ <c> <?{ f($/) }> ]+ <!{ f($/) }>`, "abcab"},
+	{`( \w+ <?{ f($/) }> ) <?before <c> <?{ f($/) }>> \w`, "xyzab"},
 }
 
 // fuzzGrammar is FuzzMatch's grammar around a fuzzed rule body. Its
@@ -80,7 +97,7 @@ var fuzzMatchSeeds = [][2]string{
 func fuzzGrammar(body string) (*Grammar, error) {
 	g, err := Compile("grammar F { token TOP { "+body+" }; token a { x }; rule b { y z }; token c { <[a..c]>+ }; "+
 		"proto token p {*}; token p:sym<x> { <sym> }; token p:sym<xy> { xy <c>? }; "+
-		"regex r { <a> <c> || <a> }; regex s { <r> <c> }; token e { x } }", fuzzList(), fuzzPatterns)
+		"regex r { <a> <c> || <a> <?{ f($/) }> }; regex s { <r> <c> }; token e { x } }", fuzzList(), fuzzPatterns, fuzzAssertion)
 	if err != nil {
 		return nil, err
 	}

@@ -234,6 +234,39 @@ fmt.Println(bonus.Find("and a bonus up to £8k").At("money.~"))     // £8k
 A grammar can also override a role's rule, by defining its own, and
 inherit from another grammar with `is`. See [Roles](REFERENCE.md#roles).
 
+### Checks only code can make
+
+A grammar says what text looks like, but not everything that makes it
+right: a range should run upwards, and "£43,742 – £35,392" doesn't. A
+code assertion, `<?{ name($/) }>`, calls a Go function in the middle of
+the parse with the match so far, and the parse goes on only if it says
+yes. Here it's inside the range's `[ … ]?`, so a range that runs
+backwards isn't taken, and each figure stands alone:
+
+```go
+ordered := grammar.Assertion("ordered", func(m *scalar.SV) bool {
+	return m.At("min.amount.made").Num() <= m.At("max.amount.made").Num()
+})
+Range := grammar.MustCompile(`grammar Range is Pay {
+    token TOP { <min=money> [ <.sep> <max=money> <?{ ordered($/) }> ]? <period>? }
+}`, Pay, ordered)
+acts := grammar.Actions(map[string]func(*scalar.SV) any{"amount": PayActions{}.Amount})
+
+posting := "Band 5: £28,407 – £34,581 per annum. Band 6 (typo in the advert): £43,742 – £35,392 per annum."
+for _, m := range Range.FindAll(posting, acts).All() {
+	fmt.Printf("%q\n", m.At("~").Str())
+}
+// "£28,407 – £34,581 per annum"
+// "£43,742"
+// "£35,392 per annum"
+```
+
+The function reads `made` values, as the parse's actions made them for
+the matches before the assertion. Checked afterwards instead, the
+backwards range would have been one match to throw away, and its
+figures lost with it. The reference's
+[Code assertions](REFERENCE.md#code-assertions) has the rest.
+
 ### When a grammar won't match
 
 `ParseErr` says where the parse got furthest, and what it expected

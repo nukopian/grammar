@@ -101,6 +101,7 @@ escaped.
 | `<?before x>`, `<!before x>` | `Before(x)`, `NotBefore(x)` | x follows (or doesn't), without matching it |
 | `<?after x>`, `<!after x>` | `After(x)`, `NotAfter(x)` | x comes just before (or doesn't) |
 | `<?>`, `<!>` | | always matches, never matches, matching no text: `$<none>=[ <?> ]` is an empty capture |
+| `<?{ name($/) }>`, `<!{ name($/) }>` | `Assert(name, fn)`, `AssertNot(name, fn)` | goes on only if the Go function, given the match so far, says yes (or no), matching no text; see [Code assertions](#code-assertions) |
 | `:i` | `IgnoreCase(x)` | ignore case, for the rest of the group |
 | `:r`, `:!r` | `Ratchet(x, on)` | stop or start backtracking, for the rest of the group |
 | `:s`, `:!s` | `Silent("ws")` where the spaces go | make spaces in the rule match spaces in the text, or stop, for the rest of the group, as in a `rule` |
@@ -201,6 +202,66 @@ As every branch must cover the same text, a branch that matches nothing,
 such as a lookahead, can never agree with one that matches something:
 `<w> & <!stop>` never matches. To match a word that isn't a stopword,
 look ahead first: `<!stop> <w>`.
+
+### Code assertions
+
+Some checks only code can make: that a pay range's minimum is no more
+than its maximum, that a year is plausible, that a word in a list isn't a
+stopword. `<?{ name($/) }>` calls a Go function with the match so far,
+and the match goes on only if it returns true; `<!{ name($/) }>` goes on
+only if it returns false. The function is passed to `Compile` as an
+`Assertion`:
+
+```go
+hourly := grammar.Assertion("hourly", func(m *scalar.SV) bool {
+	return m.At("max.~").Int() <= 100
+})
+g := grammar.MustCompile(`grammar Rate {
+    regex TOP { <min=num> '-' <max=num> <?{ hourly($/) }> }
+    regex num { \d+ }
+}`, hourly)
+g.Subparse("5-1234").At("~") // 5-12
+```
+
+The match so far is what Raku's `$/` is at that point:
+
+- its text, `~`, runs from where the rule started, `from`, to where the
+  assertion is, `to`;
+- it holds the captures made so far, each with the `made` value its
+  action gave it, if the parse has `Actions`, so a check can read
+  `min.amount.made`;
+- inside `( … )`, it's the group's match, and inside a lookaround, the
+  lookaround's, from where it is, without the rule's captures;
+- it has no `made` value of its own, as its rule hasn't finished;
+- it's read-only: a capture it hasn't got reads as undef, and writing
+  panics.
+
+In a `regex`, a false answer backtracks into what came before, so a
+reading that passes can still be found: above, `\d+` gives back digits
+until `max` is 12. In a `token`, nothing gives anything back, so the rule
+fails there, and `Find` moves on to the next position. Either way, a
+check in the grammar stops a wrong match before it's made, where one
+made afterwards can only throw it away: with `Outermost`, a long wrong
+match thrown away afterwards has already hidden the right one inside it.
+
+A grammar written so runs unchanged in Raku, given a
+`sub hourly($/) { +$<max> <= 100 }` declared before it. Any other code in
+the braces is an error when the grammar compiles, as is a name with no
+`Assertion` passed for it (see [Differences from Raku](#differences-from-raku)).
+
+The function is called as the parse reaches the assertion, which may be
+many times, on paths the parse goes on to abandon, so it should have no
+side effects; and from the goroutine that's parsing, so a grammar parsing
+on several at once calls it on each. A panic in it isn't caught. In the
+builder, `Assert(name, fn)` and `AssertNot(name, fn)` hold the function
+themselves, the name being for failure reports, which show a failed
+assertion as `<?{ name($/) }>`.
+
+Each call builds the match so far as scalar data, so an assertion
+reached at many positions costs something: on a text of figures, a pay
+grammar's check took a search from 1.14 ms, made afterwards, to 1.87 ms
+(see [Engineering](#engineering)). Grammars without assertions are
+about 1% slower for them, with no more allocations.
 
 ## Word lists
 
@@ -786,6 +847,11 @@ A `map[string]func(*scalar.SV) any`, keyed by rule name, works too. Actions
 run innermost first, so a rule's action can read the made values of the
 rules it called. Rules without an action are left alone.
 
+Actions run when the match is built, once the parse is over, except for
+the matches a [code assertion](#code-assertions) reads, whose actions run
+when it reads them, so that it sees their made values. Either way, each
+match's action runs once.
+
 ### Speed
 
 `Find` and `FindAll` work out, from the grammar, every character a match
@@ -1097,7 +1163,8 @@ with when each matters. *Fixable* and *Effort* are as in the
 | **An unknown Unicode property is an error.** Raku's `<:Bogus>` matches nothing, silently. | Never for a property that exists. A misspelt one fails when the grammar compiles, rather than making a rule that can never match. | — | by design | — |
 | **`Caps` puts captures at the same place in name order.** Raku's `.caps` leaves them in hash order, which changes from run to run. | Never for captures at different places. An alias and its rule's name, or two empty captures at one spot, come in a fixed order here and a varying one in Raku. | — | by design | — |
 | **`\|`, and a call to a proto, pick the branch whose first match is longest,** and of equal ones, the first. Raku picks by the longest declarative prefix, roughly the part of each branch before anything that could backtrack. | Rarely: they agree on ordinary alternations of words and phrases. They can differ when branches share a start and something after it decides. | True longest-token matching (above). | yes | 5 |
-| **Actions run after the whole match succeeds,** innermost first. Raku runs each as its rule matches, including for matches it later backtracks out of. | Only for actions with side effects, such as counting or logging. | Run actions in `call`'s `finish`, keeping their values on the `mnode`. Running after is easier to reason about, so keep it unless something needs the other. | by design | 2 |
+| **Actions run after the whole match succeeds,** innermost first, but for the matches a code assertion reads, whose actions run when it reads them, which may be on a path the parse then abandons. Raku runs each as its rule matches, including for every match it later backtracks out of. | Only for actions with side effects, such as counting or logging. | Run actions in `call`'s `finish`, keeping their values on the `mnode`. Running after is easier to reason about, so keep it unless something needs the other. | by design | 2 |
+| **A code assertion calls a Go function by name,** `<?{ name($/) }>`, passed to `Compile` as an `Assertion`; Raku runs whatever code is in the braces. Any other code is an error when the grammar compiles. | When a grammar has Raku code in an assertion: move it into a Go function, and into a Raku `sub` of the same name for Raku, and the grammar runs in both. | Running Raku code would need a Raku interpreter. | by design | — |
 | **Text is read as UTF-8, a rune at a time.** A byte that isn't valid UTF-8 becomes U+FFFD (`�`), as Go's `[]rune(text)` does, so a match's `~` holds `�` where the text held the bad byte. Raku can't hold such text at all: it fails to decode it. | Scraped text with bad bytes in it, when the exact bytes matter. | Clean or decode the text first, or match byte strings as `scalar` does (each byte a character from 0 to 255). | by design | 2 |
 | **Positions count runes, not graphemes,** in NFC. Text is read in NFC, so an accented letter that has a composed form is one character, as in Raku. One that doesn't, such as q with a combining tilde (q̃), is two here, and one grapheme in Raku, so `.` can match half of it. | Rare in job postings: languages whose letters have no composed form, and emoji sequences. | Segment the input with `rivo/uniseg` and match on graphemes. | yes | 3 |
 | **A literal under `:i` folds case a character at a time,** so `:i 'ẙ'` doesn't match `Y̊`, a capital with no composed form. Word lists compare such letters decomposed, so they match (see [Accented letters](#accented-letters-text-is-read-in-nfc)). Rakudo 2025.11 agrees that the two are equal under `fc`, but matches only one way round with a literal, and neither way with an array. | Almost never: a handful of letters, such as Y and W with a ring above, J with a caron, and some Greek capitals with accents, none of them in English or most European languages. | Fold literals as word lists do, a decomposed character at a time. | yes | 1 |
@@ -1115,7 +1182,10 @@ with when each matters. *Fixable* and *Effort* are as in the
 `TestMatchesRaku` compiles each grammar in `rakuCases` here and in Raku,
 parses each input with both, and compares the two match trees: the same
 text, positions, captures and shape. It needs `raku` on the PATH, and is
-skipped without it.
+skipped without it. A case with code assertions has them twice: as Raku
+`sub`s in its `Raku` field, run before the grammar is declared, and as Go
+functions in `Checks`; its actions, if it needs them, are `$*ACTS` there
+and `Acts` here.
 
 When the Go and Raku results differ, Raku is right, unless the difference is
 one of those listed under
@@ -1136,7 +1206,7 @@ whatever the grammar or text:
 | Test | Checks |
 |---|---|
 | `FuzzCompile` | `Compile` never panics, however mangled the source |
-| `FuzzMatch` | for grammars built around a fuzzed rule, with a proto, a pattern list and a regex terminal to call: no panics; `Parse` and `ParseErr` agree; a parse matches all of the text; `Find` finds what `FindAll` finds first; skipping start positions changes nothing; the matcher's fast paths change nothing; `CheckPath` takes every path a match has |
+| `FuzzMatch` | for grammars built around a fuzzed rule, with a proto, a pattern list, a regex terminal and a code assertion to call: no panics; `Parse` and `ParseErr` agree; a parse matches all of the text; `Find` finds what `FindAll` finds first; skipping start positions changes nothing; the matcher's fast paths change nothing; `CheckPath` takes every path a match has |
 | `FuzzWords` | synonym rules never panic, and every phrase in a list matches itself; with `JoinedSpacing`, run together too, and with `Plurals`, its plural |
 
 `go test` runs them on their seeds and on the inputs that once failed, kept
@@ -1186,6 +1256,9 @@ Before changing anything, it helps to know how the package is put together:
   when called, so overriding works), the capture scopes worked out from
   each rule (`newScope`: which captures are arrays), turning matches into
   scalar data (`build`), and actions.
+- **[assert.go](../assert.go)** has code assertions, and the match so far
+  they're given (`sofar`), built from the scope's captures since where
+  the `env`, or a lookaround's mark, says it started.
 - **[syntax.go](../syntax.go)** is the Raku-syntax parser: hand-written
   recursive descent that produces the same nodes as the Go builder.
 - **[words.go](../words.go)** has word lists: a trie for exact phrases and one
@@ -1198,7 +1271,6 @@ Before changing anything, it helps to know how the package is put together:
 
 | Feature | When you'd need it | What it would take | Fixable | Effort |
 |---|---|---|---|---|
-| **Code assertions**: `<?{ … }>`, `<!{ … }>` | Checks only code can make, in the middle of a parse: min ≤ max, a plausible year, a word that's in a list but isn't a stopword. Without them, wrong parses get through and need cleaning up afterwards. | Raku code can't run here, so: a builder node holding `func(m *scalar.SV) bool`, and a syntax such as `<?{name}>` naming a function passed to `Compile`. The function needs the captures so far, so build a provisional match of the current scope from the `capList`. | partly | 2–3 |
 | **Code blocks**: `{ make … }` | Making values in the grammar itself. | Actions do this. Not worth adding unless grammars are written by people who won't write Go. | by design | — |
 | **True longest-token matching** for `\|` | When `Alt`'s approximation (below) gives a different answer from Raku, which the Raku tests will show; and to speed up large alternations and protos. | Work out each branch's declarative prefix (the part before anything that could backtrack or run code), build an automaton (NFA, then DFA) from the prefixes, and try branches in order of how much of the text their prefix matches. This is what Rakudo does in NQP. | yes | 5 |
 | **Exhaustive matching**: `:ex` | Every way a pattern can match at each position, not only the first, as `Overlap` gives: "aaaa" with `regex { a+ }` gives "aaaa", "aaa", "aa" and "a" from the start. For a word list, or a token, which never gives anything back, Raku's `:ex` is the same as `:ov`, so word lists don't need it. | A `FindAll` option whose continuation records each match and returns false, so the matcher tries every other way; the state's failure tracking and step counting must cope with matches that are then thrown back. The Raku tests would need `:ex` cases. | yes | 2 |
@@ -1214,6 +1286,7 @@ Before changing anything, it helps to know how the package is put together:
 | **`Find` can't skip positions for some grammars.** It skips positions where no match can start, but only when it can work that out: not for a grammar that can match empty text, or that starts with an `Re` pattern that can, or that uses `\G`, as those could start anywhere. Such grammars search at about the old speed. | Searching long texts with grammars like those. | A grammar that can match empty text matches everywhere, so there's nothing to skip. An `Re` pattern with `\G` could be asked position by position, as now. A grammar starting with any other `Re` skips by asking regexp2 where the pattern next matches ([roadmap 10's record](changes/2026-11-01-r10-find-skipping-positions-for-regex-terminals.md)), which is exact; working out the pattern's first characters, or taking them as a hint, was considered and rejected, as either could be wrong and silently drop matches. That costs `BenchmarkFindAll`, whose grammar has no `Re`, about 3% (1.4 µs on 4 KB), for the check at each position. | partly | 1 |
 | **The matcher still makes closures for some steps.** Four fast paths, behind `fastPaths`, took most away (see [Speed](#speed)): a pay parse went from 12.5 µs and 532 allocations to 9.3 µs and 359 (2026-10-19), then to 8.3 µs and 225, with `once` keeping its results in slots on the state and `seq` stepping over atoms in a loop (2026-10-31; roadmap 9's [record](changes/2026-10-31-r9-fewer-closures-in-the-matcher.md)). What's left, in `BenchmarkFindLines`: each step of a sequence over anything but an atom still makes a continuation (`seq.from`, about a quarter of the allocations), a rule call makes its match node and capture as it matches, even where backtracking then throws them away (`call.run`, about a quarter), and `FindAll` makes a new state, and so new slots, for every text it searches. | Parse speed at high volumes: a pay string parses in about 8 µs, against Participle's 6 µs. | Keep the slots between searches, on the grammar in a `sync.Pool`, so searching many short texts, as jdc-lab does line by line, builds them once. Making match nodes only for the match that's kept would need captures held some other way until then; not yet looked into. A sequence's continuations can't be made once, as `once`'s are, as each carries the continuation for what follows the sequence, which differs at every call. The fast paths' trade-offs hold for any more: they duplicate what the general engine does, so a later change to an atom (case folding, failure reports) must be made in both; they must step aside for frugal, possessive or separated repeats and items that can match nothing; and they must leave failure reports alone, as the repeat loop does by running only when failures aren't being tracked. `TestFastPathsChangeNothing` and `TestFastPathsKeepLimits` compare both paths, and must cover a new one, with a planted bug to show they'd notice. A lexer was considered instead and rejected: it would make matching cheaper, but cost precise errors, word lists that span spaces, `Find` anywhere in text, and Raku compatibility. | yes | 2 |
 | **Building a match's scalar data takes about 40% of a parse.** Profiled after the fast paths (2026-10-19), building the match took 43% of `BenchmarkParse`'s time, scalar's own code 32%, most of it making each match's hash. | Parse speed at high volumes, once matching is faster still. | Kept: scalar's `HV.Set` stores a new key without first making a placeholder (scalar v0.5.1), which took a parse from 9.30 to 9.13 µs, 8 allocations fewer. Tried and reverted: making each match's hash in one `scalar.Hash` call with every key, so the map is sized once, made a parse slower, 9.13 to 9.58 µs and 21 allocations more, as building the list costs more than the growing it saves. Not pursued: building scalar values only when they're read. It would need a new kind of scalar value in scalar's core, honoured by every way of reading one; it could save up to the 43% where results are hardly read, as in the benchmark, but little in real use, where `To` reads every field. | partly | 3 |
+| **A code assertion builds the whole match so far at each call,** as scalar data, though the function may read one capture of it. On a text of figures, mostly not pay, a pay grammar checking for a currency or a period with `<?{ pay($/) }>` searched in 1.87 ms, against 1.14 ms with the same check made on its matches afterwards (`BenchmarkAssert`, 2026-11-02); jdc-lab's chunker, with the check moved into its pay grammar, took 4–6% longer over 28,000 ads. With actions, the match is also copied, as the result shares its captures, to stay read-only. | Grammars whose assertions are reached at many positions, at high volumes. | Build only what the function reads: a lazy value in scalar, built from the captures as it's read. Kept: no copy when the parse has no actions, which took the search from 2.3 ms to 1.87 ms. | yes | 3 |
 | **Each match's text is a copy.** A match's `~` is rebuilt from the runes of the text, rather than being a slice of the original string. | Never, as measured. | Tried and measured, then reverted: sharing the original string (when it's valid UTF-8, with a cursor from rune positions to byte offsets) saved about 1% of allocations, made a parse no faster, and made `FindAll` on a 4 KB posting 20% slower, through checking the whole text was UTF-8 and walking the cursor to each match. Copying a match's few characters was always cheap, and storing text in a scalar allocates either way. | no | — |
 | **No memoisation.** A rule may be tried at the same position more than once. | Rarely, as measured (2026-10-16): of 37,400 token calls across titleeval, payeval and grammarrules, 18 were repeats at the same position, and `BenchmarkParse` and `BenchmarkFindAll` have none. Only `regex` rules that backtrack heavily through tokens repeat much, and `StepLimit` bounds those. | Cache each token's result by rule and position in `state` (a token has at most one result there), skipped under `ParseErr`, which must record every failure. Not worth it for these grammars: it would add a map lookup to every call to save almost none. Worth reconsidering, perhaps as an option, for a grammar whose profile shows repeats. | yes | 2 |
 | **Nested alternations in a `regex` double their work at each level.** `\|` matches each branch to measure it, then matches the winner again for real. In a `token` the second match is skipped, as the first is final. | Deeply nested alternations inside `regex` rules, which are rare. | Part of true longest-token matching (above), which decides from prefixes without matching branches in full. | yes | 5 |

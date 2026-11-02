@@ -11,6 +11,20 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+- Code assertions: `<?{ name($/) }>` and `<!{ name($/) }>` call a Go
+  function, passed to `Compile` as `grammar.Assertion(name, fn)`, with
+  the match so far, and the match goes on only if it says yes (or no);
+  `Assert` and `AssertNot` are the same in the builder. A check only code
+  can make, such as a pay range running upwards, is made mid-parse: in a
+  `regex`, a failing check backtracks, so "5-1234" with `max` at most 100
+  subparses as "5-12", as in Raku. The match so far is Raku's `$/`, from
+  the rule's start, with its captures and their actions' made values,
+  read-only. A grammar written so runs unchanged in Raku, given a
+  `sub name($/)`; other Raku code in the braces is a compile error.
+  Grammars without assertions are about 1% slower, with no more
+  allocations; each assertion builds the match so far, which on a text
+  of figures made a pay search 1.6 times as long as checking afterwards.
+  (roadmap 3; [record](docs/changes/2026-11-02-r3-code-assertions.md))
 - Build: needs scalar v0.6.3, up from v0.6.2. Nothing changes for
   grammar's matching: scalar is now under the Artistic License 2.0, as
   grammar is, so the two share one licence, and the LICENSE and README

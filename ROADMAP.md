@@ -43,18 +43,7 @@ dropped is deleted, and the commit that drops it names its number.
 
 ## Now
 
-### 3. Code assertions
-
-**Serves:** Raku
-
-**Size:** M (3)
-
-`<?{ name($/) }>` and `<!{ name($/) }>` call a Go function, passed to
-`Compile`, with the match so far, and fail or go on by what it says, so
-a check only code can make, such as a pay range's minimum below its
-maximum, is made mid-parse, where backtracking can find a reading that
-passes. The plan is in its
-[change record](docs/changes/2026-11-02-r3-code-assertions.md).
+Nothing yet.
 
 ## Next
 

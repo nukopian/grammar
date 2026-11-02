@@ -470,6 +470,32 @@ Zoë | Ölander | Жанна | Петрова | Wei
 Zo | Wei
 ```
 
+#### `Assertion`
+
+Assertion is a Go function for a grammar's code assertions to call by name: <?{ name(\$/) }> goes on where fn returns true, and <!{ name(\$/) }> where it returns false.
+
+An Assertion is a check only code can make, called from the grammar by name in the middle of a parse: here, that a pay range's minimum is no more than its maximum, read from the values PayActions made. The assertion's match so far holds the captures up to it, with their made values. Raku runs the same grammar given a sub ordered(\$/).
+
+```go
+ordered := grammar.Assertion("ordered", func(m *scalar.SV) bool {
+	return !m.At("max").Defined() || m.At("min.amount.made").Num() <= m.At("max.amount.made").Num()
+})
+g := grammar.MustCompile(`grammar Range is Pay {
+    token TOP { <min=money> [ <.sep> <max=money> ]? <?{ ordered($/) }> <period>? }
+}`, Pay, ordered)
+
+acts := grammar.Actions(PayActions{})
+for _, text := range []string{"£45k - £55,000 per annum", "£55k - £45,000 per annum", "£45k per annum"} {
+	fmt.Println(g.Parse(text, acts).Defined())
+}
+```
+
+```
+true
+false
+true
+```
+
 ### Reference: Parsing and matches
 
 #### `Grammar.Parse`
@@ -1720,6 +1746,48 @@ fmt.Println(bare.Find(text).At("from"), word.Find(text).At("from"))
 
 ```
 5 24
+```
+
+#### `Assert`
+
+Assert is <?{ name(\$/) }>: it matches no text, and goes on only if fn, given the match so far, returns true.
+
+Assert is a code assertion, \<?{ name(\$/) }> in Raku syntax: it goes on only if the function, given the match so far, says so. Here, weekly hours must be plausible, so the hours a month are passed over.
+
+```go
+plausible := func(m *scalar.SV) bool { return m.At("hours.~").Int() <= 48 }
+g := grammar.New("Hours").
+	Token("TOP", grammar.Seq(grammar.WordStart, grammar.Alias("hours", "num"),
+		grammar.Assert("plausible", plausible), grammar.Lit(" hours"))).
+	Token("num", grammar.Plus(grammar.Digit))
+// Raku: token TOP { << <hours=num> <?{ plausible($/) }> ' hours' }
+
+fmt.Println(g.Find("Up to 120 hours a month, usually 37 hours a week").At("~"))
+```
+
+```
+37 hours
+```
+
+#### `AssertNot`
+
+AssertNot is <!{ name(\$/) }>: it goes on only if fn returns false.
+
+AssertNot is \<!{ name(\$/) }>: it goes on only if the function says no. Here, words that aren't stopwords.
+
+```go
+stop := map[string]bool{"a": true, "and": true, "for": true, "the": true}
+stopword := func(m *scalar.SV) bool { return stop[m.At("~").Str()] }
+g := grammar.New("Words").
+	Token("TOP", grammar.Seq(grammar.WordStart, grammar.Plus(grammar.Word), grammar.AssertNot("stopword", stopword)))
+// Raku: token TOP { << \w+ <!{ stopword($/) }> }
+
+words := g.FindAll("a nurse and a carer for the ward")
+fmt.Println(words.Map(func(m *scalar.SV) any { return m.At("~") }).Join(" "))
+```
+
+```
+nurse carer ward
 ```
 
 ### Reference: Word lists

@@ -28,7 +28,7 @@ import (
 // docs/REFERENCE.md, lists what's in it.
 func Compile(src string, uses ...Use) (g *Grammar, err error) {
 	p := &parser{src: []rune(nfc(src)), grammars: map[string]*Grammar{}, lists: map[string]*WordList{},
-		patterns: map[string]*PatternList{}}
+		patterns: map[string]*PatternList{}, checks: map[string]*assertion{}}
 	for _, u := range uses {
 		switch u := u.(type) {
 		case *Grammar:
@@ -37,6 +37,8 @@ func Compile(src string, uses ...Use) (g *Grammar, err error) {
 			p.lists[u.name] = u
 		case *PatternList:
 			p.patterns[u.name] = u
+		case *assertion:
+			p.checks[u.name] = u
 		}
 	}
 	defer func() {
@@ -62,7 +64,8 @@ func Compile(src string, uses ...Use) (g *Grammar, err error) {
 }
 
 // Use is what a grammar's source can refer to by name: a *Grammar, to
-// extend or compose, or a *WordList, to match.
+// extend or compose, a *WordList or *PatternList, to match, or an
+// Assertion, to call.
 type Use interface{ useName() string }
 
 func (g *Grammar) useName() string  { return g.name }
@@ -95,6 +98,7 @@ type parser struct {
 	grammars map[string]*Grammar
 	lists    map[string]*WordList
 	patterns map[string]*PatternList
+	checks   map[string]*assertion
 
 	// adv holds, for each group being parsed, innermost last, the adverbs
 	// that cover the rest of it: an adverb covers the rest of its group,
@@ -898,7 +902,9 @@ func (p *parser) assertion() Node {
 		n := p.regex()
 		p.assert--
 		p.expect(">")
-		return &look{inner: n, neg: neg, behind: behind}
+		return newLook(n, neg, behind)
+	case p.peek("?{") || p.peek("!{"):
+		return p.code()
 	case p.peek("?") || p.peek("!"):
 		neg := p.eat("!")
 		p.eat("?")
@@ -949,6 +955,42 @@ func (p *parser) assertion() Node {
 	}
 	p.expect(">")
 	return n
+}
+
+// code reads a code assertion, <?{ name($/) }> or <!{ name($/) }>, after
+// the <. Raku code can't run here, so the only code it takes is a call of
+// a Go function passed to Compile as an Assertion.
+func (p *parser) code() Node {
+	neg := p.eat("!")
+	p.eat("?")
+	start := p.i - 2 // the <
+	p.expect("{")
+	p.ws()
+	at := p.i
+	name := ""
+	if !p.eof() && isAlpha(p.src[p.i]) {
+		name = p.ident()
+	}
+	p.ws()
+	ok := name != "" && p.eat("(")
+	p.ws()
+	ok = ok && p.eat("$/")
+	p.ws()
+	ok = ok && p.eat(")")
+	p.ws()
+	if !ok || !p.eat("}") {
+		p.i = at
+		p.fail("a code assertion here can only call a Go function with the match, as <?{ name($/) }>, " +
+			"the function passed to Compile as grammar.Assertion(\"name\", fn)")
+	}
+	p.expect(">")
+	a, found := p.checks[name]
+	if !found {
+		written := string(p.src[start:p.i])
+		p.i = start
+		p.fail("there's no function %s for %s: pass grammar.Assertion(%q, fn) to Compile", name, written, name)
+	}
+	return &code{name: name, fn: a.fn, neg: neg}
 }
 
 // classExpr reads a character class: [ ... ] sets and names of built-in

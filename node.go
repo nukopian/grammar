@@ -30,10 +30,14 @@ type Node interface {
 type cont func(pos int, c *capList) bool
 
 // env is the lexical context a node matches in: the adverbs in force, and
-// the scope its captures belong to.
+// the scope its captures belong to, with where it started, for a code
+// assertion's match so far. It's passed at every step, so it's kept to
+// two words: from fits beside the flags, as no text has 2³¹ characters
+// that could be read into memory as runes.
 type env struct {
 	ratchet bool
 	ci      bool
+	from    int32
 	sc      *scope
 }
 
@@ -66,6 +70,11 @@ type state struct {
 	// of which the first used are taken; see once.
 	slots []*onceSlot
 	used  int
+
+	// act are the parse's actions, and b builds its matches, for code
+	// assertions and the result; see builder.
+	act *actions
+	b   *builder
 }
 
 // deeper counts one more level of the matcher's recursion: every node that
@@ -232,6 +241,11 @@ func describe(n Node, ci bool) string {
 		return "$<" + n.key + ">"
 	case patterns:
 		return "<@" + n.l.name + ">"
+	case *code:
+		if n.neg {
+			return "<!{ " + n.name + "($/) }>"
+		}
+		return "<?{ " + n.name + "($/) }>"
 	case *look:
 		if inner, ok := n.inner.(seq); ok && len(inner) == 0 {
 			return "" // <?> or <!>: nothing the text could have had
@@ -363,7 +377,7 @@ var fastPaths = true
 // needs to catch a first match.
 func oneWay(n Node) bool {
 	switch n.(type) {
-	case lit, class, anchor, re, backref:
+	case lit, class, anchor, re, backref, *code:
 		return true
 	}
 	return false
@@ -1153,7 +1167,7 @@ func (n *call) run(st *state, pos int, c *capList, e env, k cont, r *rule) bool 
 		}
 		return k(p, cc)
 	}
-	ce := env{ratchet: r.ratchet, sc: r.sc}
+	ce := env{ratchet: r.ratchet, sc: r.sc, from: int32(pos)}
 	t := st.tr
 	if t == nil {
 		if r.ratchet {
@@ -1209,7 +1223,7 @@ func (n *call) matchProto(st *state, pos int, c *capList, e env, k cont, r *rule
 			tr.enter(vf)
 			tr.depth++
 		}
-		p, inner, ok := once(v.body, st, pos, nil, env{ratchet: v.ratchet, sc: v.sc})
+		p, inner, ok := once(v.body, st, pos, nil, env{ratchet: v.ratchet, sc: v.sc, from: int32(pos)})
 		if tr != nil {
 			tr.leave()
 			tr.depth--
@@ -1277,7 +1291,7 @@ func (n *group) match(st *state, pos int, c *capList, e env, k cont) bool {
 	if key == "" {
 		key = e.sc.posKey[n]
 	}
-	ie := env{ratchet: e.ratchet, ci: e.ci, sc: n.sc}
+	ie := env{ratchet: e.ratchet, ci: e.ci, sc: n.sc, from: int32(pos)}
 	return n.inner.match(st, pos, nil, ie, func(p int, inner *capList) bool {
 		m := &mnode{from: pos, to: p, caps: inner, sc: n.sc}
 		return k(p, &capList{key, m, c})
@@ -1332,14 +1346,46 @@ type look struct {
 	inner  Node
 	neg    bool
 	behind bool
+	code   bool // a code assertion is in it, outside any rule or group; see mark
 }
+
+// newLook is a lookaround, with whether it needs mark.
+func newLook(inner Node, neg, behind bool) *look {
+	return &look{inner: inner, neg: neg, behind: behind, code: hasCode(inner)}
+}
+
+// hasCode reports whether a code assertion is in n, outside any rule or
+// ( ... ) group, each of which starts a match so far of its own.
+func hasCode(n Node) bool {
+	switch n.(type) {
+	case *code:
+		return true
+	case *group:
+		return false
+	}
+	return slices.ContainsFunc(children(n), hasCode)
+}
+
+// mark returns c, for the lookaround's inside to match from at from: for a
+// code assertion inside, with a mark on top, so that its match so far is
+// the lookaround's own captures, from there, as in Raku; see sofar. What's
+// captured inside a lookaround is dropped, mark and all, when it's done.
+func (n *look) mark(from int, c *capList) *capList {
+	if !n.code {
+		return c
+	}
+	return &capList{lookMark, &mnode{from: from, to: from}, c}
+}
+
+// lookMark is the key of mark's entry, which no capture can have.
+const lookMark = "\x00look"
 
 // Before is <?before n>, NotBefore <!before n>, After <?after n> and
 // NotAfter <!after n>. They match no text, and keep no captures.
-func Before(n Node) Node    { return &look{inner: n} }
-func NotBefore(n Node) Node { return &look{inner: n, neg: true} }
-func After(n Node) Node     { return &look{inner: n, behind: true} }
-func NotAfter(n Node) Node  { return &look{inner: n, neg: true, behind: true} }
+func Before(n Node) Node    { return newLook(n, false, false) }
+func NotBefore(n Node) Node { return newLook(n, true, false) }
+func After(n Node) Node     { return newLook(n, false, true) }
+func NotAfter(n Node) Node  { return newLook(n, true, true) }
 
 func (n *look) match(st *state, pos int, c *capList, e env, k cont) bool {
 	st.deeper()
@@ -1362,7 +1408,7 @@ func (n *look) match(st *state, pos int, c *capList, e env, k cont) bool {
 		}
 		try := func(from int) bool {
 			st.tick()
-			return n.inner.match(st, from, c, e, func(p int, _ *capList) bool { return p == pos })
+			return n.inner.match(st, from, n.mark(from, c), e, func(p int, _ *capList) bool { return p == pos })
 		}
 		if info != nil && !info.empty && !info.s.any && len(info.s.res) == 0 {
 			// Only where the pattern can start, latest first. A regex
@@ -1378,7 +1424,7 @@ func (n *look) match(st *state, pos int, c *capList, e env, k cont) bool {
 			}
 		}
 	} else {
-		_, _, ok = once(n.inner, st, pos, c, e)
+		_, _, ok = once(n.inner, st, pos, n.mark(pos, c), e)
 	}
 	if st.tr != nil {
 		st.tr.quiet--

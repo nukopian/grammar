@@ -402,7 +402,7 @@ func canBeEmpty(n Node, empty map[string]bool) bool {
 		return len(n.rs) == 0
 	case re:
 		return n.empty
-	case anchor, *look, backref:
+	case anchor, *look, *code, backref:
 		return true // a backreference's capture may have matched nothing
 	case seq:
 		return !slices.ContainsFunc(n, func(c Node) bool { return !canBeEmpty(c, empty) })
@@ -608,7 +608,8 @@ func (g *Grammar) Parse(text string, opts ...Option) *scalar.SV {
 	if o.pos > len(in) {
 		return noMatch()
 	}
-	return o.result(in, g.runState(g.newState(in), o.pos, true, o))
+	st := g.newState(in)
+	return st.result(g.runState(st, o.pos, true, o))
 }
 
 // Subparse matches from the start of text, without needing to reach the
@@ -618,7 +619,8 @@ func (g *Grammar) Subparse(text string, opts ...Option) *scalar.SV {
 	if o.pos > len(in) {
 		return noMatch()
 	}
-	return o.result(in, g.runState(g.newState(in), o.pos, false, o))
+	st := g.newState(in)
+	return st.result(g.runState(st, o.pos, false, o))
 }
 
 // Find returns the first match anywhere in text, or undef.
@@ -631,7 +633,7 @@ func (g *Grammar) Find(text string, opts ...Option) *scalar.SV {
 			continue
 		}
 		if m := g.runState(st, from, false, o); m != nil {
-			return o.result(in, m)
+			return st.result(m)
 		}
 	}
 	return noMatch()
@@ -659,7 +661,7 @@ func (g *Grammar) FindAll(text string, opts ...Option) *scalar.AV {
 			continue
 		}
 		if !o.outermost || m.to > end {
-			all.Push(o.result(in, m))
+			all.Push(st.result(m))
 		}
 		end = max(end, m.to)
 		if o.overlap {
@@ -731,6 +733,7 @@ func (g *Grammar) runState(st *state, from int, whole bool, o options) *mnode {
 	if o.trace != nil && st.trace == nil {
 		st.trace = &tracer{w: o.trace}
 	}
+	st.act = o.actions
 	var m *mnode
 	(&call{name: o.rule, capture: true}).match(st, from, nil, env{}, func(p int, c *capList) bool {
 		if whole && p != len(st.in) {
@@ -771,7 +774,7 @@ func (g *Grammar) parseErr(text string, whole bool, opts []Option) (match *scala
 		return noMatch(), e
 	}
 	if m := g.runState(st, o.pos, whole, o); m != nil {
-		return o.result(in, m), nil
+		return st.result(m), nil
 	}
 	e := newParseError(g.name, in, st.tr.far, st.tr.exp)
 	e.From = o.pos
@@ -960,14 +963,30 @@ func (e *ParseError) Error() string {
 	return msg
 }
 
-func (o options) result(in []rune, m *mnode) *scalar.SV {
+func (st *state) result(m *mnode) *scalar.SV {
 	if m == nil {
 		return noMatch()
 	}
-	b := &builder{in: in, act: o.actions, built: map[*mnode]*scalar.SV{}}
+	// The parse's builder, if a code assertion made one; otherwise one of
+	// its own, which needn't outlive this, so costs less.
+	b := st.b
+	if b == nil {
+		b = &builder{in: st.in, act: st.act, built: map[*mnode]*scalar.SV{}}
+	}
 	// Reading a match creates nothing, as in Raku: a capture it hasn't
 	// got reads as undef, and isn't added.
 	return b.build(m).Autovivify(false)
+}
+
+// builder returns the parse's builder, made when it's first needed. It's
+// one for the parse, so that a match a code assertion has seen is built
+// once, and its action runs once, however often it's seen, and whether or
+// not it's in the result.
+func (st *state) builder() *builder {
+	if st.b == nil {
+		st.b = &builder{in: st.in, act: st.act, built: map[*mnode]*scalar.SV{}}
+	}
+	return st.b
 }
 
 // noMatch is the undef that means no match. It's locked, so reading

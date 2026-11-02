@@ -438,3 +438,34 @@ func ExampleWordStart() {
 	// Output:
 	// 5 24
 }
+
+// Assert is a code assertion, <?{ name($/) }> in Raku syntax: it goes on
+// only if the function, given the match so far, says so. Here, weekly
+// hours must be plausible, so the hours a month are passed over.
+func ExampleAssert() {
+	plausible := func(m *scalar.SV) bool { return m.At("hours.~").Int() <= 48 }
+	g := grammar.New("Hours").
+		Token("TOP", grammar.Seq(grammar.WordStart, grammar.Alias("hours", "num"),
+			grammar.Assert("plausible", plausible), grammar.Lit(" hours"))).
+		Token("num", grammar.Plus(grammar.Digit))
+	// Raku: token TOP { << <hours=num> <?{ plausible($/) }> ' hours' }
+
+	fmt.Println(g.Find("Up to 120 hours a month, usually 37 hours a week").At("~"))
+	// Output:
+	// 37 hours
+}
+
+// AssertNot is <!{ name($/) }>: it goes on only if the function says no.
+// Here, words that aren't stopwords.
+func ExampleAssertNot() {
+	stop := map[string]bool{"a": true, "and": true, "for": true, "the": true}
+	stopword := func(m *scalar.SV) bool { return stop[m.At("~").Str()] }
+	g := grammar.New("Words").
+		Token("TOP", grammar.Seq(grammar.WordStart, grammar.Plus(grammar.Word), grammar.AssertNot("stopword", stopword)))
+	// Raku: token TOP { << \w+ <!{ stopword($/) }> }
+
+	words := g.FindAll("a nurse and a carer for the ward")
+	fmt.Println(words.Map(func(m *scalar.SV) any { return m.At("~") }).Join(" "))
+	// Output:
+	// nurse carer ward
+}

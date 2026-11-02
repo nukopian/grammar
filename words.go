@@ -768,7 +768,7 @@ func wordsIn(n Node) (*WordList, Node) {
 			}
 			l = n.l
 			return words{l: n.l, span: true}
-		case *look, anchor:
+		case *look, anchor, *code:
 			return n
 		case *call:
 			if n.name == "ws" && !n.capture && n.alias == "" {

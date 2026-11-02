@@ -3,22 +3,54 @@ package grammar
 import (
 	"encoding/json"
 	"os/exec"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/nukopian/scalar"
 )
 
-// rakuCases are grammars in Raku syntax, each with inputs to parse. Each
-// grammar has its own name, as Raku declares them all in one program.
-var rakuCases = []struct {
+// rakuCase is a grammar in Raku syntax, with inputs to parse.
+type rakuCase struct {
 	Src    string              `json:"src"`
 	Sub    bool                `json:"sub"` // subparse rather than parse
 	Inputs []string            `json:"inputs"`
 	Lists  map[string][]string `json:"lists,omitempty"` // word lists, as Raku arrays
 	// Pattern lists, for <@name>: Raku arrays of regexes.
 	Patterns map[string][]string `json:"patterns,omitempty"`
-}{
+	// Raku is Raku code run before the grammar is declared: a sub for each
+	// of its code assertions, and $*ACTS set to its actions, if it has any.
+	// Checks and Acts are the same in Go.
+	Raku   string                           `json:"raku,omitempty"`
+	Checks map[string]func(*scalar.SV) bool `json:"-"`
+	Acts   map[string]func(*scalar.SV) any  `json:"-"`
+}
+
+// uses is what the case's grammar is compiled with: its lists, patterns
+// and code assertions.
+func (c rakuCase) uses() []Use {
+	uses := caseUses(c.Lists, c.Patterns)
+	for name, fn := range c.Checks {
+		uses = append(uses, Assertion(name, fn))
+	}
+	return uses
+}
+
+// parse parses input as the case says, with its actions.
+func (c rakuCase) parse(g *Grammar, input string) *scalar.SV {
+	var opts []Option
+	if c.Acts != nil {
+		opts = append(opts, Actions(c.Acts))
+	}
+	if c.Sub {
+		return g.Subparse(input, opts...)
+	}
+	return g.Parse(input, opts...)
+}
+
+// rakuCases are grammars in Raku syntax, each with inputs to parse. Each
+// grammar has its own name, as Raku declares them all in one program.
+var rakuCases = []rakuCase{
 	// The pay grammar from the how-to guide's quick start.
 	{Src: `grammar Pay {
 	    token TOP    { <min=money> [ <.sep> <max=money> ]? <period>? }
@@ -336,6 +368,76 @@ var rakuCases = []struct {
 	{Src: `grammar Back13 { rule TOP { $<q>=[a] $<q> b } }`, Inputs: []string{"a a b", "a ab", "aa b"}},
 	{Src: `grammar Order7 { token TOP { <a> ' '? <b>+ (x) <c=a> $<n>=[ \d+ ] <.a>? '-' <d=.b> }; token a { a }; token b { b } }`,
 		Inputs: []string{"a bbxa12a-b", "abxa1-b"}},
+	// Code assertions: in a token, a check that fails fails the match; in
+	// a regex, it backtracks into what came before.
+	{Src: `grammar Code1 { token TOP { <min=num> '-' <max=num> <?{ ordered($/) }> }; token num { \d+ } }`,
+		Sub: true, Inputs: []string{"5-12", "12-5", "5-5"},
+		Raku: `sub ordered($/) { +$<min> <= +$<max> }`,
+		Checks: map[string]func(*scalar.SV) bool{"ordered": func(m *scalar.SV) bool {
+			return m.At("min.~").Int() <= m.At("max.~").Int()
+		}}},
+	{Src: `grammar Code2 { regex TOP { <min=num> '-' <max=num> <?{ hourly($/) }> }; regex num { \d+ } }`,
+		Sub: true, Inputs: []string{"5-1234", "5-50", "5-"},
+		Raku: `sub hourly($/) { +$<max> <= 100 }`,
+		Checks: map[string]func(*scalar.SV) bool{"hourly": func(m *scalar.SV) bool {
+			return m.At("max.~").Int() <= 100
+		}}},
+	{Src: `grammar Code3 { token TOP { <word> <!{ stop($/) }> }; token word { \w+ } }`,
+		Inputs: []string{"the", "nurse", "and"},
+		Raku:   `sub stop($/) { ~$<word> eq any <the a an and> }`,
+		Checks: map[string]func(*scalar.SV) bool{"stop": func(m *scalar.SV) bool {
+			return slices.Contains([]string{"the", "a", "an", "and"}, m.At("word.~").Str())
+		}}},
+	// A captured rule's made value is there, from its action.
+	{Src: `grammar Code4 { token TOP { <amount> <?{ big($/) }> }; token amount { <num> $<k>=[ k ]? }; token num { \d+ } }`,
+		Inputs: []string{"45k", "450k", "99999"},
+		Raku: `sub big($/) { $<amount>.made < 100_000 }
+		       $*ACTS = class { method amount($/) { make +$<num> * ($<k> ?? 1000 !! 1) } };`,
+		Checks: map[string]func(*scalar.SV) bool{"big": func(m *scalar.SV) bool {
+			return m.At("amount.made").Int() < 100_000
+		}},
+		Acts: map[string]func(*scalar.SV) any{"amount": func(m *scalar.SV) any {
+			n := m.At("num.~").Int()
+			if m.At("k").Defined() {
+				n *= 1000
+			}
+			return n
+		}}},
+	// Inside ( ... ), $/ is the group's match.
+	{Src: `grammar Code5 { regex TOP { ( \d+ <?{ even($/) }> ) } }`,
+		Sub: true, Inputs: []string{"123", "7", "1234"},
+		Raku: `sub even($/) { +$/ %% 2 }`,
+		Checks: map[string]func(*scalar.SV) bool{"even": func(m *scalar.SV) bool {
+			return m.At("~").Int()%2 == 0
+		}}},
+	// A quantified capture is an array, of the captures so far.
+	{Src: `grammar Code6 { token TOP { [ <d=digit> <?{ rising($/) }> ]+ } }`,
+		Sub: true, Inputs: []string{"1234", "1324", "21"},
+		Raku: `sub rising($/) { [<] $<d>.map(+*) }`,
+		Checks: map[string]func(*scalar.SV) bool{"rising": func(m *scalar.SV) bool {
+			ds := m.At("d").AV().Items()
+			for i := 1; i < len(ds); i++ {
+				if ds[i-1].At("~").Int() >= ds[i].At("~").Int() {
+					return false
+				}
+			}
+			return true
+		}}},
+	// At a rule's start, the match so far is empty, where the rule starts.
+	{Src: `grammar Code7 { token TOP { <x>+ }; token x { <?{ empty($/) }> \w } }`,
+		Inputs: []string{"ab", ""},
+		Raku:   `sub empty($/) { ~$/ eq '' && $/.from == $/.to }`,
+		Checks: map[string]func(*scalar.SV) bool{"empty": func(m *scalar.SV) bool {
+			return m.At("~").Str() == "" && m.At("from").Int() == m.At("to").Int()
+		}}},
+	// Inside a lookaround, from where it is, with its own captures and
+	// none of the rule's.
+	{Src: `grammar Code8 { token TOP { <a=alpha> <?before <d=digit> <?{ five($/) }> > \d } }`,
+		Inputs: []string{"x5", "x6"},
+		Raku:   `sub five($/) { $/.from == 1 && ~$<d> eq '5' && !$<a> }`,
+		Checks: map[string]func(*scalar.SV) bool{"five": func(m *scalar.SV) bool {
+			return m.At("from").Int() == 1 && m.At("d.~").Str() == "5" && !m.At("a").Defined()
+		}}},
 }
 
 var units = map[string][]string{"units": {"year", "yr", "years", "wk", "a.b"}}
@@ -366,10 +468,11 @@ for @(Rakudo::Internals::JSON.from-json($*IN.slurp)) -> $case {
     my $prelude = (|($case<lists> // {}).pairs, |($case<patterns> // {}).pairs).map(-> $p {
         my ($k, $v) = $p.kv;
         "my \@$k = " ~ ($v.elems ?? $v.map({ "'" ~ .subst("\\", "\\\\", :g).subst("'", "\\'", :g) ~ "'" }).join(", ") !! "()") ~ ";\n"
-    }).join;
+    }).join ~ ($case<raku> // '') ~ "\n";
+    my $*ACTS = Any;
     my $g = EVAL $prelude ~ $case<src>;
     @out.push: [ $case<inputs>.map: -> $in {
-        my $m = $case<sub> ?? $g.subparse($in) !! $g.parse($in);
+        my $m = $case<sub> ?? $g.subparse($in, :actions($*ACTS)) !! $g.parse($in, :actions($*ACTS));
         $m<unread><y>; # reading creates nothing
         $m ?? conv($m) !! Any
     } ];
@@ -389,18 +492,13 @@ print Rakudo::Internals::JSON.to-json(@out, :!pretty);
 		t.Fatalf("raku's output: %v", err)
 	}
 	for i, c := range rakuCases {
-		g, err := Compile(c.Src, caseUses(c.Lists, c.Patterns)...)
+		g, err := Compile(c.Src, c.uses()...)
 		if err != nil {
 			t.Errorf("case %d: %v", i, err)
 			continue
 		}
 		for j, input := range c.Inputs {
-			var got *scalar.SV
-			if c.Sub {
-				got = g.Subparse(input)
-			} else {
-				got = g.Parse(input)
-			}
+			got := c.parse(g, input)
 			got.At("unread.y") // reading creates nothing, as in Raku
 			w := want.Get(i, j)
 			stripMade(got) // Raku's <@list> has no canonical values
@@ -455,7 +553,7 @@ func stripMade(m *scalar.SV) {
 // The Raku cases compile here even where raku isn't installed.
 func TestRakuCasesCompile(t *testing.T) {
 	for i, c := range rakuCases {
-		if _, err := Compile(c.Src, caseUses(c.Lists, c.Patterns)...); err != nil {
+		if _, err := Compile(c.Src, c.uses()...); err != nil {
 			t.Errorf("case %d: %v\n%s", i, err, c.Src)
 		}
 	}

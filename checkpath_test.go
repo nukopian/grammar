@@ -133,7 +133,7 @@ func TestCheckPathAcceptsRealPaths(t *testing.T) {
 // So for every match of the Raku cases: CheckPath takes each path in it.
 func TestCheckPathRakuCases(t *testing.T) {
 	for _, c := range rakuCases {
-		g := MustCompile(c.Src, caseUses(c.Lists, c.Patterns)...)
+		g := MustCompile(c.Src, c.uses()...)
 		for _, in := range c.Inputs {
 			m := g.Parse(in)
 			if c.Sub {

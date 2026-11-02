@@ -65,7 +65,7 @@ Why, What's known, Steps, Done when.
 Newest first.
 
 - [Code assertions](2026-11-02-r3-code-assertions.md)
-  (roadmap 3), in progress
+  (roadmap 3), unreleased
 - [Find skipping positions for regex terminals](2026-11-01-r10-find-skipping-positions-for-regex-terminals.md)
   (roadmap 10), shipped in v0.4.4
 - [Failure reports from Find and FindAll](2026-11-01-r4-failure-reports-from-find-and-findall.md)

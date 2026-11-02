@@ -58,7 +58,7 @@ func TestFastPathsChangeNothing(t *testing.T) {
 	grammars := []*Grammar{pay, payErr, shapes, MustCompile(`grammar Acro { token TOP { @acro } }`, acronyms)}
 	var texts []string
 	for _, c := range rakuCases {
-		g, err := Compile(c.Src, caseUses(c.Lists, c.Patterns)...)
+		g, err := Compile(c.Src, c.uses()...)
 		if err != nil {
 			t.Fatal(err)
 		}

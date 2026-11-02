@@ -54,7 +54,7 @@ func (g *Grammar) width(n Node, calling map[string]bool) (lo, hi int) {
 		return len(n.rs), len(n.rs)
 	case class:
 		return 1, 1
-	case anchor, *look:
+	case anchor, *look, *code:
 		return 0, 0
 	case seq:
 		for _, c := range n {
