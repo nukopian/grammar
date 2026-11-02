@@ -47,6 +47,32 @@ Nothing yet.
 
 ## Next
 
+### 24. Building only what a code assertion reads
+
+**Serves:** speed
+
+**Size:** M (3)
+
+**What:** have a code assertion build only the captures its function
+reads, not the whole match so far. Two ways to try, behind a switch:
+lazy values from scalar (its roadmap 5), each capture built when it's
+read; or, with no change to scalar, an `Assertion` that names the
+captures it reads, failing loudly when the function reads another.
+
+**Why:** each assertion builds a hash for every capture, though
+`pay($/)` reads only `cur` and `period`: in `BenchmarkAssert`, `sofar`
+makes 39% of the search's allocations, and garbage collection takes
+most of its time. jdc-lab moved its pay rule into its grammar and
+took the cost, 4–6% of its chunker's time (about 2 s over 28,000 ads),
+for one copy of the rule; assertions should cost about what checking
+afterwards does.
+
+**Done when** `BenchmarkAssert` is measured before and after, with its
+allocations; the way kept is the one that pays, and the other's
+numbers are in the record; jdc-lab's chunker, rerun over every ad,
+gives the same output in less time; and the reference's gap is gone
+or says what's left.
+
 ### 5. A picture of a grammar
 
 **Serves:** debugging
@@ -140,17 +166,5 @@ every match must contain, such as a digit for a pay figure, and have
 trying a position. jdc-lab keeps such a check beside each fact grammar
 by hand (`MayHold`), as a prose line costs a search 17 µs where a digit
 check takes 0.17 µs; this would make it automatic.
-
-### 24. Building only what a code assertion reads
-
-Added 2026-11-02, from jdc-lab. **Size:** M (3). Each assertion builds
-the whole match so far, a hash for every capture, though `pay($/)`
-reads only `cur` and `period`: in `BenchmarkAssert`, `sofar` makes 39%
-of the search's allocations, and garbage collection takes most of its
-time. Experiment with lazy values from scalar (its idea 5), each
-capture built when it's read, or, without scalar, an `Assertion` naming
-the captures it reads. jdc-lab took the 4–6% its chunker lost (about
-2 s over 28,000 ads) for one copy of its pay rule; this would win it
-back.
 
 [gaps]: docs/REFERENCE.md#gaps-and-possible-additions
