@@ -120,6 +120,19 @@ that need them, such as an alternation's branches' starts, which ideas
   9.6% less time and 32% fewer allocations, and FindLines 2%. That's
   scalar's change to make, with its own switch and tests, so it was
   reverted here and left as a task in scalar's `TODO.md`.
+- **Found at the wash-up:** each alternation's branch starts were kept on
+  the state, in a slice by a number every alternation in the program was
+  given as it was made, so a new state grew with all of them: after
+  200,000 alternations made anywhere, a parse on a new state made 9.6 MB
+  rather than 4.5 KB, and the pool makes new states after garbage
+  collection. They're now kept on the alternation, for each grammar that
+  uses it, at the generation they were worked out, which also shares
+  them between states. `TestBranchStartsDontGrow` failed first, and
+  `TestBranchStartsPerGrammar` checks an alternation shared by two
+  grammars, with a planted bug (the grammar ignored) to show it would
+  notice. No benchmark moved. Rule names are still numbered across the
+  program, but they come from grammars' source, so a state's rules grow
+  only with the names a program uses, at 8 bytes each.
 - **What's left:** building the result is now most of a parse, about two
   thirds of `BenchmarkParse`'s time and nine tenths of its allocations,
   in scalar (see [Engineering](../REFERENCE.md#engineering)). A proto's

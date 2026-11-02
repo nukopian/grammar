@@ -137,8 +137,8 @@ gain from it.
 
 Split from 7 (true longest-token matching). Work out the part of each
 `|` branch and proto candidate before anything that could backtrack or
-run code, as Rakudo does in NQP. Roadmap 25's branch starts, kept per
-alternation by its number, are its first character.
+run code, as Rakudo does in NQP. Roadmap 25's branch starts, kept on each
+alternation, are its first character.
 
 ### 21. An automaton from the prefixes
 

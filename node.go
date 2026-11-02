@@ -85,11 +85,9 @@ type state struct {
 	whole bool
 	found *mnode
 
-	// rules are the rules calls have found, by their names' numbers, and
-	// alts the alternations' branches' starts, by theirs, as they were at
-	// generation rulesGen; see ruleOf and branchStarts.
+	// rules are the rules calls have found, by their names' numbers, as
+	// they were at generation rulesGen; see ruleOf.
 	rules    []*rule
-	alts     [][]*starts
 	rulesGen uint64
 }
 
@@ -924,13 +922,22 @@ func atomAt(n Node, st *state, pos int, e env) (int, bool) {
 
 type alt struct {
 	branches []Node
-	id       int // for the state to keep its branches' starts by; see branchStarts
+	starts   atomic.Pointer[altStarts] // see branchStarts
 }
 
-// altIDs numbers alternations as they're made, from 1.
-var altIDs atomic.Int64
+// altStarts are an alternation's branches' starts, as one grammar sees
+// them, with or without :i, at one generation; next are the others kept
+// at that generation, as an alternation can be shared between grammars.
+// Once made, they're never changed.
+type altStarts struct {
+	g      *Grammar
+	ci     bool
+	gen    uint64
+	starts []*starts
+	next   *altStarts
+}
 
-func newAlt(branches []Node) *alt { return &alt{branches, int(altIDs.Add(1))} }
+func newAlt(branches []Node) *alt { return &alt{branches: branches} }
 
 // Alt is Raku's |: the branch that matches the most text wins, and the
 // earlier branch wins a tie. Raku decides by each branch's declarative
@@ -944,21 +951,18 @@ func Alt(nodes ...Node) Node { return newAlt(nodes) }
 var skipBranches = true
 
 // branchStarts are what each of n's branches can start with, under ci, as
-// n's grammar sees them, or nil for a branch that could start with
-// anything or match nothing. They're worked out once and kept on the
-// state, by n's number, until a grammar changes, as ruleOf keeps rules.
+// st's grammar sees them, or nil for a branch that could start with
+// anything or match nothing. They're worked out once and kept on n, for
+// each grammar that uses it, until a grammar changes. Kept on the state,
+// by a number given each alternation, they made every new state as big
+// as the number of alternations the program had made.
 func (st *state) branchStarts(n *alt, ci bool) []*starts {
-	if gen := generation.Load(); st.rulesGen != gen {
-		clear(st.rules)
-		clear(st.alts)
-		st.rulesGen = gen
-	}
-	i := 2 * n.id
-	if ci {
-		i++
-	}
-	if i < len(st.alts) && st.alts[i] != nil {
-		return st.alts[i]
+	gen := generation.Load()
+	old := n.starts.Load()
+	for a := old; a != nil; a = a.next {
+		if a.g == st.g && a.ci == ci && a.gen == gen {
+			return a.starts
+		}
 	}
 	out := make([]*starts, len(n.branches))
 	f := &startFinder{g: st.g, rules: map[string]*ruleStarts{}}
@@ -969,11 +973,16 @@ func (st *state) branchStarts(n *alt, ci bool) []*starts {
 			out[j] = s
 		}
 	}
-	if i >= len(st.alts) {
-		st.alts = append(st.alts, make([][]*starts, i+1-len(st.alts))...)
+	for {
+		a := &altStarts{g: st.g, ci: ci, gen: gen, starts: out}
+		if old != nil && old.gen == gen {
+			a.next = old
+		}
+		if n.starts.CompareAndSwap(old, a) {
+			return out
+		}
+		old = n.starts.Load()
 	}
-	st.alts[i] = out
-	return out
 }
 
 // mayStart reports whether n's branch j could start at pos, as far as its
@@ -1335,7 +1344,6 @@ func (st *state) ruleOf(n *call) *rule {
 	}
 	if gen := generation.Load(); st.rulesGen != gen {
 		clear(st.rules)
-		clear(st.alts)
 		st.rulesGen = gen
 	}
 	if n.id < len(st.rules) {

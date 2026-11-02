@@ -178,7 +178,7 @@ func limitResults(g *Grammar, text string) []string {
 // One grammar searched from many goroutines at once gives each what it
 // gives alone, though the states it searches with are kept and used again
 // (see done), even while some searches are stopped by StepLimit, whose
-// states mustn't be used again. Run with -race, as CI does.
+// states are reset and used again too. Run with -race, as CI does.
 func TestStatesShared(t *testing.T) {
 	defer func(s int) { StepLimit = s }(StepLimit)
 	StepLimit = 5000

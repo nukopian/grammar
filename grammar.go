@@ -753,7 +753,7 @@ func (g *Grammar) done(st *state) {
 	if !fastPaths || st.tr != nil || st.trace != nil {
 		return
 	}
-	*st = state{g: g, slots: st.slots, top: st.top, topK: st.topK, rules: st.rules, alts: st.alts, rulesGen: st.rulesGen}
+	*st = state{g: g, slots: st.slots, top: st.top, topK: st.topK, rules: st.rules, rulesGen: st.rulesGen}
 	g.states.Put(st)
 }
 

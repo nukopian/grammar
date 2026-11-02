@@ -2,6 +2,7 @@ package grammar
 
 import (
 	"fmt"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -296,4 +297,43 @@ func TestBranchSkipsChangeNothing(t *testing.T) {
 		t.Fatal("no branch was ever skipped")
 	}
 	t.Logf("fewer steps for %d texts", fewer)
+}
+
+// TestBranchStartsDontGrow checks that a search's state doesn't grow with
+// the alternations made elsewhere in the program: they were once kept on
+// the state by a number counted across every grammar, so that after
+// 200,000 alternations, a new state took 9.6 MB.
+func TestBranchStartsDontGrow(t *testing.T) {
+	for range 100000 {
+		Alt(Lit("x"), Lit("y"))
+	}
+	g := MustCompile(`grammar G { token TOP { a | b } }`)
+	runtime.GC()
+	runtime.GC() // empties g's states
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	g.Parse("a")
+	runtime.ReadMemStats(&after)
+	if n := after.TotalAlloc - before.TotalAlloc; n > 100000 {
+		t.Errorf("a parse on a new state made %d bytes", n)
+	}
+}
+
+// TestBranchStartsPerGrammar checks that an alternation shared by two
+// grammars skips branches by what each grammar's rules start with.
+func TestBranchStartsPerGrammar(t *testing.T) {
+	shared := Alt(Seq(Call("x"), Lit("!")), Lit("b"))
+	a := New("A").Token("x", Lit("a")).Token("TOP", shared)
+	b := New("B").Token("x", Lit("b")).Token("TOP", shared)
+	for range 2 {
+		for _, c := range []struct {
+			g    *Grammar
+			text string
+			want bool
+		}{{a, "a!", true}, {b, "b!", true}, {a, "b", true}, {b, "a!", false}} {
+			if got := c.g.Parse(c.text).Defined(); got != c.want {
+				t.Errorf("%s on %q: %v, want %v", c.g.Name(), c.text, got, c.want)
+			}
+		}
+	}
 }
