@@ -11,6 +11,16 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.5.0 (2026-11-02)
+
+Code assertions: checks only code can make, in the middle of a parse
+
+Breaking change: a quantifier straight after an anchor, `<?>`, `<!>` or
+a code assertion is now a compile error, as in Raku (below), so a
+grammar with `^*` or `<?>?` in it needs changing. Needs scalar v0.6.3.
+
 - Code assertions: `<?{ name($/) }>` and `<!{ name($/) }>` call a Go
   function, passed to `Compile` as `grammar.Assertion(name, fn)`, with
   the match so far, and the match goes on only if it says yes (or no);

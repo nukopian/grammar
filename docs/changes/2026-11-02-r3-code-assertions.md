@@ -1,6 +1,6 @@
 # Code assertions
 
-**Status:** unreleased
+**Status:** shipped in v0.5.0
 
 **Origin:** roadmap 3
 
