@@ -20,9 +20,11 @@ type rakuCase struct {
 	Patterns map[string][]string `json:"patterns,omitempty"`
 	// Raku is Raku code run before the grammar is declared: a sub for each
 	// of its code assertions, and $*ACTS set to its actions, if it has any.
-	// Checks and Acts are the same in Go.
+	// Checks and Acts are the same in Go, and Reads names the captures each
+	// check reads, if it names them.
 	Raku   string                           `json:"raku,omitempty"`
 	Checks map[string]func(*scalar.SV) bool `json:"-"`
+	Reads  map[string][]string              `json:"-"`
 	Acts   map[string]func(*scalar.SV) any  `json:"-"`
 }
 
@@ -31,7 +33,7 @@ type rakuCase struct {
 func (c rakuCase) uses() []Use {
 	uses := caseUses(c.Lists, c.Patterns)
 	for name, fn := range c.Checks {
-		uses = append(uses, Assertion(name, fn))
+		uses = append(uses, Assertion(name, fn, c.Reads[name]...))
 	}
 	return uses
 }
@@ -372,19 +374,22 @@ var rakuCases = []rakuCase{
 	// a regex, it backtracks into what came before.
 	{Src: `grammar Code1 { token TOP { <min=num> '-' <max=num> <?{ ordered($/) }> }; token num { \d+ } }`,
 		Sub: true, Inputs: []string{"5-12", "12-5", "5-5"},
-		Raku: `sub ordered($/) { +$<min> <= +$<max> }`,
+		Raku:  `sub ordered($/) { +$<min> <= +$<max> }`,
+		Reads: map[string][]string{"ordered": {"min", "max"}},
 		Checks: map[string]func(*scalar.SV) bool{"ordered": func(m *scalar.SV) bool {
 			return m.At("min.~").Int() <= m.At("max.~").Int()
 		}}},
 	{Src: `grammar Code2 { regex TOP { <min=num> '-' <max=num> <?{ hourly($/) }> }; regex num { \d+ } }`,
 		Sub: true, Inputs: []string{"5-1234", "5-50", "5-"},
-		Raku: `sub hourly($/) { +$<max> <= 100 }`,
+		Raku:  `sub hourly($/) { +$<max> <= 100 }`,
+		Reads: map[string][]string{"hourly": {"max"}},
 		Checks: map[string]func(*scalar.SV) bool{"hourly": func(m *scalar.SV) bool {
 			return m.At("max.~").Int() <= 100
 		}}},
 	{Src: `grammar Code3 { token TOP { <word> <!{ stop($/) }> }; token word { \w+ } }`,
 		Inputs: []string{"the", "nurse", "and"},
 		Raku:   `sub stop($/) { ~$<word> eq any <the a an and> }`,
+		Reads:  map[string][]string{"stop": {"word"}},
 		Checks: map[string]func(*scalar.SV) bool{"stop": func(m *scalar.SV) bool {
 			return slices.Contains([]string{"the", "a", "an", "and"}, m.At("word.~").Str())
 		}}},
@@ -393,6 +398,7 @@ var rakuCases = []rakuCase{
 		Inputs: []string{"45k", "450k", "99999"},
 		Raku: `sub big($/) { $<amount>.made < 100_000 }
 		       $*ACTS = class { method amount($/) { make +$<num> * ($<k> ?? 1000 !! 1) } };`,
+		Reads: map[string][]string{"big": {"amount"}},
 		Checks: map[string]func(*scalar.SV) bool{"big": func(m *scalar.SV) bool {
 			return m.At("amount.made").Int() < 100_000
 		}},
@@ -406,14 +412,16 @@ var rakuCases = []rakuCase{
 	// Inside ( ... ), $/ is the group's match.
 	{Src: `grammar Code5 { regex TOP { ( \d+ <?{ even($/) }> ) } }`,
 		Sub: true, Inputs: []string{"123", "7", "1234"},
-		Raku: `sub even($/) { +$/ %% 2 }`,
+		Raku:  `sub even($/) { +$/ %% 2 }`,
+		Reads: map[string][]string{"even": {}},
 		Checks: map[string]func(*scalar.SV) bool{"even": func(m *scalar.SV) bool {
 			return m.At("~").Int()%2 == 0
 		}}},
 	// A quantified capture is an array, of the captures so far.
 	{Src: `grammar Code6 { token TOP { [ <d=digit> <?{ rising($/) }> ]+ } }`,
 		Sub: true, Inputs: []string{"1234", "1324", "21"},
-		Raku: `sub rising($/) { [<] $<d>.map(+*) }`,
+		Raku:  `sub rising($/) { [<] $<d>.map(+*) }`,
+		Reads: map[string][]string{"rising": {"d"}},
 		Checks: map[string]func(*scalar.SV) bool{"rising": func(m *scalar.SV) bool {
 			ds := m.At("d").AV().Items()
 			for i := 1; i < len(ds); i++ {
@@ -427,6 +435,7 @@ var rakuCases = []rakuCase{
 	{Src: `grammar Code7 { token TOP { <x>+ }; token x { <?{ empty($/) }> \w } }`,
 		Inputs: []string{"ab", ""},
 		Raku:   `sub empty($/) { ~$/ eq '' && $/.from == $/.to }`,
+		Reads:  map[string][]string{"empty": {}},
 		Checks: map[string]func(*scalar.SV) bool{"empty": func(m *scalar.SV) bool {
 			return m.At("~").Str() == "" && m.At("from").Int() == m.At("to").Int()
 		}}},
@@ -436,26 +445,31 @@ var rakuCases = []rakuCase{
 	{Src: `grammar Code9 { rule TOP { <n=num> <?{ small($/) }> hours }; token num { \d+ } }`,
 		Inputs: []string{"40 hours", "40hours", "60 hours"},
 		Raku:   `sub small($/) { +$<n> <= 50 }`,
+		Reads:  map[string][]string{"small": {"n"}},
 		Checks: map[string]func(*scalar.SV) bool{"small": func(m *scalar.SV) bool { return m.At("n.~").Int() <= 50 }}},
 	{Src: `grammar Code10 { token TOP { <p> }; proto token p {*}; token p:sym<n> { <n=num> <?{ small($/) }> }; token p:sym<w> { \w+ }; token num { \d+ } }`,
 		Inputs: []string{"40", "60"},
 		Raku:   `sub small($/) { +$<n> <= 50 }`,
+		Reads:  map[string][]string{"small": {"n"}},
 		Checks: map[string]func(*scalar.SV) bool{"small": func(m *scalar.SV) bool { return m.At("n.~").Int() <= 50 }}},
 	{Src: `grammar Code11 { regex TOP { [ \w+ <?{ odd($/) }> ] && [ a .* ] } }`,
 		Sub: true, Inputs: []string{"abcd", "abc"},
-		Raku: `sub odd($/) { +$/.chars % 2 == 1 }`,
+		Raku:  `sub odd($/) { +$/.chars % 2 == 1 }`,
+		Reads: map[string][]string{"odd": {}},
 		Checks: map[string]func(*scalar.SV) bool{"odd": func(m *scalar.SV) bool {
 			return len([]rune(m.At("~").Str()))%2 == 1
 		}}},
 	{Src: `grammar Code12 { token TOP { $<a>=[\w] <?{ same($/) }> $<a> } }`,
 		Inputs: []string{"xx", "yy"},
 		Raku:   `sub same($/) { ~$<a> eq 'x' }`,
+		Reads:  map[string][]string{"same": {"a"}},
 		Checks: map[string]func(*scalar.SV) bool{"same": func(m *scalar.SV) bool { return m.At("a.~").Str() == "x" }}},
 	// Inside a lookaround, from where it is, with its own captures and
 	// none of the rule's.
 	{Src: `grammar Code8 { token TOP { <a=alpha> <?before <d=digit> <?{ five($/) }> > \d } }`,
 		Inputs: []string{"x5", "x6"},
 		Raku:   `sub five($/) { $/.from == 1 && ~$<d> eq '5' && !$<a> }`,
+		Reads:  map[string][]string{"five": {"d", "a"}},
 		Checks: map[string]func(*scalar.SV) bool{"five": func(m *scalar.SV) bool {
 			return m.At("from").Int() == 1 && m.At("d.~").Str() == "5" && !m.At("a").Defined()
 		}}},

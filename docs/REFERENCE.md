@@ -102,7 +102,7 @@ escaped.
 | `<?before x>`, `<!before x>` | `Before(x)`, `NotBefore(x)` | x follows (or doesn't), without matching it |
 | `<?after x>`, `<!after x>` | `After(x)`, `NotAfter(x)` | x comes just before (or doesn't) |
 | `<?>`, `<!>` | | always matches, never matches, matching no text: `$<none>=[ <?> ]` is an empty capture |
-| `<?{ name($/) }>`, `<!{ name($/) }>` | `Assert(name, fn)`, `AssertNot(name, fn)` | goes on only if the Go function, given the match so far, says yes (or no), matching no text; see [Code assertions](#code-assertions) |
+| `<?{ name($/) }>`, `<!{ name($/) }>` | `Assert(name, fn, reads...)`, `AssertNot(name, fn, reads...)` | goes on only if the Go function, given the match so far, says yes (or no), matching no text; see [Code assertions](#code-assertions) |
 | `:i` | `IgnoreCase(x)` | ignore case, for the rest of the group |
 | `:r`, `:!r` | `Ratchet(x, on)` | stop or start backtracking, for the rest of the group |
 | `:s`, `:!s` | `Silent("ws")` where the spaces go | make spaces in the rule match spaces in the text, or stop, for the rest of the group, as in a `rule` |
@@ -237,6 +237,23 @@ The match so far is what Raku's `$/` is at that point:
 - it's read-only: a capture it hasn't got reads as undef, and writing
   panics.
 
+A function that reads a few of a rule's captures can name them after it,
+and only those are built, with `~`, `from` and `to`:
+
+```go
+pay := grammar.Assertion("pay", func(m *scalar.SV) bool {
+	return len(m.At("cur").AV().Items()) > 0 || m.At("period").Defined()
+}, "cur", "period")
+```
+
+A named capture that hasn't matched reads as undef, or as an empty
+array where the rule can capture it more than once; what's below a named
+capture is all there. Reading a capture that isn't named panics, saying
+which assertion and what it names, so a function changed to read
+another can't be given undef without anyone noticing. Raku has nothing
+to name, as its sub reads what it likes: the grammar is the same in
+both.
+
 In a `regex`, a false answer backtracks into what came before, so a
 reading that passes can still be found: above, `\d+` gives back digits
 until `max` is 12. In a `token`, nothing gives anything back, so the rule
@@ -262,14 +279,16 @@ The function is called as the parse reaches the assertion, which may be
 many times, on paths the parse goes on to abandon, so it should have no
 side effects; and from the goroutine that's parsing, so a grammar parsing
 on several at once calls it on each. A panic in it isn't caught. In the
-builder, `Assert(name, fn)` and `AssertNot(name, fn)` hold the function
-themselves, the name being for failure reports, which show a failed
-assertion as `<?{ name($/) }>`.
+builder, `Assert(name, fn, reads...)` and `AssertNot(name, fn, reads...)`
+hold the function themselves, with the captures it reads, if named, the
+name being for failure reports, which show a failed assertion as
+`<?{ name($/) }>`.
 
 Each call builds the match so far as scalar data, so an assertion
 reached at many positions costs something: on a text of figures, a pay
-grammar's check took a search from 1.14 ms, made afterwards, to 1.87 ms
-(see [Engineering](#engineering)). Grammars without assertions don't
+grammar's check took a search from 1.14 ms, made afterwards, to 1.88 ms
+building every capture, and 1.43 ms naming the two it reads (see
+[Engineering](#engineering)). Grammars without assertions don't
 pay for them: only a rule, group or lookaround with one directly inside
 marks where it started, for the match so far. Their parses cost what
 they did, with the same allocations, but for lookbehinds, which can be
@@ -1304,7 +1323,7 @@ Before changing anything, it helps to know how the package is put together:
 | **`Find` can't skip positions for some grammars.** It skips positions where no match can start, but only when it can work that out: not for a grammar that can match empty text, or that starts with an `Re` pattern that can, or that uses `\G`, as those could start anywhere. Such grammars search at about the old speed. | Searching long texts with grammars like those. | A grammar that can match empty text matches everywhere, so there's nothing to skip. An `Re` pattern with `\G` could be asked position by position, as now. A grammar starting with any other `Re` skips by asking regexp2 where the pattern next matches ([roadmap 10's record](changes/2026-11-01-r10-find-skipping-positions-for-regex-terminals.md)), which is exact; working out the pattern's first characters, or taking them as a hint, was considered and rejected, as either could be wrong and silently drop matches. That costs `BenchmarkFindAll`, whose grammar has no `Re`, about 3% (1.4 µs on 4 KB), for the check at each position. | partly | 1 |
 | **The matcher still makes closures for some steps.** Four fast paths, behind `fastPaths`, took most away (see [Speed](#speed)): a pay parse went from 12.5 µs and 532 allocations to 9.3 µs and 359 (2026-10-19), then to 8.3 µs and 225, with `once` keeping its results in slots on the state and `seq` stepping over atoms in a loop (2026-10-31; roadmap 9's [record](changes/2026-10-31-r9-fewer-closures-in-the-matcher.md)). What's left, in `BenchmarkFindLines`: each step of a sequence over anything but an atom still makes a continuation (`seq.from`, about a quarter of the allocations), a rule call makes its match node and capture as it matches, even where backtracking then throws them away (`call.run`, about a quarter), and `FindAll` makes a new state, and so new slots, for every text it searches. | Parse speed at high volumes: a pay string parses in about 8 µs, against Participle's 6 µs. | Keep the slots between searches, on the grammar in a `sync.Pool`, so searching many short texts, as jdc-lab does line by line, builds them once. Making match nodes only for the match that's kept would need captures held some other way until then; not yet looked into. A sequence's continuations can't be made once, as `once`'s are, as each carries the continuation for what follows the sequence, which differs at every call. The fast paths' trade-offs hold for any more: they duplicate what the general engine does, so a later change to an atom (case folding, failure reports) must be made in both; they must step aside for frugal, possessive or separated repeats and items that can match nothing; and they must leave failure reports alone, as the repeat loop does by running only when failures aren't being tracked. `TestFastPathsChangeNothing` and `TestFastPathsKeepLimits` compare both paths, and must cover a new one, with a planted bug to show they'd notice. A lexer was considered instead and rejected: it would make matching cheaper, but cost precise errors, word lists that span spaces, `Find` anywhere in text, and Raku compatibility. | yes | 2 |
 | **Building a match's scalar data takes about 40% of a parse.** Profiled after the fast paths (2026-10-19), building the match took 43% of `BenchmarkParse`'s time, scalar's own code 32%, most of it making each match's hash. | Parse speed at high volumes, once matching is faster still. | Kept: scalar's `HV.Set` stores a new key without first making a placeholder (scalar v0.5.1), which took a parse from 9.30 to 9.13 µs, 8 allocations fewer. Tried and reverted: making each match's hash in one `scalar.Hash` call with every key, so the map is sized once, made a parse slower, 9.13 to 9.58 µs and 21 allocations more, as building the list costs more than the growing it saves. Not pursued: building scalar values only when they're read. It would need a new kind of scalar value in scalar's core, honoured by every way of reading one; it could save up to the 43% where results are hardly read, as in the benchmark, but little in real use, where `To` reads every field. | partly | 3 |
-| **A code assertion builds the whole match so far at each call,** as scalar data, though the function may read one capture of it. On a text of figures, mostly not pay, a pay grammar checking for a currency or a period with `<?{ pay($/) }>` searched in 1.87 ms, against 1.14 ms with the same check made on its matches afterwards (`BenchmarkAssert`, 2026-11-02); jdc-lab's chunker, with the check moved into its pay grammar, took 4–6% longer over 28,000 ads. With actions, the match is also copied, as the result shares its captures, to stay read-only. | Grammars whose assertions are reached at many positions, at high volumes. | Build only what the function reads: a lazy value in scalar, built from the captures as it's read. Kept: no copy when the parse has no actions, which took the search from 2.3 ms to 1.87 ms. | yes | 3 |
+| **A code assertion builds the match so far at each call,** as scalar data: its own hash and text, and every capture, or those its `Assertion` names. On a text of figures, mostly not pay, a pay grammar checking for a currency or a period with `<?{ pay($/) }>` searched in 1.88 ms building every capture (`BenchmarkAssert`), 1.43 ms naming the two it reads (`BenchmarkAssertReads`), and 1.14 ms with the same check made on its matches afterwards (2026-11-02). With actions, the match is also copied, as the result shares its captures, to stay read-only. | Grammars whose assertions are reached at many positions, at high volumes. | Kept: no copy when the parse has no actions, which took the search from 2.3 ms to 1.87 ms; and naming the captures read, which took it to 1.43 ms, −24% time, −22% bytes and −28% allocations ([roadmap 24's record](changes/2026-11-02-r24-building-only-what-a-code-assertion-reads.md)). Tried and reverted: each capture a lazy value from scalar (its `Lazy`, on a branch), built when it's read, which needs nothing named but saved only 13% time, 9% bytes and 10% allocations, as each lazy capture makes three allocations of its own, nearly what a small capture costs to build; it would also have made every read in scalar check for a lazy value. What's left is the match's own hash and text, made at each call, which the function may not read. | partly | 2 |
 | **Each match's text is a copy.** A match's `~` is rebuilt from the runes of the text, rather than being a slice of the original string. | Never, as measured. | Tried and measured, then reverted: sharing the original string (when it's valid UTF-8, with a cursor from rune positions to byte offsets) saved about 1% of allocations, made a parse no faster, and made `FindAll` on a 4 KB posting 20% slower, through checking the whole text was UTF-8 and walking the cursor to each match. Copying a match's few characters was always cheap, and storing text in a scalar allocates either way. | no | — |
 | **No memoisation.** A rule may be tried at the same position more than once. | Rarely, as measured (2026-10-16): of 37,400 token calls across titleeval, payeval and grammarrules, 18 were repeats at the same position, and `BenchmarkParse` and `BenchmarkFindAll` have none. Only `regex` rules that backtrack heavily through tokens repeat much, and `StepLimit` bounds those. | Cache each token's result by rule and position in `state` (a token has at most one result there), skipped under `ParseErr`, which must record every failure. Not worth it for these grammars: it would add a map lookup to every call to save almost none. Worth reconsidering, perhaps as an option, for a grammar whose profile shows repeats. | yes | 2 |
 | **Nested alternations in a `regex` double their work at each level.** `\|` matches each branch to measure it, then matches the winner again for real. In a `token` the second match is skipped, as the first is final. | Deeply nested alternations inside `regex` rules, which are rare. | Part of true longest-token matching (above), which decides from prefixes without matching branches in full. | yes | 5 |

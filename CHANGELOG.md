@@ -11,7 +11,14 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- A code assertion can name the captures its function reads, after it:
+  `grammar.Assertion("pay", fn, "cur", "period")`, and `Assert` and
+  `AssertNot` the same. Only those are built for the match so far, with
+  its text and position, which took a pay search over a text of figures
+  from 1.88 ms to 1.43 ms, with 28% fewer allocations. Reading a capture
+  that isn't named panics, saying which assertion and what it names.
+  Assertions that don't name any are as they were.
+  (roadmap 24; [record](docs/changes/2026-11-02-r24-building-only-what-a-code-assertion-reads.md))
 
 ## v0.5.0 (2026-11-02)
 

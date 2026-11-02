@@ -33,14 +33,15 @@ func FuzzCompile(f *testing.F) {
 // fuzzAssertion is a code assertion for fuzzed grammars to call, as
 // <?{ f($/) }>. What it says depends only on the match so far, so it's
 // the same each time the matcher reaches the same place the same way: its
-// text has an even length, counting a <c> as one more.
+// text has an even length, counting a <c> as one more. It names c as the
+// capture it reads, so FuzzMatch checks that naming changes nothing.
 var fuzzAssertion = Assertion("f", func(m *scalar.SV) bool {
 	n := utf8.RuneCountInString(m.At("~").Str())
 	if m.At("c").Defined() {
 		n++
 	}
 	return n%2 == 0
-})
+}, "c")
 
 // fuzzList is a word list for fuzzed grammars to use, as @w.
 func fuzzList() *WordList {
@@ -242,6 +243,16 @@ func FuzzMatch(f *testing.F) {
 		}
 		if d := g.Subparse(text).Diff(slowParse); d != "" {
 			t.Fatalf("the fast paths changed Subparse: %s", d)
+		}
+		// And so does building every capture for f, which names c.
+		var every *scalar.AV
+		var everyParse *scalar.SV
+		withoutNamedReads(func() { every, everyParse = g.FindAll(text), g.Subparse(text) })
+		if d := all.Diff(every); d != "" {
+			t.Fatalf("naming f's reads changed FindAll: %s", d)
+		}
+		if d := g.Subparse(text).Diff(everyParse); d != "" {
+			t.Fatalf("naming f's reads changed Subparse: %s", d)
 		}
 	})
 }

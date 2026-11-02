@@ -264,7 +264,10 @@ for _, m := range Range.FindAll(posting, acts).All() {
 The function reads `made` values, as the parse's actions made them for
 the matches before the assertion. Checked afterwards instead, the
 backwards range would have been one match to throw away, and its
-figures lost with it. The reference's
+figures lost with it. Each call builds the match so far; where a rule
+captures much and the function reads little, naming what it reads after
+it, as `grammar.Assertion("ordered", fn, "min", "max")`, builds only
+those, which is quicker. The reference's
 [Code assertions](REFERENCE.md#code-assertions) has the rest.
 
 ### When a grammar won't match

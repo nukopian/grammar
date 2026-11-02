@@ -1018,7 +1018,7 @@ func (p *parser) code() Node {
 		p.i = start
 		p.fail("there's no function %s for %s: pass grammar.Assertion(%q, fn) to Compile", name, written, name)
 	}
-	return &code{name: name, fn: a.fn, neg: neg}
+	return &code{name: name, fn: a.fn, neg: neg, reads: a.reads}
 }
 
 // classExpr reads a character class: [ ... ] sets and names of built-in

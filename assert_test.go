@@ -2,6 +2,8 @@ package grammar
 
 import (
 	"errors"
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -103,6 +105,112 @@ func TestAssertActionsOnce(t *testing.T) {
 	}
 }
 
+// An assertion that names the captures it reads is given those, with the
+// match's text and position: one that hasn't matched is undef, or an empty
+// array where it can capture more than once, and what's below them reads
+// as ever. With actions as well, and in the builder's Assert.
+func TestAssertReads(t *testing.T) {
+	src := `grammar Pay {
+    token TOP { <cur>? <min=num> [ '-' <cur>? <max=num> ]? <period>? <?{ pay($/) }> }
+    token cur { '£' }
+    token num { \d+ }
+    token period { ' ph' }
+}`
+	var seen []string
+	pay := func(m *scalar.SV) bool {
+		seen = append(seen, fmt.Sprintf("%s %d-%d cur %d period %v %v",
+			m.At("~").Str(), m.At("from").Int(), m.At("to").Int(),
+			len(m.At("cur").AV().Items()), m.At("period").Defined(), m.At("period.missing").Defined()))
+		return len(m.At("cur").AV().Items()) > 0 || m.At("period").Defined()
+	}
+	acts := Actions(map[string]func(*scalar.SV) any{"num": func(m *scalar.SV) any { return 1 }})
+	var want []string
+	for _, opts := range [][]Option{nil, {acts}} {
+		for _, reads := range [][]string{nil, {"cur", "period"}} {
+			seen = nil
+			g := MustCompile(src, Assertion("pay", pay, reads...))
+			all := g.FindAll("5-12 and £5-£12, 12 ph", opts...)
+			if all.Length() != 2 {
+				t.Errorf("reads %v: %d matches", reads, all.Length())
+			}
+			if want == nil {
+				want = seen
+			} else if !slices.Equal(seen, want) {
+				t.Errorf("reads %v, actions %v: the assertion saw\n%s\nwant\n%s", reads, opts != nil,
+					strings.Join(seen, "\n"), strings.Join(want, "\n"))
+			}
+		}
+	}
+	b := New("Range").
+		Token("TOP", Seq(Alias("min", "num"), Lit("-"), Alias("max", "num"), Assert("ordered", ordered, "min", "max"))).
+		Token("num", Plus(Class(isDigit)))
+	if !b.Parse("5-12").Defined() || b.Parse("12-5").Defined() {
+		t.Error("Assert with reads")
+	}
+}
+
+// Reading a capture an assertion doesn't name panics, saying which
+// assertion and what it names, and so does writing to the match.
+func TestAssertReadsUnnamed(t *testing.T) {
+	for _, c := range []struct {
+		fn   func(*scalar.SV) bool
+		want string
+	}{
+		{func(m *scalar.SV) bool { return m.At("max").Defined() },
+			"grammar: ordered($/) reads a capture it doesn't name (it names min): scalar: Attempt to access disallowed key 'max' in a restricted hash"},
+		{func(m *scalar.SV) bool { m.At("min").Set(1); return true }, "Modification of a read-only value attempted"},
+	} {
+		g := MustCompile(`grammar Range { token TOP { <min=num> '-' <max=num> <?{ ordered($/) }> }; token num { \d+ } }`,
+			Assertion("ordered", c.fn, "min"))
+		func() {
+			defer func() {
+				if r := fmt.Sprint(recover()); !strings.Contains(r, c.want) {
+					t.Errorf("panicked with %s\nwant %s", r, c.want)
+				}
+			}()
+			g.Parse("5-12")
+		}()
+	}
+}
+
+// Naming the captures an assertion reads changes no match or failure
+// report: checked over the Raku cases, with each named and with none.
+func TestNamedReadsChangeNothing(t *testing.T) {
+	compared := 0
+	for _, c := range rakuCases {
+		if c.Reads == nil {
+			continue
+		}
+		g, err := Compile(c.Src, c.uses()...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, in := range c.Inputs {
+			for _, text := range []string{in, "xx " + in + " ;" + in} {
+				with := results(g, text)
+				var without []string
+				withoutNamedReads(func() { without = results(g, text) })
+				if !slices.Equal(with, without) {
+					t.Errorf("%s on %q: naming reads changed\n%s\nto\n%s", c.Src, text,
+						strings.Join(without, "\n"), strings.Join(with, "\n"))
+				}
+				compared++
+			}
+		}
+	}
+	if compared == 0 {
+		t.Fatal("nothing compared")
+	}
+}
+
+// withoutNamedReads runs f building every capture for every assertion,
+// and turns naming back on, even if f panics.
+func withoutNamedReads(f func()) {
+	defer func() { namedReads = true }()
+	namedReads = false
+	f()
+}
+
 // A failed assertion is reported as the grammar writes it.
 func TestAssertParseErr(t *testing.T) {
 	g := MustCompile(`grammar Range { token TOP { <min=num> '-' <max=num> <?{ ordered($/) }> }; token num { \d+ } }`,
@@ -119,7 +227,13 @@ func TestAssertParseErr(t *testing.T) {
 // with a pay grammar whose figures are pay only with a currency or a
 // period, checked by a code assertion, as jdc-lab's is: most figures in
 // such lines are something else, so the check is reached and fails often.
-func BenchmarkAssert(b *testing.B) {
+func BenchmarkAssert(b *testing.B) { benchmarkAssert(b) }
+
+// BenchmarkAssertReads is BenchmarkAssert with the assertion naming the
+// captures it reads.
+func BenchmarkAssertReads(b *testing.B) { benchmarkAssert(b, "cur", "period") }
+
+func benchmarkAssert(b *testing.B, reads ...string) {
 	g := MustCompile(`grammar Pay {
     token TOP    { <cur>? \s? <min=num> [ <.sep> <cur>? \s? <max=num> ]? <period>? <?{ pay($/) }> }
     token cur    { '£' | '$' | '€' }
@@ -128,7 +242,7 @@ func BenchmarkAssert(b *testing.B) {
     token period { \s* :i [ 'p.a.' | per \s+ annum | per \s+ hour | ph | pa ] >> }
 }`, Assertion("pay", func(m *scalar.SV) bool {
 		return len(m.At("cur").AV().Items()) > 0 || m.At("period").Defined()
-	}))
+	}, reads...))
 	text := strings.Repeat("Ref 225682916. Hours: 37.5 per week, 8 - 4, Mon-Fri. 2 - 3 years' experience. ", 20) +
 		"Salary: £45,000 - £55,000 p.a. and 12.50 ph at weekends."
 	for b.Loop() {

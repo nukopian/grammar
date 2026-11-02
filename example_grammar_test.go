@@ -307,3 +307,28 @@ func ExampleAssertion() {
 	// false
 	// true
 }
+
+// An Assertion that names the captures its function reads is given only
+// those, with the match's text and position, which is quicker where the
+// rule captures more: here, a figure is pay only with a currency or a
+// period, and the amounts aren't read. A capture it names that hasn't
+// matched is undef, or an empty array where it can capture more than once,
+// as cur can; reading one it doesn't name panics.
+func ExampleAssertion_reads() {
+	pay := grammar.Assertion("pay", func(m *scalar.SV) bool {
+		return len(m.At("cur").AV().Items()) > 0 || m.At("period").Defined()
+	}, "cur", "period")
+	g := grammar.MustCompile(`grammar Pay {
+    token TOP    { <cur>? <min=num> [ \s* '-' \s* <cur>? <max=num> ]? <period>? <?{ pay($/) }> }
+    token cur    { '£' }
+    token num    { \d+ [ ',' \d ** 3 ]* }
+    token period { \s+ per \s+ [ annum | hour ] }
+}`, pay)
+
+	for _, m := range g.FindAll("Ref 2251, 2 - 3 years, £45,000 - £55,000, 12 per hour").All() {
+		fmt.Println(m.At("~"))
+	}
+	// Output:
+	// £45,000 - £55,000
+	// 12 per hour
+}
