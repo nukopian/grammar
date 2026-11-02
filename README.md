@@ -156,7 +156,7 @@ a working example of every function and method, see the
   and method, with the output it prints.
 - [From Raku to Go](docs/RAKU.md): a phrasebook of tasks in Raku, with
   `grammar` and in plain Go, all three checked against each other.
-- [The process](https://github.com/nukopian/scalar/blob/main/docs/PROCESS.md): how `grammar` and
+- [The process](https://github.com/nukopian/claude-practice/blob/main/thoughts/PROCESS.md): how `grammar` and
   [`scalar`](https://github.com/nukopian/scalar) were made, as a
   partnership with Claude in which judgement stayed with Iain.
 - [Changes](CHANGELOG.md): what each release changed, and what's waiting
@@ -236,7 +236,7 @@ reviewed and committed each change. Most of the code, tests and
 documentation were written by Claude, Anthropic's AI model, working to
 that direction; nearly all its commits credit Claude in a
 `Co-Authored-By` trailer. How the partnership worked is in Iain's essay,
-[The process](https://github.com/nukopian/scalar/blob/main/docs/PROCESS.md).
+[The process](https://github.com/nukopian/claude-practice/blob/main/thoughts/PROCESS.md).
 
 `grammar` started inside [job-meta](https://github.com/nukopian/job-meta),
 a proof of concept for extracting metadata from job postings, and was
