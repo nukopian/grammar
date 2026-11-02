@@ -212,11 +212,15 @@ named function among the Differences from Raku, and its gap is gone.
   where it started, two allocations a call it never read
   (`TestAssertMarks`, failing first); and `(*look).mark` ignored its
   receiver, now `mark` beside `start`. `TestAssertReadOnly` now takes
-  the path with actions too. Found, not changed: a quantified
-  zero-width atom, `^*`, `<?>?` or `<?{ … }>?`, is a compile error in
-  Raku ("Can only quantify a construct that produces a match"), and
-  matches here, as it did before assertions; Raku loops forever on
-  `<?before a>*`, which matches here. Afterwards, the tests, examples
+  the path with actions too. Found, and changed as Iain decided:
+  a quantified zero-width atom, `^*`, `<?>?` or `<?{ … }>?`, is a
+  compile error in Raku ("Can only quantify a construct that produces a
+  match"), and matched here, as it did before assertions; now it's an
+  error too (`TestQuantifyNothing`, failing first, with the forms Raku
+  accepts: lookarounds, `<?name>`, any in brackets, after `:` or as a
+  separator). Raku loops forever on an unbounded repeat of those, as
+  `<?before a>*`, `<?alpha>+` or `[ ^ ]*`, which match here: that's now
+  among the Differences from Raku. Afterwards, the tests, examples
   and jdc-lab's chunks, with and without Pay's assertion, were as
   before, and `FuzzMatch` ran 60 seconds with nothing found.
 - **What's left:** building only what the function reads, which would

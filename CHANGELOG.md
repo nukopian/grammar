@@ -26,6 +26,13 @@ release's entry when `main` is moved to it and tagged
   builds the match so far, which on a text of figures made a pay search
   1.6 times as long as checking afterwards.
   (roadmap 3; [record](docs/changes/2026-11-02-r3-code-assertions.md))
+- Breaking, as Raku is: a quantifier straight after an anchor, `<?>`,
+  `<!>` or a code assertion, as in `^*` or `<?>?`, is a compile error,
+  "matches no text, so it can't be repeated", as Rakudo's "Can only
+  quantify a construct that produces a match" is. They compiled before,
+  and repeated nothing. Lookarounds and `<?name>` may still be
+  quantified, as in Raku; a repeat of one stops when it matches nothing,
+  where Raku loops for ever, now among the Differences from Raku.
 - Build: needs scalar v0.6.3, up from v0.6.2. Nothing changes for
   grammar's matching: scalar is now under the Artistic License 2.0, as
   grammar is, so the two share one licence, and the LICENSE and README

@@ -116,6 +116,10 @@ type parser struct {
 	// word, as after $<x>= and as a separator, which Raku binds to one
 	// letter; see atom.
 	single bool
+
+	// nothing is the atom just read, as written, if it matches no text and
+	// isn't in brackets, so can't be quantified; see quantifier.
+	nothing string
 }
 
 func (p *parser) fail(format string, args ...any) {
@@ -607,7 +611,11 @@ func (p *parser) quantified() (Node, bool) {
 		p.expect(">")
 		p.single = false
 	} else {
+		at := p.i
 		atom = p.atom()
+		if !bracket && matchesNothing(atom) {
+			p.nothing = strings.TrimSpace(string(p.src[at:p.i]))
+		}
 	}
 	if capName != "" && !bracket && namesEach(atom) {
 		// As in Raku, $<k>=( … )*, $<k>=<name>*, $<k>=@list* and
@@ -621,6 +629,20 @@ func (p *parser) quantified() (Node, bool) {
 		n = Named(capName, n)
 	}
 	return n, spaced
+}
+
+// matchesNothing reports whether n is an atom Raku won't quantify, as it
+// matches no text: an anchor, <?>, <!> or a code assertion. Lookarounds,
+// which also match no text, may be.
+func matchesNothing(n Node) bool {
+	switch n := n.(type) {
+	case anchor, *code:
+		return true
+	case *look:
+		inner, ok := n.inner.(seq)
+		return ok && len(inner) == 0
+	}
+	return false
 }
 
 // namesEach reports whether $<k>= before atom names each of its matches,
@@ -644,6 +666,8 @@ func namesEach(atom Node) bool {
 // and whitespace after a separator is part of the separator.
 func (p *parser) quantifier(atom Node) (Node, bool) {
 	sig := p.sig
+	nothing := p.nothing
+	p.nothing = ""
 	spaced := p.space()
 	if p.peek("::") {
 		p.fail("::, ::: and the like aren't supported, as Rakudo doesn't support them either: use : after an atom, or a token")
@@ -655,6 +679,10 @@ func (p *parser) quantifier(atom Node) (Node, bool) {
 	}
 	if !p.peek("**") && !p.peek("?") && !p.peek("*") && !p.peek("+") {
 		return atom, spaced
+	}
+	if nothing != "" {
+		p.fail("%s matches no text, so it can't be repeated, as Raku says: \"Can only quantify a construct "+
+			"that produces a match\"", nothing)
 	}
 	if spaced && sig {
 		atom = Seq(atom, Silent("ws"))
