@@ -1,6 +1,6 @@
 # A faster matcher
 
-**Status:** unreleased
+**Status:** shipped in v0.5.2
 
 **Origin:** roadmap 25, from a session looking at how the ideas still on
 the roadmap (rule parameters, longest-token matching, rejecting a text

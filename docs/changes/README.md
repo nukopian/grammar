@@ -65,7 +65,7 @@ Why, What's known, Steps, Done when.
 Newest first.
 
 - [A faster matcher](2026-11-02-r25-a-faster-matcher.md)
-  (roadmap 25), unreleased
+  (roadmap 25), shipped in v0.5.2
 - [Building only what a code assertion reads](2026-11-02-r24-building-only-what-a-code-assertion-reads.md)
   (roadmap 24), shipped in v0.5.1
 - [Code assertions](2026-11-02-r3-code-assertions.md)
