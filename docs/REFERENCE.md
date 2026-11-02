@@ -33,6 +33,7 @@ that catch nearly everyone once. Each row below behaves the same in
 | `Parse` finds the pattern in the text | `Parse` must match the whole text, as Raku's `.parse` does, and `Subparse` from its start: a `'£' \d+` grammar doesn't `Parse` "£45 pa" | `Find` and `FindAll` search the text, as a regex search does: `Find` finds "£45" in "Salary £45 pa" |
 | A capture is one match | A capture that can match more than once, `<x>*`, `<x>+` or `<x>` written twice, is always an array, even of one match, or none. `<x>?` is one match, or missing | Read an array capture with `At("x").AV()`, or `To`, which fills a slice field from it |
 | `'e'` matches the e of "é" typed as e plus an accent | Text is read in NFC, so e followed by a combining accent becomes the one character é, which `'e'` doesn't match. `from` and `to` count characters of the text as read, not bytes | Write the accented letter: a grammar's literals are read in NFC too. See [Accented letters](#accented-letters-text-is-read-in-nfc) |
+| A check that rejects "224 hours" rejects the figure | In a search, `Find` and `FindAll` try the next position, so a [code assertion](#code-assertions) rejecting 224 leaves them to find "24 hours" inside it | A left boundary: `<!after \d> \d+` can't start inside a number |
 | `.` stops at the end of a line | `.` matches any character, a newline included | `\N` matches any character but a newline |
 | A literal ignores case, as the word lists do | `'Ab'` matches only "Ab". Word lists ignore case only with `FoldCase` | `:i` ignores case for the rest of the rule or group: `token { :i 'Ab' }` matches "ab" |
 
@@ -243,6 +244,14 @@ fails there, and `Find` moves on to the next position. Either way, a
 check in the grammar stops a wrong match before it's made, where one
 made afterwards can only throw it away: with `Outermost`, a long wrong
 match thrown away afterwards has already hidden the right one inside it.
+
+In a search, a check that rejects a match leaves `Find` to try the
+next position, which may be inside the text it rejected: with
+`\d+ <!{ big($/) }> ' hours'` rejecting more than 80, "up to 224 hours"
+gives "24 hours". Give such a rule a left boundary, as
+`<!after \d> \d+` does, and it finds nothing there, as Raku does. A
+match made and thrown away afterwards hid this, as `Outermost` dropped
+the "24 hours" inside "224 hours"; a check in the grammar doesn't.
 
 A grammar written so runs unchanged in Raku, given a
 `sub hourly($/) { +$<max> <= 100 }` declared before it. Any other code in

@@ -188,6 +188,18 @@ named function among the Differences from Raku, and its gap is gone.
   passed; so did the same ads with the assertion-free code against this
   checkout. The chunker took 38.4–39.0 s against 36.7–36.9 s, 4–6%
   longer, the cost of building the match so far at each figure.
+- **A second trial in jdc-lab,** before the release, to try the API on a
+  check of another shape: `<!{ implausible($/) }>` in Hours, negated,
+  its limit depending on which optional capture matched (over 24 a day,
+  168 a week, 80 with no period). Over 28,000 ads it dropped 76 hours
+  facts, every one a misreading ("272 hours" of annual leave, "Dec 2026
+  Hours", "1800-0600hrs", "168 hours per month"), and added none, once
+  Hours had a left boundary. Without one, a rejected "224 hours" left
+  the search to find "24 hours" inside it: a match thrown away after
+  `Outermost` had hidden that, and a check in the grammar doesn't. The
+  reference now says so, in Code assertions and What you might assume,
+  checked in Raku. jdc-lab has the patch as a task, waiting on the
+  release.
 - **What's left:** building only what the function reads, which would
   need a lazy value in scalar, is in the reference's
   [Engineering gaps](../REFERENCE.md#engineering).
