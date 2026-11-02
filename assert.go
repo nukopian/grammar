@@ -60,25 +60,29 @@ func (n *code) match(st *state, pos int, c *capList, e env, k cont) bool {
 }
 
 // sofar is the match so far, as a code assertion at pos sees it, Raku's $/
-// there: the scope's captures since it started, from where it started.
-// Inside a lookaround, that's the lookaround's own captures, from where it
-// is, which its mark says. It has no made value of its own, as its rule
-// hasn't finished.
+// there: the scope's captures since it started, from where it started,
+// which start's mark says. Inside a lookaround, that's the lookaround's
+// own captures, from where it is. It has no made value of its own, as its
+// rule hasn't finished.
 func (st *state) sofar(pos int, c *capList, e env) *scalar.SV {
-	from, mine := int(e.from), c
-	for at := c; at != nil; at = at.next {
-		if at.key == lookMark {
-			// Only the captures above the mark, newest first, as a list
-			// of their own that ends at nil.
-			from, mine = at.m.from, nil
-			var caps []*capList
-			for ; c != at; c = c.next {
-				caps = append(caps, c)
-			}
-			for i := len(caps) - 1; i >= 0; i-- {
-				mine = &capList{caps[i].key, caps[i].m, mine}
-			}
-			break
+	at := c
+	for at != nil && at.key != startMark {
+		at = at.next
+	}
+	if at == nil {
+		panic("grammar: a code assertion outside any rule") // hasCode marks every scope one is in
+	}
+	from, mine := at.m.from, c // build passes over the mark at the bottom
+	if at.next != nil {
+		// A lookaround's: only the captures above the mark, newest
+		// first, as a list of their own that ends at nil.
+		var caps []*capList
+		for ; c != at; c = c.next {
+			caps = append(caps, c)
+		}
+		mine = nil
+		for i := len(caps) - 1; i >= 0; i-- {
+			mine = &capList{caps[i].key, caps[i].m, mine}
 		}
 	}
 	sc := e.sc

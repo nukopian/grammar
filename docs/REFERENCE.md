@@ -260,8 +260,11 @@ assertion as `<?{ name($/) }>`.
 Each call builds the match so far as scalar data, so an assertion
 reached at many positions costs something: on a text of figures, a pay
 grammar's check took a search from 1.14 ms, made afterwards, to 1.87 ms
-(see [Engineering](#engineering)). Grammars without assertions are
-about 1% slower for them, with no more allocations.
+(see [Engineering](#engineering)). Grammars without assertions don't
+pay for them: only a rule, group or lookaround with one directly inside
+marks where it started, for the match so far. Their parses cost what
+they did, with the same allocations, but for lookbehinds, which can be
+about 1% slower.
 
 ## Word lists
 
@@ -1257,8 +1260,11 @@ Before changing anything, it helps to know how the package is put together:
   each rule (`newScope`: which captures are arrays), turning matches into
   scalar data (`build`), and actions.
 - **[assert.go](../assert.go)** has code assertions, and the match so far
-  they're given (`sofar`), built from the scope's captures since where
-  the `env`, or a lookaround's mark, says it started.
+  they're given (`sofar`), built from the scope's captures since the
+  mark `start` put on its capture list where it started. Only a rule,
+  group or lookaround with an assertion in it (`hasCode`) has one, so
+  other grammars run as they did; where a scope starts isn't in `env`,
+  as every field of `env` is passed in a register at every step.
 - **[syntax.go](../syntax.go)** is the Raku-syntax parser: hand-written
   recursive descent that produces the same nodes as the Go builder.
 - **[words.go](../words.go)** has word lists: a trie for exact phrases and one

@@ -30,14 +30,13 @@ type Node interface {
 type cont func(pos int, c *capList) bool
 
 // env is the lexical context a node matches in: the adverbs in force, and
-// the scope its captures belong to, with where it started, for a code
-// assertion's match so far. It's passed at every step, so it's kept to
-// two words: from fits beside the flags, as no text has 2³¹ characters
-// that could be read into memory as runes.
+// the scope its captures belong to. It's passed at every step, in
+// registers, one a field, so a field more slows every grammar: where a
+// scope started, which code assertions need, is marked on its capture
+// list instead, by the scopes that have one in them; see start.
 type env struct {
 	ratchet bool
 	ci      bool
-	from    int32
 	sc      *scope
 }
 
@@ -1167,25 +1166,25 @@ func (n *call) run(st *state, pos int, c *capList, e env, k cont, r *rule) bool 
 		}
 		return k(p, cc)
 	}
-	ce := env{ratchet: r.ratchet, sc: r.sc, from: int32(pos)}
+	ce := env{ratchet: r.ratchet, sc: r.sc}
 	t := st.tr
 	if t == nil {
 		if r.ratchet {
-			p, inner, ok := once(r.body, st, pos, nil, ce)
+			p, inner, ok := once(r.body, st, pos, start(r.code, pos), ce)
 			return ok && finish(p, inner)
 		}
-		return r.body.match(st, pos, nil, ce, finish)
+		return r.body.match(st, pos, start(r.code, pos), ce, finish)
 	}
 	// Tracking failures: keep the rule on the stack while its body
 	// matches, and off it while the caller goes on.
 	f := frame{r.name, pos}
 	t.enter(f)
 	if r.ratchet {
-		p, inner, ok := once(r.body, st, pos, nil, ce)
+		p, inner, ok := once(r.body, st, pos, start(r.code, pos), ce)
 		t.leave(f)
 		return ok && finish(p, inner)
 	}
-	ok := r.body.match(st, pos, nil, ce, func(p int, inner *capList) bool {
+	ok := r.body.match(st, pos, start(r.code, pos), ce, func(p int, inner *capList) bool {
 		t.leave(f)
 		res := finish(p, inner)
 		t.enter(f)
@@ -1223,7 +1222,7 @@ func (n *call) matchProto(st *state, pos int, c *capList, e env, k cont, r *rule
 			tr.enter(vf)
 			tr.depth++
 		}
-		p, inner, ok := once(v.body, st, pos, nil, env{ratchet: v.ratchet, sc: v.sc, from: int32(pos)})
+		p, inner, ok := once(v.body, st, pos, start(v.code, pos), env{ratchet: v.ratchet, sc: v.sc})
 		if tr != nil {
 			tr.leave()
 			tr.depth--
@@ -1276,12 +1275,13 @@ type group struct {
 	inner Node
 	sc    *scope
 	name  string // "" for a positional capture
+	code  bool   // a code assertion is in it; see start
 }
 
 // Capture is ( n ): a positional capture, numbered from 0 in its scope.
 func Capture(n Node) Node {
 	n, _ = distinct(n, map[*group]bool{}, "")
-	return &group{inner: n, sc: newScope(n)}
+	return &group{inner: n, sc: newScope(n), code: hasCode(n)}
 }
 
 func (n *group) match(st *state, pos int, c *capList, e env, k cont) bool {
@@ -1291,8 +1291,8 @@ func (n *group) match(st *state, pos int, c *capList, e env, k cont) bool {
 	if key == "" {
 		key = e.sc.posKey[n]
 	}
-	ie := env{ratchet: e.ratchet, ci: e.ci, sc: n.sc, from: int32(pos)}
-	return n.inner.match(st, pos, nil, ie, func(p int, inner *capList) bool {
+	ie := env{ratchet: e.ratchet, ci: e.ci, sc: n.sc}
+	return n.inner.match(st, pos, start(n.code, pos), ie, func(p int, inner *capList) bool {
 		m := &mnode{from: pos, to: p, caps: inner, sc: n.sc}
 		return k(p, &capList{key, m, c})
 	})
@@ -1316,7 +1316,7 @@ func Named(name string, n Node) Node {
 	switch n := n.(type) {
 	case *group:
 		if n.name == "" {
-			return &group{inner: n.inner, sc: n.sc, name: name}
+			return &group{inner: n.inner, sc: n.sc, name: name, code: n.code}
 		}
 	case *call:
 		if n.alias == "" {
@@ -1346,7 +1346,7 @@ type look struct {
 	inner  Node
 	neg    bool
 	behind bool
-	code   bool // a code assertion is in it, outside any rule or group; see mark
+	code   bool // a code assertion is in it, outside any rule or group; see start
 }
 
 // newLook is a lookaround, with whether it needs mark.
@@ -1355,7 +1355,8 @@ func newLook(inner Node, neg, behind bool) *look {
 }
 
 // hasCode reports whether a code assertion is in n, outside any rule or
-// ( ... ) group, each of which starts a match so far of its own.
+// ( ... ) group, each of which starts a match so far of its own, and so
+// whether a scope with n as its body needs start's mark.
 func hasCode(n Node) bool {
 	switch n.(type) {
 	case *code:
@@ -1366,19 +1367,28 @@ func hasCode(n Node) bool {
 	return slices.ContainsFunc(children(n), hasCode)
 }
 
-// mark returns c, for the lookaround's inside to match from at from: for a
-// code assertion inside, with a mark on top, so that its match so far is
-// the lookaround's own captures, from there, as in Raku; see sofar. What's
-// captured inside a lookaround is dropped, mark and all, when it's done.
+// mark returns c, for the lookaround's inside to match from at from, when
+// a code assertion is inside, with start's mark on top, so that its match so
+// far is the lookaround's own captures, from there, as in Raku; see sofar.
+// What's captured inside a lookaround is dropped, mark and all, when it's
+// done.
 func (n *look) mark(from int, c *capList) *capList {
-	if !n.code {
-		return c
-	}
-	return &capList{lookMark, &mnode{from: from, to: from}, c}
+	return &capList{startMark, &mnode{from: from, to: from}, c}
 }
 
-// lookMark is the key of mark's entry, which no capture can have.
-const lookMark = "\x00look"
+// start is the capture list a rule's or a group's body starts with, at
+// pos: empty, or, if a code assertion is in it, a mark of where it
+// started, for the assertion's match so far; see sofar. Building a match
+// passes over the mark.
+func start(code bool, pos int) *capList {
+	if !code {
+		return nil
+	}
+	return &capList{startMark, &mnode{from: pos, to: pos}, nil}
+}
+
+// startMark is the key of start's mark, which no capture can have.
+const startMark = "\x00start"
 
 // Before is <?before n>, NotBefore <!before n>, After <?after n> and
 // NotAfter <!after n>. They match no text, and keep no captures.
@@ -1408,7 +1418,15 @@ func (n *look) match(st *state, pos int, c *capList, e env, k cont) bool {
 		}
 		try := func(from int) bool {
 			st.tick()
-			return n.inner.match(st, from, n.mark(from, c), e, func(p int, _ *capList) bool { return p == pos })
+			return n.inner.match(st, from, c, e, func(p int, _ *capList) bool { return p == pos })
+		}
+		if n.code {
+			// Chosen here, not tested at each start, which costs a
+			// lookbehind 2% though it's never true.
+			try = func(from int) bool {
+				st.tick()
+				return n.inner.match(st, from, n.mark(from, c), e, func(p int, _ *capList) bool { return p == pos })
+			}
 		}
 		if info != nil && !info.empty && !info.s.any && len(info.s.res) == 0 {
 			// Only where the pattern can start, latest first. A regex
@@ -1424,7 +1442,11 @@ func (n *look) match(st *state, pos int, c *capList, e env, k cont) bool {
 			}
 		}
 	} else {
-		_, _, ok = once(n.inner, st, pos, n.mark(pos, c), e)
+		cc := c
+		if n.code {
+			cc = n.mark(pos, c)
+		}
+		_, _, ok = once(n.inner, st, pos, cc, e)
 	}
 	if st.tr != nil {
 		st.tr.quiet--
@@ -1532,7 +1554,7 @@ func distinct(n Node, seen map[*group]bool, sym string) (Node, bool) {
 			seen[g] = true
 			return g, false
 		}
-		ng := &group{inner: copied[0], sc: newScope(copied[0]), name: g.name}
+		ng := &group{inner: copied[0], sc: newScope(copied[0]), name: g.name, code: g.code}
 		seen[ng] = true
 		return ng, true
 	}

@@ -59,6 +59,7 @@ type rule struct {
 	ratchet bool
 	sc      *scope
 	words   *WordList // the list the body is, if it's nothing else
+	code    bool      // a code assertion is in the body; see start
 
 	// A proto, proto token period {*}, has variants: rules named
 	// period:sym<…>, base period and sym what's between the brackets. A
@@ -256,7 +257,7 @@ func (g *Grammar) add(name string, body Node, ratchet bool) *Grammar {
 	}
 	list, body := wordsIn(body)
 	g.rules[name] = &rule{name: name, body: body, ratchet: ratchet, sc: newScope(body), words: list,
-		base: base, sym: sym, seq: ruleSeq.Add(1)}
+		code: hasCode(body), base: base, sym: sym, seq: ruleSeq.Add(1)}
 	delete(g.fromRole, name)
 	generation.Add(1)
 	return g
@@ -1032,6 +1033,9 @@ func (b *builder) build(m *mnode) *scalar.SV {
 	for c := m.caps; c != nil; c = c.next {
 		if c.key == listSpan {
 			from, to = c.m.from, c.m.to
+			continue
+		}
+		if c.key == startMark {
 			continue
 		}
 		caps = append(caps, c)

@@ -139,6 +139,32 @@ named function among the Differences from Raku, and its gap is gone.
     `parse`, so the seven tests that compile its grammars pass the
     functions and actions without each knowing about them; its Raku
     runners set `$*ACTS` from a case's `Raku` code.
+- **A fast path for grammars without assertions,** asked for by Iain
+  after the first commit, once he'd accepted the cost. It needed no
+  promise from the caller, as a grammar knows whether it has
+  assertions; but first, what the 1.2% was. Built against the commit
+  before assertions, interleaved: HEAD with the start's stores and the
+  lookaround marks taken out was as slow as HEAD (`Parse` +1.8%, against
+  +1.65%), as was HEAD without `*code` in `oneWay`; the commit before
+  assertions with only `env`'s new `int32` field added, and nothing else,
+  was as slow as HEAD (`Parse` +1.8%, `FindLines` +1.4%). Go passes a
+  struct in registers a field at a time, so a fourth field is a fourth
+  register at every match call, though `env` stayed 16 bytes. So `env`
+  went back to three fields, and a rule's or group's body starts its
+  capture list with a mark of where it started, as lookarounds did, only
+  if a code assertion is in it (`hasCode`, worked out when the rule or
+  group is made); building a match passes over the mark. The lookaround's
+  check, inlined but made at each start a lookbehind tries, cost
+  lookbehinds 1.7%; choosing its closure once, before the loop, left
+  0.8% (15 runs: `Lookbehind/bounded` +1.5% against the commit before
+  assertions, +0.65% with no mark at all). Final, against that commit,
+  eight runs: `FindAll`, `FindRe` and `Parse` unchanged, `FindLines`
+  +0.5%, `Lookbehind/bounded` +1.5–2.2%, `Lookbehind/unbounded` within
+  0.6%, with the same allocations; `BenchmarkAssert` 1.83 ms, against
+  1.87 ms. A planted bug, no mark at a rule's start, panicked on the
+  first Raku case with an assertion, as `sofar` is meant to; one at a
+  lookahead's failed Code8. `FuzzCompile` and `FuzzMatch` ran 60 seconds
+  each again, with nothing found, and the tests passed under `-race`.
 - **Planted bugs:** taking the match so far from the text's start, and
   ignoring the lookaround's mark, each failed the Raku cases (Code7 and
   Code8). The second passed at first, as Code8 had no capture before its

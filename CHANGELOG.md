@@ -21,9 +21,10 @@ release's entry when `main` is moved to it and tagged
   the rule's start, with its captures and their actions' made values,
   read-only. A grammar written so runs unchanged in Raku, given a
   `sub name($/)`; other Raku code in the braces is a compile error.
-  Grammars without assertions are about 1% slower, with no more
-  allocations; each assertion builds the match so far, which on a text
-  of figures made a pay search 1.6 times as long as checking afterwards.
+  Grammars without assertions cost what they did, with the same
+  allocations, but for lookbehinds, about 1% slower; each assertion
+  builds the match so far, which on a text of figures made a pay search
+  1.6 times as long as checking afterwards.
   (roadmap 3; [record](docs/changes/2026-11-02-r3-code-assertions.md))
 - Build: needs scalar v0.6.3, up from v0.6.2. Nothing changes for
   grammar's matching: scalar is now under the Artistic License 2.0, as
