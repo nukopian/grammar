@@ -133,6 +133,11 @@ that need them, such as an alternation's branches' starts, which ideas
   notice. No benchmark moved. Rule names are still numbered across the
   program, but they come from grammars' source, so a state's rules grow
   only with the names a program uses, at 8 bytes each.
+- **Checked again at the wash-up,** with scalar v0.6.5: the comparison
+  with Participle gave 13.7 µs to parse pay into a struct, against
+  Participle's 5.7 µs, and 31.4 µs to find it, against 11.5 µs, so the
+  README's "about two and a half times" stands. Its "When not to use it"
+  still said 1.4 times, from the bare match, and now agrees.
 - **What's left:** building the result is now most of a parse, about two
   thirds of `BenchmarkParse`'s time and nine tenths of its allocations,
   in scalar (see [Engineering](../REFERENCE.md#engineering)). A proto's

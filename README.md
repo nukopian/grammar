@@ -34,10 +34,9 @@ For the reasons behind
 [`scalar`](https://github.com/nukopian/scalar#rationale), I wanted that in
 Go without the usual cost. Go's parser generators, such as Participle, are
 faster: about two and a half times as fast at parsing pay into a struct.
-But each
-grammar there is Go code, with types and struct tags, and often a lexer to
-design first. That's a lot of schlepping just to find out whether rules
-can do a job at all. `grammar` borrows from where the ideas are best
+But each grammar there is Go code, with types and struct tags, and often
+a lexer to design first. That's a lot of schlepping just to find out
+whether rules can do a job at all. `grammar` borrows from where the ideas are best
 worked out:
 
 - Raku's grammars, roles and protos, checked against Rakudo itself.
@@ -49,9 +48,9 @@ and changing a rule means changing a line. It's for getting from "could
 rules do this?" to a measured answer quickly: its pay grammar went from
 first sketch to agreeing with a language model on every posting tried, in
 a day. It's also for keeping the rules readable once they work. At about
-5 µs to match a pay string, and 14 µs to fill a struct from it, it
-gets through the 134,000 postings it was built for in seconds. Where production volumes need more, a rule set that has settled
-can be ported.
+5 µs to match a pay string, and 14 µs to fill a struct from it, it gets
+through the 134,000 postings it was built for in seconds. Where
+production volumes need more, a rule set that has settled can be ported.
 
 It's also where everything came together for me: a new language, a new
 kind of tool, and a new way of working, building it with Claude.
@@ -133,8 +132,8 @@ a working example of every function and method, see the
   structure: several pieces, each following rules, that you'd otherwise
   glue together by hand.
 - **At high volumes, once a grammar has settled.** Go's parser generators
-  are faster: Participle is about 1.4 times as fast on a pay
-  string. `grammar` is for finding out whether rules can do the job, and
+  are faster: Participle is about two and a half times as fast at
+  parsing pay into a struct. `grammar` is for finding out whether rules can do the job, and
   keeping them readable; port a settled rule set if you need the speed
   (see [Handing a grammar on](docs/REFERENCE.md#handing-a-grammar-on)).
 - **For text that doesn't follow rules.** A language model, or comparing
