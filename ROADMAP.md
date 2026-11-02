@@ -47,6 +47,56 @@ Nothing yet.
 
 ## Next
 
+### 23. Rejecting a text that can't hold a match
+
+**Serves:** speed
+
+**Size:** S (2)
+
+**What:** work out characters every match must contain, such as a digit
+for a pay figure, and have `Find` and the rest stop trying positions
+once none of them is left in the text, returning at once for a text
+with none. A sequence needs one of its items' sets, an alternation the
+union of its branches'.
+
+**Why:** searching many short texts, most holding no match, as jdc-lab
+does line by line. At v0.5.1 a 126-character prose line cost jdc-lab's
+pay grammar 17 µs, where checking for a digit took 0.17 µs, so jdc-lab
+keeps such a check beside each fact grammar by hand (`MayHold`); this
+would make it automatic. Roadmap 25 put a table of ASCII characters on
+the starts, which the set can use. Measured on 2026-11-02: a scan
+before each search with the `starts` type costs about 5 ns a character,
+7% of a `FindAll` that matches, and gains nothing where skipping starts
+is already sharp; one scan backwards to the last needed character,
+with `Find` trying no position past it, avoids that cost.
+
+**Done when** a search of a text with none of the needed characters
+tries no position, behind a switch with a differential test and a
+planted bug; jdc-lab's `MayHold` checks can go, with its output
+unchanged; and the reference's gap is gone.
+
+### 8. Rule parameters and dynamic variables
+
+**Serves:** Raku
+
+**Size:** M (3)
+
+**What:** `token amount($cur)` and `$*CURRENCY`: arguments in the
+syntax and on a rule call, and dynamic variables visible to the rules
+a rule calls, as in Raku.
+
+**Why:** parsing that depends on context, such as a currency that
+changes how amounts read, where inheritance and roles would need a
+grammar for each context. Measured on 2026-11-02: a frame pointer on
+every call costs 2.1% on every grammar, where a stack on the state,
+checked at each call as failure tracking is, costs 0.2%, within noise.
+What's open is the design: how a code assertion sees the variables,
+and whether `<$var>` interpolation comes with them.
+
+**Done when** both work as Raku's do, with cases in the Raku tests; the
+design questions are answered in the reference; and the reference's
+gap is gone.
+
 ### 5. A picture of a grammar
 
 **Serves:** debugging
@@ -79,17 +129,42 @@ needs a real stemmer, such as Porter's. Synonym data rarely lists every
 form, and jdc-lab's word lists, which already lean on `Plurals`, would
 gain from it.
 
+### 20. Each branch's declarative prefix
+
+**Serves:** Raku, speed
+
+**Size:** M (3). **Moves with:** 21 and 22.
+
+Split from 7 (true longest-token matching). Work out the part of each
+`|` branch and proto candidate before anything that could backtrack or
+run code, as Rakudo does in NQP. Roadmap 25's branch starts, kept per
+alternation by its number, are its first character.
+
+### 21. An automaton from the prefixes
+
+**Serves:** Raku, speed
+
+**Size:** L (5). **Moves with:** 20 and 22.
+
+Split from 7. Build an NFA, then a DFA, from the branches' declarative
+prefixes, that says how much of the text each prefix matches.
+
+### 22. Alternation decided by the automaton
+
+**Serves:** Raku, speed
+
+**Size:** M (3). **Moves with:** 20 and 21.
+
+Split from 7. Try `|` branches and protos in the order the automaton
+gives, rather than matching every branch in full. It would close the
+cases where `Alt`'s approximation differs from Raku, and speed up large
+alternations, protos and nested alternations in a `regex`.
+
 ## Ideas
 
 An idea is a numbered heading, the date it was added, its size, and a
 line or two on what and why. Each wash-up prunes them: each is kept,
 promoted to Later or Next with its number, or dropped.
-
-### 8. Rule parameters and dynamic variables
-
-Added 2026-10-25. **Size:** M (3). `token amount($cur)` and
-`$*CURRENCY`, for parsing that depends on context, such as a currency
-that changes how amounts read.
 
 ### 17. A phrasebook from Raku to Participle
 
@@ -110,35 +185,5 @@ time, saying why, on anything else. Needs 17.
 Added 2026-10-31, split from 6. **Size:** M (3). Write Participle
 structs and a lexer from a dialect grammar (18) with `go generate`,
 checked by running both on the same inputs. Needs 18.
-
-### 20. Each branch's declarative prefix
-
-Added 2026-10-31, split from 7 (true longest-token matching, added
-2026-10-25). **Size:** M (3). **Moves with:** 21 and 22. Work out the
-part of each `|` branch and proto candidate before anything that could
-backtrack or run code, as Rakudo does in NQP.
-
-### 21. An automaton from the prefixes
-
-Added 2026-10-31, split from 7. **Size:** L (5). **Moves with:** 20 and
-22. Build an NFA, then a DFA, from the branches' declarative prefixes,
-that says how much of the text each prefix matches.
-
-### 22. Alternation decided by the automaton
-
-Added 2026-10-31, split from 7. **Size:** M (3). **Moves with:** 20 and
-21. Try `|` branches and protos in the order the automaton gives,
-rather than matching every branch in full. It would close the cases
-where `Alt`'s approximation differs from Raku, and speed up large
-alternations, protos and nested alternations in a `regex`.
-
-### 23. Rejecting a text that can't hold a match
-
-Added 2026-11-01, from jdc-lab. **Size:** S (2). Work out characters
-every match must contain, such as a digit for a pay figure, and have
-`Find` and the rest return at once for a text with none, without
-trying a position. jdc-lab keeps such a check beside each fact grammar
-by hand (`MayHold`), as a prose line costs a search 17 µs where a digit
-check takes 0.17 µs; this would make it automatic.
 
 [gaps]: docs/REFERENCE.md#gaps-and-possible-additions
