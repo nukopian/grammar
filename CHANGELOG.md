@@ -11,6 +11,12 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.5.1 (2026-11-02)
+
+Code assertions that name the captures they read, so only those are built
+
 - A code assertion can name the captures its function reads, after it:
   `grammar.Assertion("pay", fn, "cur", "period")`, and `Assert` and
   `AssertNot` the same. Only those are built for the match so far, with

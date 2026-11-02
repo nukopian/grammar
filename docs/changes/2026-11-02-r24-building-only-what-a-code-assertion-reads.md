@@ -1,6 +1,6 @@
 # Building only what a code assertion reads
 
-**Status:** unreleased
+**Status:** shipped in v0.5.1
 
 **Origin:** roadmap 24, with a TODO task from scalar's session (scalar a97896c011e1244a5e478dfd2b2cadd6722002bd)
 

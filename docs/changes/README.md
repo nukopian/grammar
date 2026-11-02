@@ -65,7 +65,7 @@ Why, What's known, Steps, Done when.
 Newest first.
 
 - [Building only what a code assertion reads](2026-11-02-r24-building-only-what-a-code-assertion-reads.md)
-  (roadmap 24), unreleased
+  (roadmap 24), shipped in v0.5.1
 - [Code assertions](2026-11-02-r3-code-assertions.md)
   (roadmap 3), shipped in v0.5.0
 - [Find skipping positions for regex terminals](2026-11-01-r10-find-skipping-positions-for-regex-terminals.md)
