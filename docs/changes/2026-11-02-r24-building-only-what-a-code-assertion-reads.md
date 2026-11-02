@@ -128,8 +128,9 @@ grammar's answer.
   of its own (the scalar, its lazy value and its closure), nearly what a
   small capture costs to build; it covered only parses without actions;
   and it needs scalar's lazy values, which make every read in scalar
-  check for one (+0.5% geomean on scalar's benchmarks). scalar's session
-  has the numbers for its decision on roadmap 5.
+  check for one (+0.5% geomean on scalar's benchmarks). Given these
+  numbers, scalar dropped lazy values, its roadmap 5, and the prototype
+  branches in both repositories were deleted.
 - **What's left:** the match's own hash and its text, built at each
   call, which most functions don't read; in the reference's
   [Engineering gaps](../REFERENCE.md#engineering).
