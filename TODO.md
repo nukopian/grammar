@@ -2,7 +2,7 @@
 
 ## Keep each rule's starts, not only the last one searched for
 
-**From:** jdc-lab's session, 2026-11-03 (jdc-lab 3baebf1d19d5d0bf6a9a6aee30b7e8a7066b11ed, work uncommitted)
+**From:** jdc-lab's session, 2026-11-03 (jdc-lab 3baebf12fcae06bacd5e2e8a39a1624f196e2b48, work uncommitted)
 **Waiting on:** nothing
 
 **What:** `startsOf` (`starts.go`) caches a grammar's starts for one
