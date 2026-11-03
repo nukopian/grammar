@@ -103,11 +103,16 @@ func (s *starts) merge(o *starts) {
 	s.res = append(s.res, o.res...)
 }
 
-// startsEntry caches a grammar's starts for one rule, until any grammar
-// changes.
+// startsEntry caches a grammar's starts for each rule searched for,
+// until any grammar changes. It's never changed once stored: a rule's
+// starts are added to a copy.
 type startsEntry struct {
 	gen   uint64
-	rule  string
+	rules map[string]ruleStartsOf
+}
+
+// ruleStartsOf is what startsOf returns for a rule.
+type ruleStartsOf struct {
 	s     *starts
 	empty bool
 }
@@ -116,14 +121,26 @@ type startsEntry struct {
 // match nothing, in which case it can match anywhere. It's cached.
 func (g *Grammar) startsOf(rule string) (*starts, bool) {
 	gen := generation.Load()
-	if e := g.starts.Load(); e != nil && e.gen == gen && e.rule == rule {
-		return e.s, e.empty
+	e := g.starts.Load()
+	if e != nil && e.gen != gen {
+		e = nil
+	}
+	if e != nil {
+		if r, ok := e.rules[rule]; ok {
+			return r.s, r.empty
+		}
 	}
 	f := &startFinder{g: g, rules: map[string]*ruleStarts{}}
 	s := &starts{runes: map[rune]bool{}}
 	empty := f.add(&call{name: rule}, false, s)
 	s.table()
-	g.starts.Store(&startsEntry{gen, rule, s, empty})
+	rules := map[string]ruleStartsOf{rule: {s, empty}}
+	if e != nil {
+		for k, r := range e.rules {
+			rules[k] = r
+		}
+	}
+	g.starts.Store(&startsEntry{gen, rules})
 	return s, empty
 }
 

@@ -249,6 +249,31 @@ func BenchmarkFindRe(b *testing.B) {
 	}
 }
 
+// BenchmarkFindRules searches each line of a rota for several rules of
+// one grammar in turn, as jdc-lab's headings stage does, so that each
+// search asks for a different rule's starts from the last.
+func BenchmarkFindRules(b *testing.B) {
+	lines := strings.Split(strings.Repeat(`Rota: Mon-Fri 9:00 - 17:00
+Weekends: Sat 10:00 - 14:00
+Hours are agreed with your manager.
+`, 20), "\n")
+	rules := []string{"TOP", "days", "shift", "clock"}
+	b.ReportAllocs()
+	for b.Loop() {
+		found := 0
+		for _, line := range lines {
+			for _, r := range rules {
+				if shifts.Find(line, Rule(r)).Defined() {
+					found++
+				}
+			}
+		}
+		if found != 20*2*4 {
+			b.Fatalf("found %d", found)
+		}
+	}
+}
+
 // BenchmarkParse parses one pay string: the matcher's work on a short
 // text, with no positions to skip.
 func BenchmarkParse(b *testing.B) {

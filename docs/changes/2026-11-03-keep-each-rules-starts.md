@@ -1,9 +1,14 @@
-# To do
+# Keep each rule's starts, not only the last one searched for
 
-## Keep each rule's starts, not only the last one searched for
+**Status:** unreleased
 
-**From:** jdc-lab's session, 2026-11-03 (jdc-lab 3baebf12fcae06bacd5e2e8a39a1624f196e2b48, work uncommitted)
-**Waiting on:** nothing
+**Origin:** a TODO task from jdc-lab's session (jdc-lab 3baebf12fcae06bacd5e2e8a39a1624f196e2b48, work uncommitted)
+
+**Started:** 2026-11-03, in 4078ab2d2a719bfd21f3d12003b421faefdfa347
+
+**Finished:** 2026-11-03
+
+## The plan
 
 **What:** `startsOf` (`starts.go`) caches a grammar's starts for one
 rule: `startsEntry` holds the last rule asked for. A program that
@@ -90,3 +95,30 @@ func (g *Grammar) startsOf(rule string) (*starts, bool) {
 
 **Done when:** a grammar keeps each rule's starts, the tests above pass
 and fail without it, and a release carries it.
+
+## What happened
+
+- **Outcome:** a grammar keeps each rule's starts until a grammar
+  changes. `TestStartsKeptPerRule` fails against the code before (both
+  rules' starts were worked out again) and passes with it;
+  `TestStartsDroppedOnChange` fails when the generation check is
+  removed, and passes with it and before; `TestStartsSharedAcrossRules`
+  searches one grammar for four rules from eight goroutines, while
+  other grammars are made, and passes under `-race`. The release and
+  jdc-lab's task wait on Iain.
+- **Changes from the plan:** the code is jdc-lab's diff as written. The
+  first test compares the starts returned before and after another
+  rule's, rather than counting calls, so it compiles against the old
+  code too. There's no switch: this changes what's kept, not how
+  anything matches, and the cache it replaces had none.
+  `TestStartsSharedAcrossRules` checks the results are those of each
+  search alone.
+- **Measurements:** `BenchmarkFindRules` searches each line of a rota
+  for `TOP`, `days`, `shift` and `clock` in turn. 8 runs each of the
+  old and new `starts.go`, interleaved, on an Apple M2, by benchstat:
+  737.0 µs to 334.8 µs (−55%), 603 KiB to 358 KiB (−41%), and 9,094
+  allocations to 5,248 (−42%). `BenchmarkFindAll` and
+  `BenchmarkFindLines`, one rule each, didn't change (p=0.44, 0.80).
+  `FuzzMatch` ran 60 s clean.
+- **What's left:** a release, then a task in jdc-lab's `TODO.md` to
+  take it up.

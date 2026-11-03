@@ -892,8 +892,13 @@ everything, and takes about 28 µs (`BenchmarkFindAll`); trying the grammar
 at every position took 1.6 ms. The characters are kept as a table of the
 ASCII ones as well, worked out once, so most positions are a lookup
 (`startsTable`; `TestStartsTableChangesNothing` checks the table says
-what the starts do). A grammar of common words, which can start
-almost anywhere, gains less: about twice as fast. A grammar that starts
+what the starts do). The starts are worked out once for each rule searched
+for, and kept until a grammar changes, so a program that searches one
+grammar for several rules in turn, with `Rule`, works each rule's out
+once. Until 2026-11-03 only the last rule's were kept, and searching
+each line of a rota for four rules in turn (`BenchmarkFindRules`) took
+737 µs; it takes 335 µs, with 42% fewer allocations. A grammar of
+common words, which can start almost anywhere, gains less: about twice as fast. A grammar that starts
 with `Re` asks regexp2 where the pattern next matches, and skips every
 position before it: searching that posting for `Re(£\d[\d,]*(?:k\b)?)`
 takes about 40 µs (`BenchmarkFindRe`), where trying it at every position

@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -335,5 +336,83 @@ func TestBranchStartsPerGrammar(t *testing.T) {
 				t.Errorf("%s on %q: %v, want %v", c.g.Name(), c.text, got, c.want)
 			}
 		}
+	}
+}
+
+// shifts is a grammar searched for several rules in turn, as jdc-lab's
+// headings stage searches its Schedule grammar for a rota, then days, then
+// a shift.
+var shifts = MustCompile(`
+grammar Shifts {
+    token TOP   { <days> \s+ <shift> }
+    token days  { :i [ mon | tue | wed | thu | fri | sat | sun ] [ '-' <days> ]? }
+    token shift { <clock> \s* '-' \s* <clock> }
+    token clock { \d ** 1..2 ':' \d ** 2 }
+}`)
+
+// TestStartsKeptPerRule checks that a grammar searched for one rule, then
+// another, keeps the first rule's starts: they were once kept for the last
+// rule only, and worked out afresh at almost every search.
+func TestStartsKeptPerRule(t *testing.T) {
+	g := shifts.Extend("Kept") // a grammar of its own, with nothing cached
+	clock, _ := g.startsOf("clock")
+	days, _ := g.startsOf("days")
+	if again, _ := g.startsOf("clock"); again != clock {
+		t.Error("clock's starts were worked out again after days'")
+	}
+	if again, _ := g.startsOf("days"); again != days {
+		t.Error("days' starts were worked out again after clock's")
+	}
+}
+
+// TestStartsDroppedOnChange checks that a change to a grammar drops every
+// rule's starts, not only the last one's.
+func TestStartsDroppedOnChange(t *testing.T) {
+	g := shifts.Extend("Dropped")
+	days, _ := g.startsOf("days")
+	g.startsOf("clock")
+	if !g.Find("Mon-Fri 9:00 - 17:00", Rule("clock")).Defined() {
+		t.Fatal("no clock")
+	}
+	g.Token("clock", Lit("noon"))
+	if again, _ := g.startsOf("days"); again == days {
+		t.Error("days' starts were kept after the grammar changed")
+	}
+	if got := g.Find("Mon-Fri 9:00 - noon", Rule("clock")); got.At("~").Str() != "noon" {
+		t.Errorf("clock after the change: %s, want noon", got.Dump())
+	}
+}
+
+// One grammar searched for several rules from many goroutines at once,
+// while other grammars are made, gives each what it gives alone. Run with
+// -race, as CI does.
+func TestStartsSharedAcrossRules(t *testing.T) {
+	text := "Rota: Mon-Fri 9:00 - 17:00, Sat 10:00 - 14:00"
+	rules := []string{"TOP", "days", "shift", "clock"}
+	want := make([]string, len(rules))
+	for i, r := range rules {
+		want[i] = scalar.Value(shifts.FindAll(text, Rule(r))).Dump()
+	}
+	var wg sync.WaitGroup
+	errs := make(chan string, 1000)
+	for n := range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for k := range 200 {
+				if n == 0 && k%10 == 0 {
+					New("Other").Token("TOP", Lit("x")) // a new generation
+				}
+				i := (n + k) % len(rules)
+				if got := scalar.Value(shifts.FindAll(text, Rule(rules[i]))).Dump(); got != want[i] {
+					errs <- fmt.Sprintf("%s: got %s, want %s", rules[i], got, want[i])
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for e := range errs {
+		t.Error(e)
 	}
 }

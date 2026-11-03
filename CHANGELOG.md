@@ -11,7 +11,14 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- A grammar searched for several rules in turn, with `Rule`, keeps each
+  rule's starts, the characters a match can start with, until a grammar
+  changes; it kept only the last rule's, so searching for a second rule
+  worked the first's out again at its next search. Searching each line
+  of a rota for four rules in turn takes 55% less time, with 42% fewer
+  allocations, and jdc-lab's reading of an ad's headings half the time.
+  Results are unchanged.
+  ([record](docs/changes/2026-11-03-keep-each-rules-starts.md))
 
 ## v0.5.2 (2026-11-02)
 
