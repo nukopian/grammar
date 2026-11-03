@@ -11,6 +11,12 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.5.3 (2026-11-03)
+
+Searching one grammar for several rules in turn takes half the time it did
+
 - A grammar searched for several rules in turn, with `Rule`, keeps each
   rule's starts, the characters a match can start with, until a grammar
   changes; it kept only the last rule's, so searching for a second rule

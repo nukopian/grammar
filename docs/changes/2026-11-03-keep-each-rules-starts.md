@@ -1,6 +1,6 @@
 # Keep each rule's starts, not only the last one searched for
 
-**Status:** unreleased
+**Status:** shipped in v0.5.3
 
 **Origin:** a TODO task from jdc-lab's session (jdc-lab 3baebf12fcae06bacd5e2e8a39a1624f196e2b48, work uncommitted)
 
@@ -104,8 +104,8 @@ and fail without it, and a release carries it.
   `TestStartsDroppedOnChange` fails when the generation check is
   removed, and passes with it and before; `TestStartsSharedAcrossRules`
   searches one grammar for four rules from eight goroutines, while
-  other grammars are made, and passes under `-race`. The release and
-  jdc-lab's task wait on Iain.
+  other grammars are made, and passes under `-race`. Shipped in
+  v0.5.3.
 - **Changes from the plan:** the code is jdc-lab's diff as written. The
   first test compares the starts returned before and after another
   rule's, rather than counting calls, so it compiles against the old
@@ -120,5 +120,4 @@ and fail without it, and a release carries it.
   allocations to 5,248 (−42%). `BenchmarkFindAll` and
   `BenchmarkFindLines`, one rule each, didn't change (p=0.44, 0.80).
   `FuzzMatch` ran 60 s clean.
-- **What's left:** a release, then a task in jdc-lab's `TODO.md` to
-  take it up.
+- **What's left:** jdc-lab taking it up, by a task in its `TODO.md`.
