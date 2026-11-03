@@ -38,7 +38,7 @@ having. Small fixes don't need one.
 ```markdown
 # Title
 
-**Status:** in progress | shipped in v0.4.0 | shipped in v0.2.4 | dropped
+**Status:** in progress | unreleased | shipped in v0.4.0 | shipped in v0.2.4 | dropped
 
 **Origin:** roadmap 7 | a TODO task from scalar's session (scalar <commit>)
 

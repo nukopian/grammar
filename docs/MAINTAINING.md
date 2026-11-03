@@ -223,15 +223,15 @@ patch (v0.1.2 to v0.1.3). Claude asks before tagging.
 
    The first change after the release replaces `Nothing yet.` with its
    entry. `TestChangelogUnreleased` fails if Unreleased is blank, or
-   holds both. In each change record whose status is "shipped,
-   unreleased", and its line in the records' README, put the version in
+   holds both. In each change record whose status is "unreleased", and
+   its line in the records' README, put "shipped in" and the version in
    its place, as in "shipped in v0.1.3"; the `grep` lists both, and
    nothing once they're done. Commit (`docs: changes for v0.1.3`), push,
    and wait for CI.
 
    ```
    cd ~/Git/github.com/nukopian/grammar
-   grep -n 'shipped, unreleased$' docs/changes/*.md
+   grep -n 'unreleased$' docs/changes/*.md
    ```
 
 3. **Write the tag message from the entry,** and read it. The entry is
