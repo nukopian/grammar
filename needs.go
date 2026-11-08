@@ -16,20 +16,17 @@ package grammar
 // results.
 var skipNeeds = true
 
-// needFinder works out needs, each rule's once.
+// needFinder works out needs, each rule's once: nil for a rule that needs
+// nothing, as for one while it's being worked out.
 type needFinder struct {
 	g     *Grammar
-	rules map[string]*ruleNeeds
-}
-
-type ruleNeeds struct {
-	s *starts // nil: none, as while it's being worked out
+	rules map[string]*starts
 }
 
 // needsOf returns a set of characters every match of rule holds at least
 // one of, or nil if it can't tell. The set is tabled, and mustn't change.
 func (g *Grammar) needsOf(rule string) *starts {
-	f := &needFinder{g: g, rules: map[string]*ruleNeeds{}}
+	f := &needFinder{g: g, rules: map[string]*starts{}}
 	s := f.need(&call{name: rule}, false)
 	if s != nil {
 		s.table()
@@ -107,15 +104,16 @@ func (f *needFinder) need(n Node, ci bool) *starts {
 // rule works out a rule's needs once. A rule reached again while it's being
 // worked out needs nothing, as far as this knows.
 func (f *needFinder) rule(name string) *starts {
-	if r, ok := f.rules[name]; ok {
-		return r.s // nil while it's being worked out
+	if s, ok := f.rules[name]; ok {
+		return s
 	}
-	r := &ruleNeeds{}
-	f.rules[name] = r
+	f.rules[name] = nil
+	var s *starts
 	if rl := f.g.lookup(name); rl != nil {
-		r.s = f.need(rl.body, false) // :i doesn't reach into a call
+		s = f.need(rl.body, false) // :i doesn't reach into a call
 	}
-	return r.s
+	f.rules[name] = s
+	return s
 }
 
 // rarer returns whichever of a and b holds fewer ASCII characters, as a

@@ -325,8 +325,8 @@ Apply today with your CV and a short covering letter.
 // BenchmarkFindProse searches each line of a posting, most of them prose
 // with no figure in them, with a pay grammar whose currency sign is
 // optional and may be followed by a space, as jdc-lab's is: a match can
-// start at any space, so skipping starts saves little, though no match
-// can hold no digit.
+// start at any space, so skipping starts saves little, though every
+// match holds a digit.
 func BenchmarkFindProse(b *testing.B) {
 	pay := MustCompile(`
 grammar Pay {

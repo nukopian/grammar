@@ -363,6 +363,15 @@ long rules can be wrapped. `WordLists(map[string]string{...}, opts...)`
 builds a list for each set of rules, keyed by name, ready to pass to
 `Compile`: one call instead of a loop per list.
 
+A list can be added to after a grammar using it has searched, and the
+searches after see the new phrases. Adding one counts as a change to
+every grammar, as changing a rule does, so the next search with each
+grammar works out again what it had kept: where a match can start, what
+every match needs, and whether the grammar passes `Check`. That cost
+about 30 µs for a small facts grammar, against 2 µs for the search
+itself (2026-11-08), so add a list's phrases before searching with it,
+not between searches.
+
 **Reading a list back.** `Phrases()` gives its phrases, sorted, and
 `Len()` counts them. `Canonical(phrase)` gives what one phrase means.
 `Canonicals()` gives the canonical values, each once, in the order they
@@ -897,7 +906,8 @@ for, and kept until a grammar changes, so a program that searches one
 grammar for several rules in turn, with `Rule`, works each rule's out
 once. Until 2026-11-03 only the last rule's were kept, and searching
 each line of a rota for four rules in turn (`BenchmarkFindRules`) took
-737 µs; it takes 335 µs, with 42% fewer allocations. A grammar of
+737 µs; it took 335 µs, with 42% fewer allocations, and with needs
+(below), 310 µs. A grammar of
 common words, which can start almost anywhere, gains less: about twice as fast. A grammar that starts
 with `Re` asks regexp2 where the pattern next matches, and skips every
 position before it: searching that posting for `Re(£\d[\d,]*(?:k\b)?)`

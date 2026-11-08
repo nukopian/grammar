@@ -211,9 +211,12 @@ func TestNeedsTryNothing(t *testing.T) {
 	if all := strings.Count(trace.String(), "TOP\n"); tries == 0 || tries >= all {
 		t.Errorf("tried TOP %d times with needs, %d without", tries, all)
 	}
-	// A report still says why, from the attempt that got furthest.
-	if _, err := g.FindErr("£ per annum"); err == nil || !strings.Contains(err.Error(), "1") && !strings.Contains(err.Error(), `\d`) {
-		t.Errorf("FindErr: %v", err)
+	// A text with no digit is still reported from the attempt that got
+	// furthest, from the £, rather than from the first position, as it
+	// would be if the report tried only the positions the needs allow.
+	_, err := g.FindErr("x £ y")
+	if err == nil || !strings.Contains(err.Error(), "column 5: expected \\d") {
+		t.Errorf("FindErr: %v, want the attempt from the £, at column 5", err)
 	}
 }
 

@@ -112,6 +112,15 @@ unchanged; and the reference's gap is gone.
   reports are compared over the package's test grammars, and characters
   stripped from the inputs themselves, which caught every planted bug in
   9 seconds.
+- **The wash-up** found that `TestNeedsTryNothing`'s check of
+  `FindErr`'s report couldn't fail: it looked for "1" in the report,
+  which every report holds ("line 1"), and passed with the report
+  limited by the needs. It now checks that "x £ y" is reported from the
+  £, at column 5, and fails with that bug planted. It also found that a
+  search right after a phrase is added to a word list costs about
+  30 µs, against 2 µs, as every grammar's starts, needs and `Check` are
+  worked out again; the reference now says so, beside how a list is
+  loaded.
 - **What's left:** a word list's needs are weak, the first letters of
   its phrases; see the reference's gap "A word list's needs are weak",
   and roadmap 26.
