@@ -49,9 +49,10 @@ type Grammar struct {
 	states   sync.Pool // finished states, to search with again; see done
 }
 
-// generation counts changes to any grammar's rules. A grammar's Check
-// result stands until it changes, as a grammar's rules include its parents'
-// and its roles'.
+// generation counts changes to any grammar's rules, and to any word list's
+// phrases. A grammar's Check result, and what a search works out from it,
+// stand until it changes, as a grammar's rules include its parents' and its
+// roles', and the lists they use.
 var generation atomic.Uint64
 
 type rule struct {

@@ -11,7 +11,11 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- A phrase added to a word list after a search is found by the searches
+  after it. `Find` and the rest kept what they'd worked out from the
+  list for skipping positions, its phrases' first letters, so
+  `Find("a temp role")` found nothing once "temp" was added after a
+  search for "perm", though `Parse("temp")` matched it.
 
 ## v0.5.4 (2026-11-08)
 

@@ -194,8 +194,11 @@ func (l *WordList) AddAs(value string, phrases ...string) *WordList {
 
 // addKey adds key, meaning canonical, to the list, and its case-folded
 // form to the folded trie. A made plural doesn't replace a phrase added as
-// itself, and a phrase added as itself replaces a made plural.
+// itself, and a phrase added as itself replaces a made plural. It counts as
+// a change to the grammars, so that what's worked out from the list before,
+// as a search's starts are, is worked out again.
 func (l *WordList) addKey(key, canonical string, made bool) {
+	defer generation.Add(1)
 	add := func(root *trie, values map[string][]string, madeKeys map[string]bool, key string) {
 		_, exists := values[key]
 		switch {

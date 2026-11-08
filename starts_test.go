@@ -383,6 +383,30 @@ func TestStartsDroppedOnChange(t *testing.T) {
 	}
 }
 
+// A phrase added to a word list after a search is found by the next, as
+// Parse finds it: the starts worked out for the search before don't stand.
+// Under FoldCase, the starts' table of ASCII characters doesn't either.
+func TestStartsSeeLaterPhrases(t *testing.T) {
+	for _, fold := range []bool{false, true} {
+		var opts []ListOption
+		if fold {
+			opts = append(opts, FoldCase())
+		}
+		l := NewWordList("w", opts...).Add("perm")
+		g := MustCompile(`grammar G { token TOP { @w } }`, l)
+		if !g.Find("a perm role").Defined() {
+			t.Fatalf("fold %v: perm not found", fold)
+		}
+		l.Add("temp")
+		if !g.Parse("temp").Defined() {
+			t.Fatalf("fold %v: Parse doesn't find temp", fold)
+		}
+		if got := g.Find("a temp role"); got.At("~").Str() != "temp" {
+			t.Errorf("fold %v: Find after adding temp: %s, want temp", fold, got.Dump())
+		}
+	}
+}
+
 // One grammar searched for several rules from many goroutines at once,
 // while other grammars are made, gives each what it gives alone. Run with
 // -race, as CI does.
