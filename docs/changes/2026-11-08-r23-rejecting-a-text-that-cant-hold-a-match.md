@@ -113,7 +113,8 @@ unchanged; and the reference's gap is gone.
   stripped from the inputs themselves, which caught every planted bug in
   9 seconds.
 - **What's left:** a word list's needs are weak, the first letters of
-  its phrases; see the reference's gap "A word list's needs are weak".
+  its phrases; see the reference's gap "A word list's needs are weak",
+  and roadmap 26.
 
 ## Decisions
 
@@ -125,4 +126,19 @@ unchanged; and the reference's gap is gone.
    Needs as strings as well as characters would close that (the gap has
    what it would take, size S to M). The choice is between shipping 23
    as it is, with phrase needs as a new roadmap item, or extending 23
-   before the release. Shipped as it is, pending the decision.
+   before the release.
+
+   **Decided by Iain, 2026-11-08: ship 23 as it is, and make phrase
+   needs a new roadmap item,** 26. jdc-lab loses nothing by waiting:
+   its schedule and pattern checks work, are tested against the
+   grammars, and still save about 30%, and nothing in the lab is
+   blocked on them. 23's plan is met apart from this caveat, and adding
+   strings would grow it from S to S–M after the work is done: a new
+   finding goes in a new item. Phrase needs might not remove Schedule's
+   check anyway. It's stricter than any single string: it wants "M",
+   "F" and "-" all present, or a day's first three letters, and an
+   alternation needs the union of its branches', so the "M - F" branch
+   could weaken Schedule's needs to one common letter. Pattern's word
+   list would likely gain fully. So 26's Done when names which checks
+   it expects to remove, measured against jdc-lab, not assumed, as
+   jdc-lab's session also asked.

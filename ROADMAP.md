@@ -26,7 +26,7 @@ Items come in four groups, the most useful first in each:
 Each item has a number, given when it's added, in whichever group. It
 keeps it as it moves between groups, and a number is never used again,
 so that 7 means the same item in a commit message months later. Next
-number: 26.
+number: 27.
 
 Each item has a size too, a guess at how much work it is, as a T-shirt
 size and its story points: XS 1, S 2, M 3 and L 5. Sizes compare items
@@ -68,6 +68,37 @@ and whether `<$var>` interpolation comes with them.
 **Done when** both work as Raku's do, with cases in the Raku tests; the
 design questions are answered in the reference; and the reference's
 gap is gone.
+
+### 26. Phrase needs
+
+**Serves:** speed
+
+**Size:** M (3)
+
+**What:** needs as strings as well as characters, so that `Find` and
+the rest reject a text with none of the phrases every match needs: a
+word list needs one of its phrases' first words, a literal itself, in
+any case under `:i` or `FoldCase`, and an alternation the union of its
+branches'. The text is checked for them before it's read into runes, as
+needs of characters are (roadmap 23).
+
+**Why:** a word list's needs are only its phrases' first letters,
+which most lines of prose hold, so jdc-lab still checks by hand for a
+phrase's first word, or a day's first letters, before its pattern and
+schedule grammars; those checks save about 30% of its time (2026-11-08).
+Schedule's check may not be matched: it passes a line only if it has a
+digit, a day's first three letters, or "M", "F" and "-" all present,
+for "M - F", and an alternation needs the union of its branches', so
+that branch could weaken Schedule's needs to a single common letter or
+"-". Pattern's word list should gain fully.
+
+**Done when** jdc-lab's `MayHold` check for its pattern grammar can go,
+and its check for its schedule grammar only if that grammar's needs stay
+as sharp as the check (an "M - F" branch's needs kept sharp, or the
+check kept, and why), each measured with jdc-lab's
+`BenchmarkFindSamples`, with its output unchanged, not assumed; behind
+a switch with a differential test and a planted bug; and the
+reference's gap is gone.
 
 ## Later
 
