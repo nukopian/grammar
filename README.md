@@ -229,26 +229,15 @@ redistribute it and/or modify it under the terms of the Artistic License
 
 ## Acknowledgements
 
-The ideas here aren't new. `grammar` follows Raku's grammars, and is
-tested against Rakudo to keep its behaviour faithful to theirs; the match
-values it builds come from `scalar`, which borrows Perl's way with data.
-Thanks to the Raku and Perl communities for decades of thought about
-parsing text well. `Trace` prints as Jonathan Worthington's
-`Grammar::Tracer`, from
-[Grammar::Debugger](https://github.com/jnthn/grammar-debugger), does.
+`grammar` follows Raku's grammars, checked against Rakudo, and builds its
+matches with `scalar`, which borrows Perl's way with data: thanks to both
+communities for decades of thought about parsing text. `Trace`'s output
+follows Jonathan Worthington's `Grammar::Tracer`, from
+[Grammar::Debugger](https://github.com/jnthn/grammar-debugger).
 
-`grammar` was conceived and directed by Iain Campbell (nukopian). He set
-its rules, which are in [CLAUDE.md](CLAUDE.md): Raku as the baseline, checked against Rakudo itself; tests
-first; speed changes kept only when measured; and features added when
-real use called for them. He decided what to build and what not to, and
-reviewed and committed each change. Most of the code, tests and
-documentation were written by Claude, Anthropic's AI model, working to
-that direction; nearly all its commits credit Claude in a
-`Co-Authored-By` trailer. How the partnership worked is in Iain's essay,
+`grammar` was conceived and directed by Iain Campbell (nukopian), who set
+its rules (in [CLAUDE.md](CLAUDE.md)), decided what to build and what not
+to, and reviewed and committed each change. Claude, Anthropic's AI model,
+wrote most of the code, tests and documentation to that direction, and its
+commits credit it. How that worked is in
 [The process](https://github.com/nukopian/claude-practice/blob/main/thoughts/PROCESS.md).
-
-`grammar` started inside [job-meta](https://github.com/nukopian/job-meta),
-a proof of concept for extracting metadata from job postings, and was
-extracted with its history, so some commit messages mention packages that
-stayed behind.
-

@@ -21,7 +21,8 @@ The README shows grammar at work first
   it solves, where it used to come 70 lines down, after the story of
   how grammar came about. Its Status section says grammar is made for
   its author's work and shared as is: issues are welcome, pull requests
-  aren't, and the contributing guide says why. No code changed.
+  aren't, and the contributing guide says why. The Acknowledgements are
+  shorter, and still say who did what. No code changed.
 
 ## v0.5.3 (2026-11-03)
 
