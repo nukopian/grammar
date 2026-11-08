@@ -13,6 +13,16 @@ release's entry when `main` is moved to it and tagged
 
 Nothing yet.
 
+## v0.5.4 (2026-11-08)
+
+The README shows grammar at work first
+
+- The README opens with the title example, straight after the problem
+  it solves, where it used to come 70 lines down, after the story of
+  how grammar came about. Its Status section says grammar is made for
+  its author's work and shared as is: issues are welcome, pull requests
+  aren't, and the contributing guide says why. No code changed.
+
 ## v0.5.3 (2026-11-03)
 
 Searching one grammar for several rules in turn takes half the time it did
