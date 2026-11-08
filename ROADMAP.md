@@ -155,19 +155,12 @@ grammar as EBNF, noting where a Raku feature has no EBNF form, and draw
 railroad diagrams from it with an existing tool, for documenting,
 reviewing and learning a grammar.
 
-### 17. A phrasebook from Raku to Participle
-
-Added 2026-10-31, split from 6 (handing a settled grammar to
-Participle, added 2026-10-25). **Size:** S (2). Each Raku grammar
-construct beside the same thing in Participle, and what Participle
-can't do, with every row run in both on the same inputs, as the Raku
-phrasebook's rows are. It's useful alone, and the specification for 18.
-
 ### 18. A Participle dialect
 
-Added 2026-10-31, split from 6. **Size:** M (3). A Raku-like syntax
-that accepts only what the phrasebook (17) covers, failing at compile
-time, saying why, on anything else. Needs 17.
+Added 2026-10-31, split from 6 (handing a settled grammar to
+Participle, added 2026-10-25). **Size:** M (3). A Raku-like syntax
+that accepts only what Participle can express, failing at compile
+time, saying why, on anything else.
 
 ### 19. A generator for Participle
 
