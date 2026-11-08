@@ -228,6 +228,20 @@ func FuzzMatch(f *testing.F) {
 		if d := outer.Diff(without[3].AV()); d != "" {
 			t.Fatalf("skipping start positions changed FindAll with Outermost: %s", d)
 		}
+		// Nor does rejecting by what every match needs, nor FindErr's report.
+		var unneeded, unneededOver []*scalar.SV
+		withoutNeeds(func() {
+			unneeded = searches(g, text, true)
+			unneededOver = []*scalar.SV{scalar.Value(g.FindAll(text, Overlap()))}
+		})
+		for i, s := range searches(g, text, true) {
+			if d := s.Diff(unneeded[i]); d != "" {
+				t.Fatalf("rejecting by needs changed %s: %s", searchNames[i], d)
+			}
+		}
+		if d := scalar.Value(over).Diff(unneededOver[0]); d != "" {
+			t.Fatalf("rejecting by needs changed FindAll with Overlap: %s", d)
+		}
 		// Narrowing lookbehinds' starts changes nothing either.
 		var unbounded *scalar.AV
 		withoutBounds(func() { unbounded = g.FindAll(text) })

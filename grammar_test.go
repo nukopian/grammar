@@ -322,6 +322,38 @@ Apply today with your CV and a short covering letter.
 	}
 }
 
+// BenchmarkFindProse searches each line of a posting, most of them prose
+// with no figure in them, with a pay grammar whose currency sign is
+// optional and may be followed by a space, as jdc-lab's is: a match can
+// start at any space, so skipping starts saves little, though no match
+// can hold no digit.
+func BenchmarkFindProse(b *testing.B) {
+	pay := MustCompile(`
+grammar Pay {
+    token TOP    { <cur>? \s? <num> [ \s* '-' \s* <cur>? \s? <num> ]? <period>? }
+    token cur    { '£' | '$' | '€' }
+    token num    { \d+ [ ',' \d ** 3 ]* [ '.' \d+ ]? [ :i k ]? }
+    token period { \s* :i [ 'p.a.' | pa | per \s+ [ annum | year | hour | day ] ] }
+}`)
+	lines := strings.Split(strings.Repeat(`We are looking for an experienced care assistant to join our friendly team.
+You will support residents with their daily needs and help them live well.
+Previous experience is desirable but full training will be given.
+Salary: £24,500 - £26,000 per annum
+Benefits include a pension, free parking and generous holiday.
+Apply today with your CV and a short covering letter.
+`, 20), "\n")
+	b.ReportAllocs()
+	for b.Loop() {
+		found := 0
+		for _, line := range lines {
+			found += pay.FindAll(line, Outermost()).Length()
+		}
+		if found != 20 {
+			b.Fatalf("found %d", found)
+		}
+	}
+}
+
 // BenchmarkLookbehind searches a posting-sized text with lookbehinds: a
 // bounded one, which needs try only one start, and the sections grammar's
 // unbounded one, a sentence's end then spaces, whose first character

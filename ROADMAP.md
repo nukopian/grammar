@@ -43,17 +43,7 @@ dropped is deleted, and the commit that drops it names its number.
 
 ## Now
 
-### 23. Rejecting a text that can't hold a match
-
-**Serves:** speed
-
-**Size:** S (2)
-
-Work out characters every match must contain, such as a digit for a pay
-figure, and have `Find` and the rest try no position past the last of
-them in the text, so a line with none is rejected at once, as jdc-lab
-checks by hand today. The plan and its progress are in its
-[record](docs/changes/2026-11-08-r23-rejecting-a-text-that-cant-hold-a-match.md).
+Nothing yet.
 
 ## Next
 

@@ -11,6 +11,15 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+- `Find`, `FindAll` and `Split` reject a text that can't hold a match
+  without trying the grammar in it. They work out a set of characters
+  every match holds one of, such as a digit for pay, and try no position
+  after the last of them in the text. A 100-character line of prose costs
+  a pay grammar 0.34 µs, where it cost 2.6 µs, and searching each line
+  of a posting for pay is 38% faster. A word list's set is weak, its
+  phrases' first letters, so a check by hand for a phrase's first word
+  still pays (roadmap 23;
+  [record](docs/changes/2026-11-08-r23-rejecting-a-text-that-cant-hold-a-match.md)).
 - A phrase added to a word list after a search is found by the searches
   after it. `Find` and the rest kept what they'd worked out from the
   list for skipping positions, its phrases' first letters, so

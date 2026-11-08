@@ -111,15 +111,23 @@ type startsEntry struct {
 	rules map[string]ruleStartsOf
 }
 
-// ruleStartsOf is what startsOf returns for a rule.
+// ruleStartsOf is what a search for a rule works out from the grammar.
 type ruleStartsOf struct {
 	s     *starts
 	empty bool
+	needs *starts // see needsOf; nil: none
 }
 
 // startsOf returns what a match of rule can start with, and whether it can
 // match nothing, in which case it can match anywhere. It's cached.
 func (g *Grammar) startsOf(rule string) (*starts, bool) {
+	r := g.searchFor(rule)
+	return r.s, r.empty
+}
+
+// searchFor returns a rule's starts and needs, cached until any grammar
+// changes.
+func (g *Grammar) searchFor(rule string) ruleStartsOf {
 	gen := generation.Load()
 	e := g.starts.Load()
 	if e != nil && e.gen != gen {
@@ -127,21 +135,22 @@ func (g *Grammar) startsOf(rule string) (*starts, bool) {
 	}
 	if e != nil {
 		if r, ok := e.rules[rule]; ok {
-			return r.s, r.empty
+			return r
 		}
 	}
 	f := &startFinder{g: g, rules: map[string]*ruleStarts{}}
 	s := &starts{runes: map[rune]bool{}}
 	empty := f.add(&call{name: rule}, false, s)
 	s.table()
-	rules := map[string]ruleStartsOf{rule: {s, empty}}
+	r := ruleStartsOf{s, empty, g.needsOf(rule)}
+	rules := map[string]ruleStartsOf{rule: r}
 	if e != nil {
 		for k, r := range e.rules {
 			rules[k] = r
 		}
 	}
 	g.starts.Store(&startsEntry{gen, rules})
-	return s, empty
+	return r
 }
 
 type startFinder struct {
@@ -284,7 +293,8 @@ func (f *startFinder) rule(name string) *ruleStarts {
 // search asks again only once it has passed that.
 type scan struct {
 	s     *starts
-	all   bool // every position can start a match: skip none
+	last  int  // no match can start after it, as the needs say; at most len(in)
+	all   bool // every position up to last can start a match: skip none
 	re    bool // there are regexes to ask
 	in    []rune
 	from  []int  // where each regex was last asked from; -1 before it's asked
@@ -295,8 +305,12 @@ type scan struct {
 // scanner starts a scan of in for a match of rule. It's a value, so a
 // search that has no regex to ask allocates nothing for it.
 func (g *Grammar) scanner(rule string, in []rune) scan {
-	s, empty := g.startsOf(rule)
-	c := scan{s: s, all: !skipStarts || empty || s.any, re: len(s.res) > 0, in: in}
+	r := g.searchFor(rule)
+	s := r.s
+	c := scan{s: s, last: len(in), all: !skipStarts || r.empty || s.any, re: len(s.res) > 0, in: in}
+	if skipNeeds && r.needs != nil {
+		c.last = lastNeeded(r.needs, in)
+	}
 	if n := len(s.res); n > 0 {
 		c.from, c.next, c.stuck = make([]int, n), make([]int, n), make([]bool, n)
 		for i := range c.from {
@@ -309,6 +323,9 @@ func (g *Grammar) scanner(rule string, in []rune) scan {
 // can reports whether a match can start at position at, as far as the
 // starts say. Positions are asked in order, as a search goes.
 func (c *scan) can(at int) bool {
+	if at > c.last {
+		return false
+	}
 	if c.all {
 		return true
 	}

@@ -631,11 +631,15 @@ func (g *Grammar) Subparse(text string, opts ...Option) *scalar.SV {
 
 // Find returns the first match anywhere in text, or undef.
 func (g *Grammar) Find(text string, opts ...Option) *scalar.SV {
-	o, in := g.prepare(opts), []rune(nfc(text))
+	o := g.prepare(opts)
+	if g.rejects(o.rule, text) {
+		return noMatch()
+	}
+	in := []rune(nfc(text))
 	sc := g.scanner(o.rule, in)
 	st := g.newState(in)
 	defer g.done(st)
-	for from := o.pos; from <= len(in); from++ {
+	for from := o.pos; from <= sc.last; from++ {
 		if !sc.can(from) {
 			continue
 		}
@@ -649,8 +653,12 @@ func (g *Grammar) Find(text string, opts ...Option) *scalar.SV {
 // FindAll returns every match in text, left to right and not overlapping,
 // unless Overlap or Outermost is given.
 func (g *Grammar) FindAll(text string, opts ...Option) *scalar.AV {
-	o, in := g.prepare(opts), []rune(nfc(text))
+	o := g.prepare(opts)
 	all := scalar.Array()
+	if g.rejects(o.rule, text) {
+		return all
+	}
+	in := []rune(nfc(text))
 	sc := g.scanner(o.rule, in)
 	st := g.newState(in)
 	defer g.done(st)
@@ -658,7 +666,7 @@ func (g *Grammar) FindAll(text string, opts ...Option) *scalar.AV {
 	// come in order of where they start, one from each position, so a
 	// match is inside an earlier one exactly when it ends by then.
 	end := -1
-	for from := o.pos; from <= len(in); {
+	for from := o.pos; from <= sc.last; {
 		if !sc.can(from) {
 			from++
 			continue
@@ -693,7 +701,7 @@ func (g *Grammar) Split(text string, opts ...Option) *scalar.AV {
 	st := g.newState(in)
 	defer g.done(st)
 	from := min(o.pos, len(in))
-	for at := from; at <= len(in); {
+	for at := from; at <= sc.last; {
 		if !sc.can(at) {
 			at++
 			continue
@@ -895,6 +903,7 @@ func (g *Grammar) whyNotFound(text string, opts []Option) *ParseError {
 		return newParseError(g.name, in, len(in), nil).searched(in, len(in))
 	}
 	sc := g.scanner(o.rule, in)
+	sc.last = len(in) // try past the needs, for the attempt that got furthest
 	st := g.newState(in)
 	var best *ParseError
 	try := func(from int) {

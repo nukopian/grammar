@@ -908,6 +908,34 @@ nothing is skipped. The results are the same either way:
 `TestStartsChangeNothing` checks that on every Raku case, and
 `TestReStartsChangeNothing` on grammars starting with `Re`.
 
+Skipping starts can't help a grammar that can start almost anywhere,
+such as pay with an optional currency sign and a space before the
+figure, which can start at every space. So `Find`, `FindAll` and `Split`
+also work out a set of characters every match holds at least one of, its
+needs: a digit, for that pay grammar. A sequence needs what its rarest
+item needs, guessed by how many ASCII characters each set holds; an
+alternation needs what all its branches do together; a repeat that may
+match nothing, a lookaround, a backreference, a regex terminal (`Re`) and
+a code assertion need nothing. No match can start after the last needed
+character in the text, so no position after it is tried, and a text
+with none is rejected without trying the grammar at all. `Find` and
+`FindAll` check an ASCII text as it is, before reading it into runes in
+NFC, and any other text after, as NFC can compose a needed character from
+others. A 100-character line of prose with no digit costs about 0.34 µs,
+where it cost 2.6 µs; searching each line of a posting for pay
+(`BenchmarkFindProse`) is 38% faster, most of what's left being the
+lines that hold pay, and searching a rota's lines for clock times
+(`BenchmarkFindRules`) 7%. jdc-lab searches each line of 2,000 ads for facts,
+and checks by hand first for a digit, before its pay, hours, postcode
+and figure grammars: with needs, those checks save 2% of its time (466
+against 477 ms), and could go. A word list's needs are weak, the first letters of its phrases, in every
+case under `FoldCase`, so a check by hand for a phrase's first word is
+still sharper (see [the gaps](#gaps-and-possible-additions)). The needs
+are kept with the starts, and the results are the same either way
+(`skipNeeds`): `TestNeedsChangeNothing` checks every search, and
+`FindErr`'s report, on every Raku case, each also with its digits, its
+letters, its punctuation or its spaces taken out.
+
 An alternation, `|`, skips the same way: a branch that can't start with
 the next character isn't tried. For `token TOP { <pay> | <hours> |
 <pattern> }`, most positions rule out two of the three. Each branch's
@@ -1067,7 +1095,9 @@ Most positions fail at once, on the grammar's first character, and,
 having got nowhere, they're never reported over one that got somewhere.
 Where no position could start a match at all, such as "Salary:
 competitive" for `Pay`, the report is from an attempt at the first
-position (or `Pos`): `expected <money>`.
+position (or `Pos`): `expected <money>`. The report tries the positions
+a text's [needs](#speed) rule out too, so a text rejected by them still
+gets the report from the attempt that got furthest.
 
 Both take the options `Find` and `FindAll` do, and return the same
 matches. Running out of steps or depth is an error, as from `ParseErr`.
@@ -1148,8 +1178,9 @@ steps (a repeat taking an item, an alternation, a rule call, a lookbehind
 trying a start), and gives up past `grammar.StepLimit`: 10 million by
 default, about a second. `Find`, `FindAll` and `Split` count across every
 position they try, so the limit is for the whole call. Only what's tried
-counts: positions a search skips, and alternation branches that can't
-start with the next character, take no steps (see [Speed](#speed)).
+counts: positions a search skips, a text rejected by its needs, and
+alternation branches that can't start with the next character, take no
+steps (see [Speed](#speed)).
 
 Past the limit, `Parse`, `Subparse`, `Find`, `FindAll` and `Split` panic
 with a `*StepLimitError`, as a `scalar` regex panics past
@@ -1284,7 +1315,7 @@ whatever the grammar or text:
 | Test | Checks |
 |---|---|
 | `FuzzCompile` | `Compile` never panics, however mangled the source |
-| `FuzzMatch` | for grammars built around a fuzzed rule, with a proto, a pattern list, a regex terminal and a code assertion to call: no panics; `Parse` and `ParseErr` agree; a parse matches all of the text; `Find` finds what `FindAll` finds first; skipping start positions changes nothing; the matcher's fast paths change nothing; naming the assertion's reads changes nothing; `CheckPath` takes every path a match has |
+| `FuzzMatch` | for grammars built around a fuzzed rule, with a proto, a pattern list, a regex terminal and a code assertion to call: no panics; `Parse` and `ParseErr` agree; a parse matches all of the text; `Find` finds what `FindAll` finds first; skipping start positions changes nothing; rejecting by needs changes nothing, nor `FindErr`'s report; the matcher's fast paths change nothing; naming the assertion's reads changes nothing; `CheckPath` takes every path a match has |
 | `FuzzWords` | synonym rules never panic, and every phrase in a list matches itself; with `JoinedSpacing`, run together too, and with `Plurals`, its plural |
 
 `go test` runs them on their seeds and on the inputs that once failed, kept
@@ -1365,7 +1396,7 @@ Before changing anything, it helps to know how the package is put together:
 
 | Gap | When you'd need it | What it would take | Fixable | Effort |
 |---|---|---|---|---|
-| **A text that can't hold a match is still searched.** `Find` and the rest skip positions where no match can start, but still try the grammar at each position that could, even in a text with nothing every match needs, such as a digit for a pay figure. A grammar whose rule allows `\s?` before a figure can start at every space. | Searching many short texts, most holding no match, as jdc-lab does line by line: a 126-character prose line costs jdc-lab's pay grammar 17 µs, where checking for a digit takes 0.17 µs, so jdc-lab checks by hand first (`MayHold`), beside each grammar. | Work out a set of characters every match contains at least one of, as the starts are worked out (a sequence needs one of its items' sets, an alternation the union of its branches'), and check the text for one before searching. A word list's set is weak, the first letters of its phrases; jdc-lab's check for a phrase's first word is sharper. Roadmap 23. | yes | 2 |
+| **A word list's needs are weak.** `Find` and the rest reject a text with none of the characters every match needs (see [Speed](#speed)), but a word list needs only one of its phrases' first letters, in every case under `FoldCase`, which most lines of prose hold. | Searching many short texts for a word list's phrases, most texts holding none, as jdc-lab does line by line: its checks by hand for a phrase's first word, before its pattern and schedule grammars, still save about 30% of its time (477 against 673 ms, 2026-11-08). | Needs as strings as well as characters: a word list needs one of its phrases' first words, a literal itself, under `:i` or `FoldCase` in any case, an alternation the union of its branches'; check the text for any of them before reading it into runes, as an Aho–Corasick search or a loop over a short list. | yes | 2–3 |
 | **`Find` can't skip positions for some grammars.** It skips positions where no match can start, but only when it can work that out: not for a grammar that can match empty text, or that starts with an `Re` pattern that can, or that uses `\G`, as those could start anywhere. Such grammars search at about the old speed. | Searching long texts with grammars like those. | A grammar that can match empty text matches everywhere, so there's nothing to skip. An `Re` pattern with `\G` could be asked position by position, as now. A grammar starting with any other `Re` skips by asking regexp2 where the pattern next matches ([roadmap 10's record](changes/2026-11-01-r10-find-skipping-positions-for-regex-terminals.md)), which is exact; working out the pattern's first characters, or taking them as a hint, was considered and rejected, as either could be wrong and silently drop matches. That costs `BenchmarkFindAll`, whose grammar has no `Re`, about 3% (1.4 µs on 4 KB), for the check at each position. | partly | 1 |
 | **The matcher still makes closures for some steps.** Fast paths, behind `fastPaths`, took most away (see [Speed](#speed)): a pay parse went from 12.5 µs and 532 allocations to 9.3 µs and 359 (2026-10-19), to 8.3 µs and 225, with `once` keeping its results in slots on the state and `seq` stepping over atoms in a loop (2026-10-31; roadmap 9's [record](changes/2026-10-31-r9-fewer-closures-in-the-matcher.md)), then to 5.5 µs and 126, with sequences and repeats under ratchet stepping over whatever they commit to, states kept between searches, and more (2026-11-02; roadmap 25's [record](changes/2026-11-02-r25-a-faster-matcher.md)). What's left: outside a token, each step of a sequence over anything but an atom still makes a continuation, as does a repeat of anything but a class or a literal, and a rule call makes its match node and capture as it matches, even where backtracking then throws them away. | Parse speed at high volumes, with `regex` rules. | Making match nodes only for the match that's kept would need captures held some other way until then; not yet looked into. A sequence's continuations can't be made once, as `once`'s are, as each carries the continuation for what follows the sequence, which differs at every call. The fast paths' trade-offs hold for any more: they duplicate what the general engine does, so a later change to an atom (case folding, failure reports) must be made in both; they must step aside for frugal, possessive or separated repeats and items that can match nothing; and they must leave failure reports alone, as the repeat loops do by running only when failures aren't being tracked. `TestFastPathsChangeNothing` and `TestFastPathsKeepLimits` compare both paths, and must cover a new one, with a planted bug to show they'd notice. A lexer was considered instead and rejected: it would make matching cheaper, but cost precise errors, word lists that span spaces, `Find` anywhere in text, and Raku compatibility. | yes | 2 |
 | **Building a match's scalar data takes most of a parse.** Profiled after the fast paths (2026-10-19), building the match took 43% of `BenchmarkParse`'s time, scalar's own code 32%, most of it making each match's hash. Now that matching is faster (2026-11-02), building takes about two thirds of the time, and nine tenths of the allocations: each match makes its hash, its map, its value scalars, and another scalar to hold it. | Parse speed at high volumes. | Kept: scalar's `HV.Set` stores a new key without first making a placeholder (scalar v0.5.1), which took a parse from 9.30 to 9.13 µs, 8 allocations fewer. Kept: scalar v0.6.4's `Hash` makes a hash's value scalars in one allocation, rather than one each, which took a parse from 5.5 to 5.0 µs and 126 to 86 allocations (2026-11-02). Tried and reverted: making each match's hash in one `scalar.Hash` call with every key, so the map is sized once, made a parse slower, 9.13 to 9.58 µs and 21 allocations more, as building the list costs more than the growing it saves; and building through the builder's memo only the matches with two names, which every result makes and fills, made no difference (2026-11-02). Not pursued: building scalar values only when they're read. It would need a new kind of scalar value in scalar's core, honoured by every way of reading one; it could save most of a parse where results are hardly read, as in the benchmark, but little in real use, where `To` reads every field. | partly | 3 |
