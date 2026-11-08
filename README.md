@@ -12,6 +12,32 @@ unreadable, splitting it into pieces means hand-written glue to put the
 pieces back together, and even then "SWE", "Software Developer" and
 "Software Engineer" come out as three different things.
 
+With `grammar`, a title is a few lines of rules, word lists turn every
+spelling into one value, and the match fills a Go struct:
+
+```go
+titles := grammar.NewWordList("titles", grammar.FoldCase(), grammar.LooseSpacing())
+titles.AddRules("Software Engineer, Software Developer, SWE, Developer")
+// ... and lists for seniority and arrangements, the same way
+
+g := grammar.MustCompile(`
+grammar Title {
+    token TOP         { [ <seniority> \s+ ]? <title> [ \s* <.dash> \s* <team> ]? [ \s* '(' <arrangement> ')' ]? }
+    token seniority   { @seniority }
+    token title       { @titles }
+    token arrangement { @arrangements }
+    token dash        { '-' | '–' | '|' }
+    token team        { \w+ [ ' ' \w+ ]* }
+}`, seniority, titles, arrangements)
+
+type Title struct{ Seniority, Title, Team, Arrangement string }
+t, err := grammar.To[Title](g.Parse("Snr SWE – Payments (WFH)"))
+// {Seniority:Senior Title:Software Engineer Team:Payments Arrangement:Remote}
+```
+
+The whole example, with all three lists, is
+[Titles](docs/EXAMPLES.md#titles) in the examples, and runs as a test.
+
 ## Install
 
 ```sh
@@ -70,29 +96,6 @@ work together:
 - **Typed results:** `grammar.To` fills a Go struct straight from a match,
   each capture filling the field of the same name, and actions turn what
   matched into any other value you need.
-
-```go
-titles := grammar.NewWordList("titles", grammar.FoldCase(), grammar.LooseSpacing())
-titles.AddRules("Software Engineer, Software Developer, SWE, Developer")
-// ... and lists for seniority and arrangements, the same way
-
-g := grammar.MustCompile(`
-grammar Title {
-    token TOP         { [ <seniority> \s+ ]? <title> [ \s* <.dash> \s* <team> ]? [ \s* '(' <arrangement> ')' ]? }
-    token seniority   { @seniority }
-    token title       { @titles }
-    token arrangement { @arrangements }
-    token dash        { '-' | '–' | '|' }
-    token team        { \w+ [ ' ' \w+ ]* }
-}`, seniority, titles, arrangements)
-
-type Title struct{ Seniority, Title, Team, Arrangement string }
-t, err := grammar.To[Title](g.Parse("Snr SWE – Payments (WFH)"))
-// {Seniority:Senior Title:Software Engineer Team:Payments Arrangement:Remote}
-```
-
-The whole example, with all three lists, is
-[Titles](docs/EXAMPLES.md#titles) in the examples, and runs as a test.
 
 Two more things set it apart:
 
@@ -179,6 +182,11 @@ the API may still change before 1.0. What's planned is in the
 [roadmap](ROADMAP.md). What it doesn't do yet is listed, with what each
 would take, in
 [Gaps and possible additions](docs/REFERENCE.md#gaps-and-possible-additions).
+
+It's made for my own work, and shared as is. Bug reports and feature
+requests are welcome as issues, but pull requests aren't accepted; the
+[contributing guide](https://github.com/nukopian/.github/blob/main/CONTRIBUTING.md)
+says why.
 
 ## Security
 
