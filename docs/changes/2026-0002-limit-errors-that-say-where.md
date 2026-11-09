@@ -1,8 +1,8 @@
-# Limit errors that say where
+# 2026-0002. Limit errors that say where
 
 **Status:** shipped in v0.2.4
 
-**Origin:** roadmap 2
+**Origin:** roadmap 2026-0002
 
 **Started:** 2026-10-26, in 12e6de447aed5dc091ca8f0ab8a205941913fe1c
 

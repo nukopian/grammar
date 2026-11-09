@@ -1,8 +1,8 @@
-# A faster matcher
+# 2026-0025. A faster matcher
 
 **Status:** shipped in v0.5.2
 
-**Origin:** roadmap 25, from a session looking at how the ideas still on
+**Origin:** roadmap 2026-0025, from a session looking at how the ideas still on
 the roadmap (rule parameters, longest-token matching, rejecting a text
 that can't hold a match, stemming) could be fitted in more easily, and
 what would make the matcher faster

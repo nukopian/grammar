@@ -1,8 +1,8 @@
-# Building only what a code assertion reads
+# 2026-0024. Building only what a code assertion reads
 
 **Status:** shipped in v0.5.1
 
-**Origin:** roadmap 24, with a TODO task from scalar's session (scalar a97896c011e1244a5e478dfd2b2cadd6722002bd)
+**Origin:** roadmap 2026-0024, with a TODO task from scalar's session (scalar a97896c011e1244a5e478dfd2b2cadd6722002bd)
 
 **Started:** 2026-11-02, in f9058f2b3862169c43abcbd45f3b82b9a4152aee
 

@@ -1,8 +1,8 @@
-# Find skipping positions for regex terminals
+# 2026-0010. Find skipping positions for regex terminals
 
 **Status:** shipped in v0.4.4
 
-**Origin:** roadmap 10
+**Origin:** roadmap 2026-0010
 
 **Started:** 2026-11-01, in 8678e28ae8f274bc4f9562a2674483fdbb3b1eee
 

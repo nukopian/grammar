@@ -23,23 +23,32 @@ Items come in four groups, the most useful first in each:
 - **Ideas:** might be done, or never; kept so they aren't lost, in a
   line or two, newest last.
 
-Each item has a number, given when it's added, in whichever group. It
-keeps it as it moves between groups, and a number is never used again,
-so that 7 means the same item in a commit message months later. Next
-number: 28.
+Each item has an id, its year and a serial, such as 2026-0007. The year
+is when the item was added, and the serial counts from 0001, starting
+again each year. An id is given when the item is added, whichever group
+it goes in, and is kept as the item moves, so that 2026-0007 means the
+same item in a commit message years later. It names the item's change
+record, its line in the CHANGELOG ("(roadmap 2026-0007)") and any branch
+for it. A `TODO.md` task with a record takes an id from the same
+sequence, though it never appears here. Items numbered 1 to 27 before
+2026-11-09 kept their numbers as serials, so "roadmap 7" in older
+commits is 2026-0007. Last id: 2026-0030.
 
 Each item has a size too, a guess at how much work it is, as a T-shirt
 size and its story points: XS 1, S 2, M 3 and L 5. Sizes compare items
 with each other; they aren't a measure of time. The reference's Effort
-for the gap behind an item guides it. An item bigger than L is broken
-into items that aren't, each saying what it was split from. Items that
-can't be done one without another say so ("Moves with:"), and move
-between groups together.
+for the gap behind an item guides it. An item bigger than L is split
+into items that aren't, each saying what it was split from ("Split
+from:"). An item that can't be done before another says so ("Depends
+on:"), and is never in a group ahead of it.
 
-When an item ships, it moves from here to the CHANGELOG, whose line
-for it ends with its number, such as "(roadmap 7)", and links to its
-record. An idea that's
-dropped is deleted, and the commit that drops it names its number.
+An item whose questions aren't all settled says so, and its record
+lists them. Work on it starts only once each is settled, or moved to
+another item or task.
+
+When an item ships, it leaves here for the CHANGELOG, whose line for it
+ends with its id and links to its record. An item that's dropped is
+deleted, and the commit that drops it names its id.
 
 ## Now
 
@@ -47,7 +56,7 @@ Nothing yet.
 
 ## Next
 
-### 26. Phrase needs
+### 2026-0026. Phrase needs
 
 **Serves:** speed
 
@@ -58,7 +67,7 @@ the rest reject a text with none of the phrases every match needs: a
 word list needs one of its phrases' first words, a literal itself, in
 any case under `:i` or `FoldCase`, and an alternation the union of its
 branches'. The text is checked for them before it's read into runes, as
-needs of characters are (roadmap 23).
+needs of characters are (roadmap 2026-0023).
 
 **Why:** a word list's needs are only its phrases' first letters,
 which most lines of prose hold, so jdc-lab still checks by hand for a
@@ -78,14 +87,14 @@ check kept, and why), each measured with jdc-lab's
 a switch with a differential test and a planted bug; and the
 reference's gap is gone.
 
-### 27. A rejected search allocates nothing
+### 2026-0027. A rejected search allocates nothing
 
 **Serves:** speed
 
 **Size:** S (2)
 
 **What:** `Find` and `FindAll` return without allocating when they
-reject a text by its needs (roadmap 23): today `FindAll` still makes
+reject a text by its needs (roadmap 2026-0023): today `FindAll` still makes
 its empty array, a call with options such as `Outermost` makes those,
 and text that isn't ASCII isn't checked at all. Profile a rejected
 search's allocations first; the fix may need an empty result from
@@ -106,7 +115,7 @@ which reads `MayHold` for Pay.
 
 ## Later
 
-### 8. Rule parameters and dynamic variables
+### 2026-0008. Rule parameters and dynamic variables
 
 **Serves:** Raku
 
@@ -128,7 +137,7 @@ and whether `<$var>` interpolation comes with them.
 design questions are answered in the reference; and the reference's
 gap is gone.
 
-### 11. Stemming in word lists
+### 2026-0011. Stemming in word lists
 
 **Serves:** word lists
 
@@ -140,61 +149,72 @@ needs a real stemmer, such as Porter's. Synonym data rarely lists every
 form, and jdc-lab's word lists, which already lean on `Plurals`, would
 gain from it.
 
-### 20. Each branch's declarative prefix
+### 2026-0020. Each branch's declarative prefix
 
 **Serves:** Raku, speed
 
-**Size:** M (3). **Moves with:** 21 and 22.
+**Size:** M (3)
 
-Split from 7 (true longest-token matching). Work out the part of each
+**Split from:** 2026-0007 (true longest-token matching)
+
+Work out the part of each
 `|` branch and proto candidate before anything that could backtrack or
-run code, as Rakudo does in NQP. Roadmap 25's branch starts, kept on each
+run code, as Rakudo does in NQP. Roadmap 2026-0025's branch starts, kept on each
 alternation, are its first character.
 
-### 21. An automaton from the prefixes
+### 2026-0021. An automaton from the prefixes
 
 **Serves:** Raku, speed
 
-**Size:** L (5). **Moves with:** 20 and 22.
+**Size:** L (5)
 
-Split from 7. Build an NFA, then a DFA, from the branches' declarative
+**Split from:** 2026-0007. **Depends on:** 2026-0020
+
+Build an NFA, then a DFA, from the branches' declarative
 prefixes, that says how much of the text each prefix matches.
 
-### 22. Alternation decided by the automaton
+### 2026-0022. Alternation decided by the automaton
 
 **Serves:** Raku, speed
 
-**Size:** M (3). **Moves with:** 20 and 21.
+**Size:** M (3)
 
-Split from 7. Try `|` branches and protos in the order the automaton
+**Split from:** 2026-0007. **Depends on:** 2026-0020 and 2026-0021
+
+Try `|` branches and protos in the order the automaton
 gives, rather than matching every branch in full. It would close the
 cases where `Alt`'s approximation differs from Raku, and speed up large
 alternations, protos and nested alternations in a `regex`.
 
 ## Ideas
 
-An idea is a numbered heading, the date it was added, its size, and a
-line or two on what and why. Each wash-up prunes them: each is kept,
-promoted to Later or Next with its number, or dropped.
+An idea is a heading with its id, the date it was added, its size, and
+a line or two on what and why. Each wash-up prunes them: each is kept,
+promoted to Later or Next with its id, or dropped.
 
-### 5. A picture of a grammar
+### 2026-0005. A picture of a grammar
 
-Added 2026-10-26; parked from Next 2026-11-02. **Size:** S (2). Print a
-grammar as EBNF, noting where a Raku feature has no EBNF form, and draw
+**Added:** 2026-10-26; parked from Next 2026-11-02. **Size:** S (2)
+
+Print a grammar as EBNF, noting where a Raku feature has no EBNF form, and draw
 railroad diagrams from it with an existing tool, for documenting,
 reviewing and learning a grammar.
 
-### 18. A Participle dialect
+### 2026-0018. A Participle dialect
 
-Added 2026-10-31, split from 6 (handing a settled grammar to
-Participle, added 2026-10-25). **Size:** M (3). A Raku-like syntax
+**Added:** 2026-10-31. **Size:** M (3). **Split from:** 2026-0006
+(handing a settled grammar to Participle, added 2026-10-25)
+
+A Raku-like syntax
 that accepts only what Participle can express, failing at compile
 time, saying why, on anything else.
 
-### 19. A generator for Participle
+### 2026-0019. A generator for Participle
 
-Added 2026-10-31, split from 6. **Size:** M (3). Write Participle
-structs and a lexer from a dialect grammar (18) with `go generate`,
-checked by running both on the same inputs. Needs 18.
+**Added:** 2026-10-31. **Size:** M (3). **Split from:** 2026-0006.
+**Depends on:** 2026-0018
+
+Write Participle structs and a lexer from a dialect grammar (2026-0018)
+with `go generate`, checked by running both on the same inputs.
 
 [gaps]: docs/REFERENCE.md#gaps-and-possible-additions

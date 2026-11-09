@@ -1,8 +1,10 @@
-# Rejecting a text that can't hold a match
+# 2026-0023. Rejecting a text that can't hold a match
 
 **Status:** shipped in v0.5.5
 
-**Origin:** roadmap 23
+**Decisions:** D1 settled: ship as it is, with phrase needs as 2026-0026. None open.
+
+**Origin:** roadmap 2026-0023
 
 **Started:** 2026-11-08, in 5b455edd50dafb698bb450416cc14d3cfdad06d6
 
@@ -127,27 +129,27 @@ unchanged; and the reference's gap is gone.
 
 ## Decisions
 
-1. **For Iain: phrase needs now, or later?** Done when said jdc-lab's
-   `MayHold` checks could go. The four for a digit can; the two for the
-   schedule and pattern grammars, checking for a day's first letters or
-   a phrase's first word, can't, as needs of single characters are too
-   weak for word lists, and they still save about 30% of jdc-lab's time.
-   Needs as strings as well as characters would close that (the gap has
-   what it would take, size S to M). The choice is between shipping 23
-   as it is, with phrase needs as a new roadmap item, or extending 23
-   before the release.
+- [x] **D1.** Phrase needs now, or later? Done when said jdc-lab's
+  `MayHold` checks could go. The four for a digit can; the two for the
+  schedule and pattern grammars, checking for a day's first letters or
+  a phrase's first word, can't, as needs of single characters are too
+  weak for word lists, and they still save about 30% of jdc-lab's time.
+  Needs as strings as well as characters would close that (the gap has
+  what it would take, size S to M). The choice is between shipping 23
+  as it is, with phrase needs as a new roadmap item, or extending 23
+  before the release.
 
-   **Decided by Iain, 2026-11-08: ship 23 as it is, and make phrase
-   needs a new roadmap item,** 26. jdc-lab loses nothing by waiting:
-   its schedule and pattern checks work, are tested against the
-   grammars, and still save about 30%, and nothing in the lab is
-   blocked on them. 23's plan is met apart from this caveat, and adding
-   strings would grow it from S to S–M after the work is done: a new
-   finding goes in a new item. Phrase needs might not remove Schedule's
-   check anyway. It's stricter than any single string: it wants "M",
-   "F" and "-" all present, or a day's first three letters, and an
-   alternation needs the union of its branches', so the "M - F" branch
-   could weaken Schedule's needs to one common letter. Pattern's word
-   list would likely gain fully. So 26's Done when names which checks
-   it expects to remove, measured against jdc-lab, not assumed, as
-   jdc-lab's session also asked.
+  **Decided by Iain, 2026-11-08: ship 23 as it is, and make phrase
+  needs a new roadmap item,** 2026-0026. jdc-lab loses nothing by waiting:
+  its schedule and pattern checks work, are tested against the
+  grammars, and still save about 30%, and nothing in the lab is
+  blocked on them. 23's plan is met apart from this caveat, and adding
+  strings would grow it from S to S–M after the work is done: a new
+  finding goes in a new item. Phrase needs might not remove Schedule's
+  check anyway. It's stricter than any single string: it wants "M",
+  "F" and "-" all present, or a day's first three letters, and an
+  alternation needs the union of its branches', so the "M - F" branch
+  could weaken Schedule's needs to one common letter. Pattern's word
+  list would likely gain fully. So 26's Done when names which checks
+  it expects to remove, measured against jdc-lab, not assumed, as
+  jdc-lab's session also asked.

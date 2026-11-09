@@ -1,4 +1,4 @@
-# A word list's value in a rule with more in it than the list
+# 2026-0029. A word list's value in a rule with more in it than the list
 
 **Status:** shipped in v0.4.1
 

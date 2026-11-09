@@ -1,4 +1,4 @@
-# Keep each rule's starts, not only the last one searched for
+# 2026-0030. Keep each rule's starts, not only the last one searched for
 
 **Status:** shipped in v0.5.3
 

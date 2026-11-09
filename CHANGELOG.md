@@ -14,6 +14,13 @@ release's entry when `main` is moved to it and tagged
 - `scripts/readme-pdf.sh` refuses an output that isn't a `.pdf`: a
   document named there by mistake, as in `readme-pdf.sh ROADMAP.md
   docs/REFERENCE.md`, was written over with a PDF.
+- Docs: roadmap items and change records are named by an id, the year
+  and a serial, such as 2026-0023, rather than a bare number, as in the
+  maintainer's other projects. Items 1 to 27 kept their numbers as
+  serials, so "roadmap 23" in older commits is 2026-0023, and the
+  records were renamed to their ids. Items that must wait for others
+  say so with **Depends on:**, and a record's open questions are
+  numbered D1, D2 and on.
 
 ## v0.5.5 (2026-11-09)
 
@@ -26,8 +33,8 @@ A search rejects a line that can't hold a match, without trying the grammar in i
   a pay grammar 0.34 µs, where it cost 2.6 µs, and searching each line
   of a posting for pay is 38% faster. A word list's set is weak, its
   phrases' first letters, so a check by hand for a phrase's first word
-  still pays (roadmap 23;
-  [record](docs/changes/2026-11-08-r23-rejecting-a-text-that-cant-hold-a-match.md)).
+  still pays (roadmap 2026-0023;
+  [record](docs/changes/2026-0023-rejecting-a-text-that-cant-hold-a-match.md)).
 - A phrase added to a word list after a search is found by the searches
   after it. `Find` and the rest kept what they'd worked out from the
   list for skipping positions, its phrases' first letters, so
@@ -56,7 +63,7 @@ Searching one grammar for several rules in turn takes half the time it did
   of a rota for four rules in turn takes 55% less time, with 42% fewer
   allocations, and jdc-lab's reading of an ad's headings half the time.
   Results are unchanged.
-  ([record](docs/changes/2026-11-03-keep-each-rules-starts.md))
+  ([record](docs/changes/2026-0030-keep-each-rules-starts.md))
 
 ## v0.5.2 (2026-11-02)
 
@@ -74,7 +81,7 @@ A faster matcher: a pay parse in 5.0 µs, from 8.4 µs, with 86 allocations rath
   used is kept for the grammar's next, with the rules it looked up.
   Results are unchanged. A call can count fewer steps against
   `StepLimit` than it did, as skipped branches take none.
-  (roadmap 25; [record](docs/changes/2026-11-02-r25-a-faster-matcher.md))
+  (roadmap 2026-0025; [record](docs/changes/2026-0025-a-faster-matcher.md))
 - Faster still with scalar v0.6.4, which makes a hash's values, and an
   array's, in one allocation: a pay parse takes 5.0 µs, from 5.5 µs, with
   86 allocations rather than 126, and searches are 5 to 10% faster, with
@@ -92,7 +99,7 @@ Code assertions that name the captures they read, so only those are built
   from 1.85 ms to 1.44 ms, with 26% fewer allocations. Reading a capture
   that isn't named panics, saying which assertion and what it names.
   Assertions that don't name any are as they were.
-  (roadmap 24; [record](docs/changes/2026-11-02-r24-building-only-what-a-code-assertion-reads.md))
+  (roadmap 2026-0024; [record](docs/changes/2026-0024-building-only-what-a-code-assertion-reads.md))
 
 ## v0.5.0 (2026-11-02)
 
@@ -116,7 +123,7 @@ grammar with `^*` or `<?>?` in it needs changing. Needs scalar v0.6.3.
   allocations, but for lookbehinds, about 1% slower; each assertion
   builds the match so far, which on a text of figures made a pay search
   1.6 times as long as checking afterwards.
-  (roadmap 3; [record](docs/changes/2026-11-02-r3-code-assertions.md))
+  (roadmap 2026-0003; [record](docs/changes/2026-0003-code-assertions.md))
 - Breaking, as Raku is: a quantifier straight after an anchor, `<?>`,
   `<!>` or a code assertion, as in `^*` or `<?>?`, is a compile error,
   "matches no text, so it can't be repeated", as Rakudo's "Can only
@@ -147,7 +154,7 @@ scalar v0.6.2.
   once never crowd out one that got somewhere. The report is made only
   when nothing is found, so `Find` and `FindAll` cost what they did.
   Raku has nothing like it.
-  (roadmap 4; [record](docs/changes/2026-11-01-r4-failure-reports-from-find-and-findall.md))
+  (roadmap 2026-0004; [record](docs/changes/2026-0004-failure-reports-from-find-and-findall.md))
 - `Find`, `FindAll` and `Split` skip positions for a grammar that starts
   with `Re`, as they do for others: they ask regexp2 where the pattern
   next matches, and skip every position before it. Searching a 4 KB
@@ -156,7 +163,7 @@ scalar v0.6.2.
   empty text, or uses `\G`, still skips nothing. Searches with grammars
   that don't start with `Re` cost about 3% more on long texts, for the
   check at each position.
-  (roadmap 10; [record](docs/changes/2026-11-01-r10-find-skipping-positions-for-regex-terminals.md))
+  (roadmap 2026-0010; [record](docs/changes/2026-0010-find-skipping-positions-for-regex-terminals.md))
 - Build: needs scalar v0.6.2, up from v0.6.1. Nothing changes for
   grammar: scalar's new `Linear` regex engine is chosen only if a
   program asks for it, and its fix to `S` with `g` doesn't touch
@@ -175,8 +182,8 @@ A matcher that allocates far less, measured on jdc-lab's fact grammars
   each line of 2,000 job ads, run 39% faster with 74% fewer
   allocations, every fact unchanged; a pay parse takes 8.3 µs rather
   than 10.5 µs. No match, failure report or limit changes, which tests
-  check with the fast paths on and off (roadmap 9;
-  [record](docs/changes/2026-10-31-r9-fewer-closures-in-the-matcher.md)).
+  check with the fast paths on and off (roadmap 2026-0009;
+  [record](docs/changes/2026-0009-fewer-closures-in-the-matcher.md)).
 
 ## v0.4.2 (2026-10-31)
 
@@ -188,8 +195,8 @@ A trace of a parse, as Raku's Grammar::Tracer prints one
   way of matching, `Find` and `FindAll` tracing each position they try,
   changes no result, and costs nothing measurable when it's off. So a
   grammar that won't match can be watched, rather than guessed at from
-  where `ParseErr` says it got furthest (roadmap 1;
-  [record](docs/changes/2026-10-31-r1-a-trace-of-a-parse.md)).
+  where `ParseErr` says it got furthest (roadmap 2026-0001;
+  [record](docs/changes/2026-0001-a-trace-of-a-parse.md)).
 - Traced, `Parse`, `Find` and the rest say where a `StepLimitError` or
   `DepthLimitError` was reached, the rule and its place, as `ParseErr`
   does; untraced, they still leave the place empty, as knowing it costs
@@ -211,7 +218,7 @@ A word list's value for a rule with lookarounds beside the list
   loses the value either: `rule title { @titles }` had none, as its
   match took in the space after. `$<k>=[ @list <!before ':'> ]` works
   the same way, and `CheckPath` accepts `k.made` for it
-  ([record](docs/changes/2026-10-30-list-value-beside-lookarounds.md)).
+  ([record](docs/changes/2026-0029-list-value-beside-lookarounds.md)).
 - A roadmap item's change record is named with "r" and its number after
   the date, as `docs/changes/2026-10-27-r16-match-paths-checked-against-the-grammar.md`,
   so a search for `r16` finds it.
@@ -232,15 +239,15 @@ after it, needs changing. Needs scalar v0.6.1.
   enclosing rule, beside `k`, as in Raku, so `$<level>=@levels` inside
   `$<title>=[ … ]` is read as `level.made`, not `title.level.made`.
   `ExampleNamed_captureInside` shows it, and a Raku case checks it
-  (roadmap 15).
+  (roadmap 2026-0015).
 - `CheckPath`, which says whether a path, such as `m.At("per.weak")`,
   can ever be defined in a match of the grammar, and if not, which step
   can't be there and what could: `rule per has no capture "weak" (it
   has: day, week)`. A misspelt capture otherwise reads undef, as one
   that didn't match does, so it fails silently. For a capture read from
   inside `$<k>=[ … ]`, it gives the path that reads it. Needs scalar
-  v0.6.1, for its path parser (roadmap 16;
-  [record](docs/changes/2026-10-27-r16-match-paths-checked-against-the-grammar.md)).
+  v0.6.1, for its path parser (roadmap 2026-0016;
+  [record](docs/changes/2026-0016-match-paths-checked-against-the-grammar.md)).
 - Fixed: `$<k>=` before a `( … )`, a rule, a word list or a pattern
   list, with a quantifier after it, names each match, as in Raku. So
   `$<e>=( a (\d) )?` is a match with captures of its own, `e.0`, or
@@ -249,7 +256,7 @@ after it, needs changing. Needs scalar v0.6.1.
   capture, as it does for `$<k>=[ … ]?`, so `e` was text only, and the
   group inside it took a positional number from the rule. A grammar
   that read those numbers, or `e`'s text, needs changing
-  ([record](docs/changes/2026-10-27-named-quantified-groups.md)).
+  ([record](docs/changes/2026-0028-named-quantified-groups.md)).
 - Fixed: `Chunks` gives the text between captures that lie inside
   another, as Raku's `.chunks` does: for `$<e>=[ a (\d) ]*` on "a1a2",
   `e`, `0`, the "a" between, then `0` again. Before, that text was left
@@ -269,14 +276,14 @@ as before.
   need" finds both, so text can be classified by every phrase in it. A
   phrase wholly inside a longer one is found too; `Outermost()`, below,
   drops those. The phrasebook has it beside Raku's `:ov` and plain Go
-  (roadmap 13;
-  [record](docs/changes/2026-10-26-r13-every-phrase-overlaps-included.md)).
+  (roadmap 2026-0013;
+  [record](docs/changes/2026-0013-every-phrase-overlaps-included.md)).
 - An `Outermost()` option for `FindAll`: `Overlap()`'s matches, less
   each one wholly inside another, so "you will need" in "in this role
   you will need" counts, but "profile" in "Company Profile" doesn't
   outweigh the "company profile" it's part of. It implies `Overlap()`.
-  Raku has no such adverb (roadmap 14;
-  [record](docs/changes/2026-10-26-r14-overlapping-matches-without-nested.md)).
+  Raku has no such adverb (roadmap 2026-0014;
+  [record](docs/changes/2026-0014-overlapping-matches-without-nested.md)).
 
 ## v0.3.1 (2026-10-26)
 
@@ -289,8 +296,8 @@ No breaking change: a new list option. Needs scalar v0.6.0, as before.
   does, without making the values phrases too. So a rules file can map
   "legal notice, the legal bit => legal" without "Legal Secretary"
   becoming a legal section. Without it, nothing changes, and
-  `AddRule`'s doc now says that the values are phrases too (roadmap 12;
-  [record](docs/changes/2026-10-26-r12-rules-whose-canonical-isnt-a-phrase.md)).
+  `AddRule`'s doc now says that the values are phrases too (roadmap 2026-0012;
+  [record](docs/changes/2026-0012-rules-whose-canonical-isnt-a-phrase.md)).
 
 ## v0.3.0 (2026-10-26)
 
@@ -321,8 +328,8 @@ before.
   as in "gave up after 100000 steps, in amount from line 1, column 9",
   with new `Rule`, `Offset`, `Line` and `Column` fields. From `Parse`,
   `Find` and the rest, the place is empty and the message as before, as
-  knowing it would cost every match a few per cent (roadmap 2;
-  [record](docs/changes/2026-10-26-r2-limit-errors-that-say-where.md)).
+  knowing it would cost every match a few per cent (roadmap 2026-0002;
+  [record](docs/changes/2026-0002-limit-errors-that-say-where.md)).
 - Docs: each planned change keeps a record in
   [docs/changes/](docs/changes/README.md), opened when work starts: the
   plan as it was written, then what happened, with changes from the

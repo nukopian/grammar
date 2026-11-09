@@ -1,8 +1,8 @@
-# Rules whose canonical isn't a phrase
+# 2026-0012. Rules whose canonical isn't a phrase
 
 **Status:** shipped in v0.3.1
 
-**Origin:** roadmap 12
+**Origin:** roadmap 2026-0012
 
 **Started:** 2026-10-26, in a67788361c9280bef0163c6c1d19b4a79c21363c
 

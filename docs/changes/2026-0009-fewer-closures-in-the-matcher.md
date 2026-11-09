@@ -1,8 +1,8 @@
-# Fewer closures in the matcher
+# 2026-0009. Fewer closures in the matcher
 
 **Status:** shipped in v0.4.3
 
-**Origin:** roadmap 9, taken up by a TODO task from jdc-lab's session
+**Origin:** roadmap 2026-0009, taken up by a TODO task from jdc-lab's session
 (jdc-lab 8c9df97c5d9ab378637b3c95a2bb75b2d8193823)
 
 **Started:** 2026-10-31, in 4cf91879b7b641e4808be710d37408e2cd4bae15

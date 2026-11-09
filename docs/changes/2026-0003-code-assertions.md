@@ -1,8 +1,8 @@
-# Code assertions
+# 2026-0003. Code assertions
 
 **Status:** shipped in v0.5.0
 
-**Origin:** roadmap 3
+**Origin:** roadmap 2026-0003
 
 **Started:** 2026-11-02, in 88a4f68abfe1a11ea84140f3cf77ba8ef08a1d7a
 

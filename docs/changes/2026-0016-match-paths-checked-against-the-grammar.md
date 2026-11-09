@@ -1,8 +1,8 @@
-# Match paths checked against the grammar
+# 2026-0016. Match paths checked against the grammar
 
 **Status:** shipped in v0.4.0
 
-**Origin:** roadmap 16
+**Origin:** roadmap 2026-0016
 
 **Started:** 2026-10-27, in cec0be91c537ee2f4def239fea83cc06b24471e2
 
