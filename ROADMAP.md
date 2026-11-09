@@ -32,7 +32,7 @@ record, its line in the CHANGELOG ("(roadmap 2026-0007)") and any branch
 for it. A `TODO.md` task with a record takes an id from the same
 sequence, though it never appears here. Items numbered 1 to 27 before
 2026-11-09 kept their numbers as serials, so "roadmap 7" in older
-commits is 2026-0007. Last id: 2026-0030.
+commits is 2026-0007. Last id: 2026-0031.
 
 Each item has a size too, a guess at how much work it is, as a T-shirt
 size and its story points: XS 1, S 2, M 3 and L 5. Sizes compare items
@@ -216,5 +216,31 @@ time, saying why, on anything else.
 
 Write Participle structs and a lexer from a dialect grammar (2026-0018)
 with `go generate`, checked by running both on the same inputs.
+
+### 2026-0031. A compact match, built into values only when read
+
+**Added:** 2026-11-09. **Size:** L (5)
+
+Record a match as rule ids and start and end positions in one flat
+slice, as Go's `regexp` returns submatch indexes, and build scalar
+values from it only when asked: `Parse` building them at the edge as
+now, `To` filling a struct straight from the positions, and a code
+assertion given a cheap view rather than a built match. Behind a switch,
+as `fastPaths` is.
+
+Why: building a match's scalar data, a hash, a map, value scalars and a
+holder for every match, took about two thirds of `BenchmarkParse`'s
+time and nine tenths of its allocations (2026-11-02; the reference's gap
+"Building a match's scalar data takes most of a parse"). It came from
+asking, on 2026-11-09, whether a fork of grammar without scalar would be
+faster: little, where it matters most, as a rejected line in `Find`
+builds nothing and matching never touches scalar. The cost is the
+result's shape, built eagerly, not the dependency, and changing the
+shape inside grammar keeps `At`, `Or`, `To` and Raku's reading of a
+match as a tree. Lazy scalar values were rejected before, as `To` reads
+every field, so this is a guess: first profile `BenchmarkParse` and a
+jdc-lab `Parse` to split matching from building, then prototype `To`
+from positions, and measure. A scalar-free core with a thin scalar layer
+would follow from it, if a lighter dependency were ever wanted.
 
 [gaps]: docs/REFERENCE.md#gaps-and-possible-additions
