@@ -26,7 +26,7 @@ Items come in four groups, the most useful first in each:
 Each item has a number, given when it's added, in whichever group. It
 keeps it as it moves between groups, and a number is never used again,
 so that 7 means the same item in a commit message months later. Next
-number: 27.
+number: 28.
 
 Each item has a size too, a guess at how much work it is, as a T-shirt
 size and its story points: XS 1, S 2, M 3 and L 5. Sizes compare items
@@ -99,6 +99,32 @@ check kept, and why), each measured with jdc-lab's
 `BenchmarkFindSamples`, with its output unchanged, not assumed; behind
 a switch with a differential test and a planted bug; and the
 reference's gap is gone.
+
+### 27. A rejected search allocates nothing
+
+**Serves:** speed
+
+**Size:** S (2)
+
+**What:** `Find` and `FindAll` return without allocating when they
+reject a text by its needs (roadmap 23): today `FindAll` still makes
+its empty array, a call with options such as `Outermost` makes those,
+and text that isn't ASCII isn't checked at all. Profile a rejected
+search's allocations first; the fix may need an empty result from
+scalar that can't be changed.
+
+**Why:** jdc-lab still checks by hand for a digit before four of its
+grammars, which needs already reject: without those checks, it makes
+20% more allocations and 25% more bytes, and takes 2.4% longer
+(2.30 against 1.92 million allocations, 478 against 466 ms, on
+2026-11-09). If rejection were free, those checks could go.
+
+**Done when** a rejected `Find` and `FindAll`, with an option, allocate
+nothing, shown by a benchmark that reports allocations; the reference's
+gap is gone; and jdc-lab has a task in its `TODO.md` to measure again
+dropping `MayHold`'s checks for a digit, whose steps include reworking
+`TestSkipLinesChangeNothing`'s count of lines skipped by every grammar,
+which reads `MayHold` for Pay.
 
 ## Later
 
