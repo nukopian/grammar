@@ -1,6 +1,6 @@
 # Rejecting a text that can't hold a match
 
-**Status:** unreleased
+**Status:** shipped in v0.5.5
 
 **Origin:** roadmap 23
 

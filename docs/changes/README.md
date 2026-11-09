@@ -65,7 +65,7 @@ Why, What's known, Steps, Done when.
 Newest first.
 
 - [Rejecting a text that can't hold a match](2026-11-08-r23-rejecting-a-text-that-cant-hold-a-match.md)
-  (roadmap 23), unreleased
+  (roadmap 23), shipped in v0.5.5
 - [Keep each rule's starts, not only the last one searched for](2026-11-03-keep-each-rules-starts.md),
   shipped in v0.5.3
 - [A faster matcher](2026-11-02-r25-a-faster-matcher.md)

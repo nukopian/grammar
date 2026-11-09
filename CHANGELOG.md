@@ -11,6 +11,12 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.5.5 (2026-11-09)
+
+A search rejects a line that can't hold a match, without trying the grammar in it
+
 - `Find`, `FindAll` and `Split` reject a text that can't hold a match
   without trying the grammar in it. They work out a set of characters
   every match holds one of, such as a digit for pay, and try no position
