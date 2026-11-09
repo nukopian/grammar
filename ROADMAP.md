@@ -47,28 +47,6 @@ Nothing yet.
 
 ## Next
 
-### 8. Rule parameters and dynamic variables
-
-**Serves:** Raku
-
-**Size:** M (3)
-
-**What:** `token amount($cur)` and `$*CURRENCY`: arguments in the
-syntax and on a rule call, and dynamic variables visible to the rules
-a rule calls, as in Raku.
-
-**Why:** parsing that depends on context, such as a currency that
-changes how amounts read, where inheritance and roles would need a
-grammar for each context. Measured on 2026-11-02: a frame pointer on
-every call costs 2.1% on every grammar, where a stack on the state,
-checked at each call as failure tracking is, costs 0.2%, within noise.
-What's open is the design: how a code assertion sees the variables,
-and whether `<$var>` interpolation comes with them.
-
-**Done when** both work as Raku's do, with cases in the Raku tests; the
-design questions are answered in the reference; and the reference's
-gap is gone.
-
 ### 26. Phrase needs
 
 **Serves:** speed
@@ -127,6 +105,28 @@ dropping `MayHold`'s checks for a digit, whose steps include reworking
 which reads `MayHold` for Pay.
 
 ## Later
+
+### 8. Rule parameters and dynamic variables
+
+**Serves:** Raku
+
+**Size:** M (3)
+
+**What:** `token amount($cur)` and `$*CURRENCY`: arguments in the
+syntax and on a rule call, and dynamic variables visible to the rules
+a rule calls, as in Raku.
+
+**Why:** parsing that depends on context, such as a currency that
+changes how amounts read, where inheritance and roles would need a
+grammar for each context. Measured on 2026-11-02: a frame pointer on
+every call costs 2.1% on every grammar, where a stack on the state,
+checked at each call as failure tracking is, costs 0.2%, within noise.
+What's open is the design: how a code assertion sees the variables,
+and whether `<$var>` interpolation comes with them.
+
+**Done when** both work as Raku's do, with cases in the Raku tests; the
+design questions are answered in the reference; and the reference's
+gap is gone.
 
 ### 11. Stemming in word lists
 
